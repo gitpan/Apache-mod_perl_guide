@@ -323,9 +323,9 @@ To enable everything set:
 
 =head4 PERL_TRACE
 
-To enable tracing set: C<PERL_TRACE=1>
+To enable L<debug tracing|debug/Debug_Tracing> set: C<PERL_TRACE=1>
 
-META: add a Reference to tracing (doesn't exist yet)
+
 
 
 =head4 APACHE_HEADER_INSTALL
@@ -402,7 +402,17 @@ This should be used together with the L<APACI_ARGS|install/APACI_ARGS>
 option.
 
 
+=head3 Environment Variables
 
+There are a few enviroment variables that influence the build/test
+process.
+
+=head4 APACHE_USER and APACHE_GROUP
+
+You can use the environment variables C<APACHE_USER> and
+C<APACHE_GROUP> to override the default C<User> and C<Group> settings
+in the I<httpd.conf> used for S<'make test'> stage. (Introduced in
+mod_perl v1.23.)
 
 
 =head3 Reusing Configuration Parameters
@@ -594,6 +604,21 @@ Note that you might need to prepare this symbolic link as well:
 with:
 
   % ln -s libgdbm.so.2.0.0 libgdbm.so.2
+
+
+=head4 About gdbm, db and ndbm libraries
+
+Both the gdbm and db libraries offer ndbm emulation, which is the
+interface that Apache actually uses, so when you build mod_perl you
+end up with whichever library was linked first by the perl compile.
+If you build apache without mod_perl you end up with whatever appears
+to be be your ndbm library which will vary between systems, and
+especially Linux distributions.  Some use gdbm - RedHat uses db but
+seems to have switched to the file-incompatible 2.x version in their
+6.0 release.  You may have to work a bit to get both Apache and Perl
+to use the same library and you are likely to have trouble copying the
+dbm file from one system to another or even using it after an upgrade.
+
 
 
 =head4 Undefined reference to `PL_perl_destruct_level'
@@ -890,9 +915,8 @@ Add to I<apache_x.x.x/src/Configuration> :
   AddModule modules/perl/libperl.a
 
 We suggest you add this entry at the end of the I<Configuration> file
-if you want your callback hooks to have precedence over core handlers.
-
-META: Add references to callback hooks/core handlers info.
+if you want your L<callback hooks|install/Callback_Hooks> to have
+precedence over core handlers.
 
 Add the following to C<EXTRA_LIBS>:
 
@@ -1142,8 +1166,8 @@ the existing Apache hierarchy.
 
 =head1 Installation Scenarios for mod_perl and Other Components
 
-(META: please send more scenarios of mod_perl + other components
-installation guidelines.  Thanks!)
+([ReaderMETA]: Please send more scenarios of mod_perl + other
+components installation guidelines.  Thanks!)
 
 You have now seen very detailed installation instructions for specific
 cases, but since mod_perl is used with many other components that plug
@@ -1517,6 +1541,133 @@ to:
 
 
 
+
+=head2 mod_perl and Raven SSL
+
+Note: Please consult http://www.covalent.net/support if you have
+additional questions regarding Raven SSL.
+
+=head3 Dynamic (DSO) mod_perl and Raven SSL Installation
+
+To install Raven SSL and mod_perl dynamically:
+
+=over
+
+=item 1
+
+Un-tar and un-gunzip Raven SSL and mod_perl into their respective
+directories.
+
+=item 1
+
+  % cd raven_ssl-x.x.x
+
+Install Raven SSL and Apache via:
+
+  % ./setup --with-apache
+
+=item 1
+
+  % cd mod_perl_x.xx
+
+=item 1
+
+  % perl Makefile.PL USE_APXS=1 \
+     WITH_APXS=/usr/local/apache/bin/apxs \
+     EVERYTHING=1
+     [...]
+
+=item 1
+
+  % make ; make install
+
+=item 1
+
+Move the C<LoadModule mod_perl.c> and C<Addmodule mod_perl.c> lines in
+I<httpd.conf> above the C<E<lt>IfDefine SSLE<gt>> section.
+
+
+=back
+
+
+
+
+=head3  Static mod_perl and dynamic Raven SSL Installation
+
+To installs Raven SSL dynamically and mod_perl statically:
+
+=over
+
+=item 1
+
+Un-tar and un-gunzip Apache, Raven SSL and mod_perl into their
+respective directories
+
+=item 1
+
+  % cd raven_ssl-x.x.x
+
+Install Raven SSL via
+
+  % ./setup
+
+=item 1
+
+  % /usr/local/raven/bin/ravenctl
+     select Option 1, 'Raven SSL Module Manager'
+     select Option 2, 'Export Raven SSL module to Apache source'
+
+Note: Option 2 exports the required EAPI patches and the needed Raven
+SSL module files into your Apache source tree
+
+=item 1
+
+  % cd mod_perl-x.xx
+
+=item 1
+
+  % perl Makefile.PL APACHE_PREFIX=/path/to/apache_1.x.x \
+        APACHE_SRC=/path/to/apache_x.x.x \
+        EVERYTHING=1 \
+        USE_APACI=1 \
+        PREP_HTTPD=1 \
+        DO_HTTPD=1
+
+=item 1
+
+  % make ; make install
+
+=item 1
+
+  % cd ../apache-x.x.x
+
+=item 1
+
+  % ./configure --target=httpsd \
+      --enable-module=most \
+      --enable-shared=max \
+      --enable-suexec \
+      --suexec-logfile=logs/suexec.log \
+      --activate-module=src/modules/perl/libperl.a
+
+=item 1
+
+  % make ; make install
+
+=item 1
+
+In the I<httpd.conf> file make sure that the S<AddModule mod_perl.c>
+line is above C<E<lt>IfDefine SSLE<gt>> section.
+
+
+=back
+
+
+
+
+
+
+
 =head1 mod_perl Installation with the CPAN.pm Interactive Shell
 
 Installation of mod_perl and all the required packages is much easier
@@ -1698,8 +1849,8 @@ be a good idea to keep a package of the previous system, in case
 something goes wrong.  You can then easily remove the installed
 package and put the old one back.
 
-(META: Do you care to share a step by step scenario of preparation of
-SRPMs for mod_perl? Thanks!!!)
+([ReaderMETA]: Dear reader, Can you please share a step by step scenario of
+preparation of SRPMs for mod_perl? Thanks!!!)
 
 
 
@@ -1714,8 +1865,8 @@ SRPMs for mod_perl? Thanks!!!)
 
 =head1 using RPM, DEB and other packages to install mod_perl
 
-META: Currently only RPM.  Please submit info about DEB and other
-available packages.
+[ReaderMETA]: Currently only RPM and Debian packages.  Please submit
+info about other available packages if you use such.
 
 =head2 Static debian package
 
@@ -2526,7 +2677,7 @@ in I<httpd.conf> to appropriate values.
 
 
 
-=head2 Local mod_perl Enabled Apache Installation
+=head2 Manual Local mod_perl Enabled Apache Installation
 
 Now when we have learned how to install local Apache and Perl modules
 separately, let's see how to install mod_perl enabled Apache in our
@@ -2780,10 +2931,10 @@ following message:
 
 =head2 Testing by viewing /perl-status
 
-Assuming that you have configured the C<<Location /perl-status>>
-section in the server configuration file fetch:
-http://www.nowhere.com/perl-status using your favorite Mozilla
-browser :-)
+Assuming that you have configured the S<E<lt>Location
+/perl-statusE<gt>> section in the server configuration file fetch:
+http://www.example.com/perl-status using your favorite Mozilla browser
+:-)
 
 You should see something like this:
 
@@ -2875,24 +3026,11 @@ and not mod_perl.
 Also note that there is a C<MOD_PERL> environment variable if you run
 under a mod_perl handler, it's set to the release number you use.
 
-Based on these differences you can write code like this:
+Based on this difference you can write code like this:
 
   BEGIN {
-      # Auto-detect if we are running under mod_perl or CGI.
-    $USE_MOD_PERL = exists $ENV{'GATEWAY_INTERFACE'}
-                    and $ENV{'GATEWAY_INTERFACE'} =~ /CGI-Perl/
-                    ? 1 : 0;
       # perl5.004 or better is a must under mod_perl
-    require 5.004 if $USE_MOD_PERL;
-  }
-
-Another approach is to test for C<$ENV{MOD_PERL}>:
-
-  BEGIN {
-      # Auto-detect if we are running under mod_perl or CGI.
-    $USE_MOD_PERL = exists $ENV{'MOD_PERL'}
-                    ? 1 : 0;
-    require 5.004 if $USE_MOD_PERL;
+    require 5.004 if $ENV{MOD_PERL};
   }
 
 You might wonder why in the world you would need to know what handler

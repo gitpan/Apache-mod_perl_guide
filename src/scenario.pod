@@ -1083,6 +1083,9 @@ section):
 
 =head1 One Light and One Heavy Server where All HTML is Perl-generated
 
+META: a lot of info duplication in tricks section! remove/modify/merge
+it.
+
 Instead of keeping all your Perl scripts in I</perl> and your static
 content everywhere else, you could keep your static content in special
 directories and keep your Perl scripts everywhere else.  You can still
@@ -1404,6 +1407,42 @@ conjunction with the proxy pass-through feature:
 from mod_rewrite because its doesn't depend on a corresponding
 C<ProxyPass> directive.
 
+=head3 Security Issues
+
+Whenever you use mod_proxy you want to make sure that your server will
+not become a proxy for some free riders. To block this you should have
+this setting:
+
+  RewriteRule ^proxy:.*  -  [F]
+
+which makes sure that request of type proxy:http://www.example.com
+wouldn't keep your processes busy and return the status I<Forbidden>.
+
+Start by testing your own server, by telnetting to the port the server
+is listening on and issuing an external proxy request:
+
+  % telnet www.example.com 80
+Trying 128.9.176.32...
+Connected to www.example.com
+Escape character is '^]'.
+HEAD http://www.example.org/ HTTP/1.1
+Host: www.example.org
+
+HTTP/1.0 403 Forbidden
+Date: Mon, 10 Apr 2000 08:42:31 GMT
+Server: Apache/1.3.13-dev (Unix)
+Connection: close
+Content-Type: text/html; charset=iso-8859-1
+
+Connection closed by foreign host.
+
+As you see that we are dissalowed to make a proxy request to a
+different server, just as we wanted it to be. It means that this
+particular hole has been secured on our box.
+
+
+
+
 =head2 Buffering Feature
 
 In addition to the correcting the URI on its way back from the back-end
@@ -1649,13 +1688,110 @@ during the Apache B<./configure> stage.
 
 
 
+=head1 Front-end Back-end Proxying with Virtual Hosts
 
+This section explains a configuration setup for proxying your back-end
+mod_perl servers when you need to use Virtual Hosts.
 
+The approach is to use unique port number for each virtual host at the
+back-end server, so you can redirect from the front-end server to
+localhost::1234, and name-based virtual servers on the front end, though any
+technique on the front-end will do.
 
+If you run the front-end and the back-end servers on the same machine
+you can prevent any direct outside connections to the back-end server
+if you bind tightly to address C<127.0.0.1> (I<localhost>) as you will
+see in the following configuration example.
 
+The front-end (light) server configuration:
 
+  <VirtualHost 10.10.10.10>
+    ServerName www.example.com
+    ServerAlias example.com
+    RewriteEngine On
+    RewriteOptions 'inherit'
+    RewriteRule \.(gif|jpg|png|txt)$ - [last]
+    RewriteRule ^/(.*)$ http://localhost:4077/$1 [proxy]
+  </VirtualHost>
 
+  <VirtualHost 10.10.10.10>
+    ServerName foo.example.com
+    RewriteEngine On
+    RewriteOptions 'inherit'
+    RewriteRule \.(gif|jpg|png|txt)$ - [last]
+    RewriteRule ^/(.*)$ http://localhost:4078/$1 [proxy]
+  </VirtualHost>
 
+The above front-end configuration handles two virtual hosts:
+I<www.example.com> and I<foo.example.com>. The two setups are almost
+identical.
+
+The front-end server will handle files with the extensions I<.gif>,
+I<.jpg>, I<.png> and I<.txt> internally, the rest will be proxified to
+be handled by the back-end server.
+
+The only difference between the two virtual hosts settings is that the
+former rewrites requests to the port C<4077> at the back-end machine
+and the latter to the port C<4078>.
+
+If your server is configured to run traditional CGI scripts (mod_cgi)
+as well as mod_perl CGI programs, then it would be beneficial to
+configure the front-end server to run the traditional CGI scripts
+directly.  This can be done by altering the C<gif|jpg|png|txt>
+I<Rewrite> rule to add C<|cgi> at the end, or adding a new rule to
+handle all C</cgi-bin/*> locations locally.  Similarly, static HTML
+pages can be served by the front-end server by adding C<|html> to the
+rule.
+
+The back-end (heavy) server configuration:
+
+  Port 80
+  
+  PerlPostReadRequestHandler My::ProxyRemoteAddr
+  
+  Listen 4077
+  <VirtualHost localhost:4077>
+    ServerName www.example.com
+    DocumentRoot /home/httpd/docs/www.example.com	
+    DirectoryIndex index.shtml index.html
+  </VirtualHost>
+  
+  Listen 4078
+  <VirtualHost localhost:4078>
+    ServerName foo.example.com
+    DocumentRoot /home/httpd/docs/foo.example.com
+    DirectoryIndex index.shtml index.html
+  </VirtualHost>
+
+The back-end server knows to tell which virtual host the request is
+made to, by checking the port number the request was proxified to and
+using the appropriate virtual host section to handle it.
+
+We set S<"Port 80"> so that any redirects don't get sent directly to
+the back-end port.
+
+To get the I<real> remote IP addresses from proxy, the
+L<My::ProxyRemoteAddr|scenario/Getting_the_Remote_Server_IP_in_>
+handler is used based on the C<mod_proxy_add_forward> Apache module.
+Prior to mod_perl 1.22+ this setting must have been set per-virtual
+host, since it wasn't inherited by the virtual hosts.
+
+The following configuration is yet another useful example showing the
+other way around. It specifies what to be proxified and than the rest
+is served by the front end:
+
+  RewriteEngine     on
+  RewriteLogLevel   0
+  RewriteRule       ^/(perl.*)$  http://127.0.0.1:8052/$1   [P,L]
+  RewriteRule       ^proxy:.*       -                         [F]
+  ProxyRequests     on
+  NoCache           *
+  ProxyPassReverse  /  http://www.example.com/
+
+So we don't have to specify the rule for the static object to be
+served by the front-end as we did in the previous example to handle
+files with the extensions I<.gif>, I<.jpg>, I<.png> and I<.txt>
+internally.
 
 
 =head1 Getting the Remote Server IP in the Back-end server in the Proxy Setup
@@ -1742,6 +1878,10 @@ You could do the same thing with other environment variables, although
 I think several of them are preserved.  You should run some tests or,
 maybe better, inspect the code to see which.
 
+Prior to mod_perl 1.22+ there was a need to repeat
+S<PerlPostReadRequestHandler My::ProxyRemoteAddr> directive per each
+virtual host, since it wasn't inherited by the virtual hosts.
+
 =head2 mod_proxy_add_forward Module's Order Precedence Importance
 
 Some users report that they cannot get this module to work as
@@ -1762,8 +1902,8 @@ mod_proxy_add_forward last in the list (or first via I</server-info>).
 The solution is to explicitly define the configuration order in the
 I<http.conf> file, so that mod_proxy_add_forward appears before
 mod_proxy, and therefore gets executed after mod_proxy. (Modules are
-being executed in 'reverse' order, i.e. module that was I<Added> first
-will be executed last.)
+being executed in I<reverse> order, i.e. module that was I<Added>
+first will be executed last.)
 
 Obviously, this list would need to be tailored to match the build
 environment, but to easy this task just insert C<AddModule> directive
@@ -1799,9 +1939,10 @@ through all authentication information, making the "front-end" Apache
 somewhat "dumb", as it does nothing but pass through the information.
 
 In the configuration file your C<Auth> stuff needs to be inside
-C<<Directory ...>> ... C<</Directory>> sections because if you use a
-C<<Location ...>> ... C<</Location>> section the proxy server will
-take the authentication information for itself and not pass it on.
+C<E<lt>Directory ...E<gt>> ... C<E<lt>/DirectoryE<gt>> sections
+because if you use a C<E<lt>Location ...E<gt>>
+... C<E<lt>/LocationE<gt>> section the proxy server will take the
+authentication information for itself and not pass it on.
 
 The same applies to mod_ssl, if plugged into a front-end server.  It
 will properly encode/decode all the SSL requests.
@@ -1869,7 +2010,7 @@ A quick way to make dynamic pages look static:
 This is not really a mod_perl related, so I'll just stress one
 point. If you want the caching to work the following HTTP headers
 should be supplied: C<Last-Modified>, C<Content-Length> and
-C<Last-Modified>.
+C<Expires>.
 
 =cut
 

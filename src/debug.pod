@@ -467,36 +467,37 @@ server|snippets/Watching_the_error_log_File_With> .
 
 
 
-=head1 Hanging processes: Detection and Diagnostics
+=head1 Hanging Processes: Detection and Diagnostics
 
 Sometimes a httpd process might hang in the middle of processing a
 request, either because there is a bug in your code (e.g. the code is
-stuck in a while loop, blocked by some system call or because of a
-resource deadlock) or for some other reason.  There are two things we
-want to know: when and why this happens.
-
-
-# META: handle this
-
-#=head1 Spinning httpds
-
-#To see where an httpd is "spinning", try adding this to your script or
-#a startup file:
-
-#  use Carp ();
-#  $SIG{'USR1'} = sub { 
-#     Carp::confess("caught SIGUSR1!");
-#  };
-
-#Then issue the command line:
-
-#  kill -USR1 <spinning_httpd_pid>
+stuck in a while loop), it gets blocked by some system call or because
+of a resource deadlock) or for some other reason. In order to fix the
+problem we need to learn what circumstances the process hangs in
+(detection), so we can reproduce the problem and after than to
+discover why there is problem (diagnostics).
 
 
 
 
+=head2 Hanging because of the OS Problem
 
+Sometimes you can find a process hanging because of some kind of the
+system problem. For example if the processes was doing some disk IO
+operation it might get stuck in uninterruptible sleep (C<'D'> disk
+wait in ps(1) report, C<'U'> in top(1)) which indicates that either
+something is broken in your kernel or that you're using NFS. Or and
+you cannot S<kill -9> this process.
 
+Another process that cannot be killed with S<kill -9> is a zombie
+process (C<'Z'> disk wait in ps(1) report, C<E<lt>defuncE<gt>> in
+top(1)), in which case the process is already dead and Apache didn't
+wait on it properly.
+
+In the case of I<disk wait> you can actually get the I<wait> channel
+from ps(1) and look it up in your kernel symbol table to find out what
+resource it was waiting on.  It might point the way to what component
+of the system was misbehaving if the problem occurred frequently.
 
 
 
@@ -677,20 +678,20 @@ You can watch the report for a few minutes, and try to spot any
 process which has the same number of processed requests while its
 status is 'W' (waiting).  This means that it has hung.
 
-
 But if you have fifty processes, it can be quite hard to spot such a
-process.  So let's write a watchdog to do the work for us:
-
-META:  Apache::SafeHang code
+process.  L<Apache::Watchdog::RunAway is a hanging processes monitor
+and terminator|modules/Apache_Watchdog_RunAway_Hang> that implements
+this feature and should be used to solve this kind of problem.
 
 If you've got a real problem, and the processes hang one after the
 other, the time will come when the number of hanging processes is
 equal to the value of C<MaxClients>.  This means that no more
 processes will be spawned.  As far as the users are concerned your
 server is down.  It is easy to detect this situation, attempt to
-resolve it and notify the administrator using a simple crontab watchdog
-that requests some very light script periodically.  (See L<Monitoring
-the Server. A watchdog.|control/Monitoring_the_Server_A_watchdo>)
+resolve it and notify the administrator using a simple crontab
+watchdog that requests some very light script periodically.  (See
+L<Monitoring the Server. A
+watchdog.|control/Monitoring_the_Server_A_watchdo>)
 
 In the watchdog you set a timeout appropriate for your service, which
 may be anything from a few seconds to a few minutes.  If the server
@@ -712,10 +713,108 @@ across a cluster of machines.
 
 =head2 Determination of the reason
 
-Given the process id (PID), there are two ways to find out where the
-server is hanging.  Depending on the operating system you should have
-one of the C<truss> or C<strace> utilities available.  The usage is
-simple:
+Given the process id (PID), there are three ways to find out where the
+server is hanging.
+
+=over
+
+=item 1
+
+Deploying the Perl calls tracing mechanism. This will allow to spot
+the location of the Perl code that has triggered the problem.
+
+=item 2
+
+Using the system calls tracing utilities, like strace(1) or
+truss(1). This approach reveals low level details about a potential
+misbehavior of some part of the system.
+
+=item 3
+
+Using an interactive debugger, like gdb(1). When the process is stuck,
+and you don't know what it was doing just before it has got stuck,
+with gdb you can attach to this process and print its calls stack, to
+reveal where the last call was made from. Just like with strace or
+truss you see the system call trace and not the Perl calls.
+
+=back
+
+
+=head3 Using the Perl Trace
+
+To see where an httpd is "spinning", try adding this to your script or
+a startup file:
+
+  use Carp ();
+  $SIG{'USR2'} = sub { 
+     Carp::confess("caught SIGUSR2!");
+  };
+
+The above code asigns a signal handler for the C<USR2> signal. This
+signal has been chosen because it's least likely to be used by the
+other parts of the server.
+
+We check the registered signal handlers with help of
+L<Apache::Status|debug/Apache_Status_Embedded_Inter>.  What we see at
+http://localhost/perl-status?sig is :
+
+  USR2 = \&MyStartUp::__ANON__
+
+C<MyStartUp> is the name of the package I've used in mine
+I<startup.pl>.
+
+After applying this server configuration, let's use this simple code
+example, where sleep(10000) will emulate a hanging process:
+
+  debug/perl_trace.pl
+  -------------------
+  $|=1;
+  print "Content-type:text/plain\r\n\r\n";
+  print "[$$] Going to sleep\n";
+  hanging_sub();
+  sub hanging_sub {sleep 10000;}
+
+We execute the above script as
+I<http://localhost/perl/debug/perl_trace.pl>, we have used C<$|=1;>
+and printed the PID with C<$$> to learn what process ID we want to
+work with.
+
+No we issue the command line, using the PID we have just saw being
+printed to the browser's window:
+
+  % kill -USR2 PID
+
+And watch this showing up at the I<error_log> file:
+
+  caught SIGUSR2!
+      at /home/httpd/perl/startup/startup.pl line 32
+  MyStartUp::__ANON__('USR2') called 
+      at /home/httpd/perl/debug/perl_trace.pl line 5
+  Apache::ROOT::perl::debug::perl_trace_2epl::hanging_sub() called 
+      at /home/httpd/perl/debug/perl_trace.pl line 4
+  Apache::ROOT::perl::debug::perl_trace_2epl::handler('Apache=SCALAR(0x8309d08)') 
+    called 
+      at /usr/lib/perl5/site_perl/5.005/i386-linux/Apache/Registry.pm 
+        line 140
+  eval {...} called 
+      at /usr/lib/perl5/site_perl/5.005/i386-linux/Apache/Registry.pm
+        line 140
+  Apache::Registry::handler('Apache=SCALAR(0x8309d08)') called 
+      at PerlHandler subroutine `Apache::Registry::handler' line 0
+  eval {...} called 
+      at PerlHandler subroutine `Apache::Registry::handler' line 0
+
+We can clearly see that the process "hangs" in the code executed at
+line 5 of the I</home/httpd/perl/debug/perl_trace.pl> script, and it
+was called by the hanging_sub() routine defined at line 4.
+
+
+
+
+=head3 Using the System Calls Trace
+
+Depending on the operating system you should have one of the C<truss>
+or C<strace> utilities available.  The usage is simple:
 
   % truss -p PID
 
@@ -857,7 +956,7 @@ lock. (Note, that the missing closing parentnheses is not a typo!)
 As you become familiar with watching the traces of different
 processes, you will understand what is happening more easily.
 
-=head3 Using gdb
+=head3 Using the Interactive Debugger
 
 Another approach to see a trace of the running code is to use a
 debugger such as C<gdb> (the GNU debugger).  It's supposed to work on
@@ -957,33 +1056,6 @@ section:
       at ../sysdeps/generic/libc-start.c:78
 
 As before we can see a complete trace of the last executed call.
-
-
-
-#=head1 Examples of strace (or truss) usage
-
-#(META: below are some snippets of strace outputs from list emails)
-
-#[there was talk about Streaming LWP through mod_perl and the topic
-#was suggested optimal buffer size]
-
-#Optimal buffer size depends on your system configuration, watch
-#apache with C<strace -p> (or C<truss>) when its sending a static file, here
-#perlfunc.pod on my laptop (linux 2.2.7):
-
-#  writev(4, [{"HTTP/1.1 200 OK\r\nDate: Wed, 02"..., 289}, {"=head1
-#  NAME\n\nperlfunc - Perl b"..., 32768}], 2) = 33057
-#  alarm(300)                              = 300
-#  write(4, "m.  In older versions of Perl, i"..., 32768) = 32768
-#  alarm(300)                              = 300
-#  write(4, "hout waiting for the user to hit"..., 32768) = 32768
-#  alarm(300)                              = 300
-#  write(4, ">&STDOUT") || die "Can't dup "..., 32768) = 32768
-#  alarm(300)                              = 300
-#  write(4, "LEHANDLE is supplied.  This has "..., 32768) = 32768
-#  alarm(300)                              = 300
-#  write(4, "ite,\nseek, tell, or eo"..., 25657) = 25657
-
 
 As you have noticed, I still haven't explained why the process hanging
 in the C<while(1)> loop isn't aborted by Apache.  The next section
@@ -1463,8 +1535,12 @@ close() the file. But this will happen only if it's the same
 filehandle, which is correct if you use the scalar variable like
 C<IN>, C<OUT>. As you will see in a moment if you use C<Symbol> or
 <IO::*> modules, a unique filehandle will be generated every time --
-you get a file desriptor leakage and the file will be not unclocked in
+you get a file desriptor leakage and the file will be not unlocked in
 case it was locked.
+
+On Linux OS you can use the lsof(1) utility to list open files and the
+processes who have opened them. On FreeBSD you would use the fstat(1)
+utility.
 
 Now I want to show you a much easier safe locking solution.
 
@@ -1902,9 +1978,10 @@ case, use C<$SIG{ALRM}> to prevent the timeouts:
 
 It was recently discovered that C<local $SIG{'ALRM'}> does not restore
 the original underlying C handler.  This was fixed in mod_perl 1.19_01
-(CVS version).  As a matter of fact none of the C<local $SIG{FOO}>
-signals restores the original C handler - read L<Debugging Signal
-Handlers ($SIG{FOO})|debug/Debugging_Signal_Handlers_SIG_> for a debug
+(L<CVS version|download/mod_perl>).  As a matter of fact none of the
+C<local $SIG{FOO}> signals restores the original C handler - read
+L<Debugging Signal Handlers
+($SIG{FOO})|debug/Debugging_Signal_Handlers_SIG_> for a debug
 technique and a possible workaround.
 
 
@@ -3925,24 +4002,54 @@ PERL_TRACE option:
 The trace levels can then be enabled via the C<MOD_PERL_TRACE>
 environment variable which can contain any combination of:
 
-  d - Trace directive handling during configuration read
-  s - Trace processing of perl sections
-  h - Trace Perl*Handler callbacks
-  g - Trace global variable handling, interpreter construction, END blocks, etc.
-  all - all of the above
+=over 4
 
-add to httpd.conf:
+=item c
 
-  PerlSetVar MOD_PERL_TRACE all
+Trace directive handling during I<Apache> (non-mod_perl)
+B<c>onfiguration directive handling.  (Startup.)
 
-For example if you want to see a trace of the PerlRequire and
-PerlModule directives as they are executed, use:
+=item d
 
-  PerlSetVar MOD_PERL_TRACE d
+Trace directive handling during I<mod_perl> B<d>irective processing
+during configuration read.  (Startup.)
+
+=item s
+
+Trace processing of I<E<lt>PerlE<gt>> B<s>ections.  (Startup.)
+
+=item h
+
+Trace Perl B<h>andler callbacks.  (RunTime.)
+
+=item g
+
+Trace B<g>lobal variable handling, interpreter construction, C<END>
+blocks, etc.  (RunTime.)
+
+=item all
+
+B<all> of the options listed above.  (Startup + RunTime.)
+
+=back
+
+One way of setting this variable is by adding this directive to
+I<httpd.conf>:
+
+  PerlSetEnv MOD_PERL_TRACE all
+
+For example if you want to see a trace of the C<PerlRequire> and
+C<PerlModule> directives as they are executed, use:
+
+  PerlSetEnv MOD_PERL_TRACE d
+
+Of course you can use the command line environment setting:
+
+  % setenv MOD_PERL_TRACE all
+  % httpd -X
 
 
-
-
+META: add output examples
 
 
 
@@ -3997,7 +4104,7 @@ If you work with signal handlers you should take a look at the
 C<Sys::Signal> module, which solves the problem:
 
 C<Sys::Signal> - Set signal handlers with restoration of the existing
-C sighandler.  Get it from CPAN.
+C sighandler.  Get it from L<CPAN|download/Perl>.
 
 The usage is simple.  If the original code was:
 
@@ -4266,15 +4373,15 @@ remembered, or store it on the server side (database, shared memory,
 etc).
 
 If you use the Netscape client while your server is running in
-single-process mode, if the output returns HTML with C<<IMG>> tags,
-then the loading of the images will take a long time, since Netscape's
-C<KeepAlive> feature gets in the way.  Netscape tries to open multiple
-connections and keep them open.  Because there is only one server
-process listening, each connection has to time-out before the next
-succeeds.  Turn off C<KeepAlive> in I<httpd.conf> to avoid this
-effect.  Alternatively (assuming you use the image size parameters, so
-that Netscape will be able to render the rest of the page) you can
-press B<STOP> after a few seconds.
+single-process mode, if the output returns HTML with C<E<lt>IMGE<gt>>
+tags, then the loading of the images will take a long time, since
+Netscape's C<KeepAlive> feature gets in the way.  Netscape tries to
+open multiple connections and keep them open.  Because there is only
+one server process listening, each connection has to time-out before
+the next succeeds.  Turn off C<KeepAlive> in I<httpd.conf> to avoid
+this effect.  Alternatively (assuming you use the image size
+parameters, so that Netscape will be able to render the rest of the
+page) you can press B<STOP> after a few seconds.
 
 In addition you should be aware that when running with C<-X> you will not
 see the status messages that the parent server normally writes to the

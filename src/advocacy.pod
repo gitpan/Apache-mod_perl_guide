@@ -12,17 +12,17 @@ point you'll discover the limitations of these "easy" tools.
 Gradually, your boss will ask for increasing functionality and at some
 point you'll realize that the tool lacks flexibility and/or
 scalability.  Then your boss will either buy another
-EASY_AND_FAST_TO_DEVELOP_TOOL and repeat the process (with different
-unforseen problems), or you'll start investing time learning how to
-use a powerful, flexible tool to make the long-term development cycle
-easier.
+EASY_AND_FAST_TO_DEVELOP_WITH_TOOLS and repeat the process (with
+different unforseen problems), or you'll start investing time in
+learning how to use a powerful, flexible tool to make the long-term
+development cycle easier.
 
 If you and your company are serious about delivering flexible Internet
 functionality, do your homework.  Then urge your boss to invest a
-little extra time and resource into choosing the right tool for the job.
-The extra quality and manageability of your site along with your ability to
-deliver new and improved functionality of high quality and in good time will
-prove the superiority of using solid flexible tools.
+little extra time and resources in choosing the right tool for the
+job.  The extra quality and manageability of your site along with your
+ability to deliver new and improved functionality of high quality and
+in good time will prove the superiority of using solid flexible tools.
 
 =head1 The boss, the developer and advocacy
 
@@ -36,17 +36,18 @@ of company-specific and developer-specific results count for a lot!
 Personally, when I discovered mod_perl I did a lot of testing and
 coding at home and at work. Once I had a working heavy application, I
 came to my boss with two URLs - one for the plain CGI server and the
-other for the mod_perl-enabled server. It took about 30 secs for my boss
-to say: `Go with it'. Of course since the moment I did it, I have had to
-provide all the support for other developers, which is why I took
-time to learn it in first place (and why this guide was created!).
+other for the mod_perl-enabled server. It took about 30 secs for my
+boss to say: `Go with it'.  Of course since then I have had to provide
+all the support for other developers, which is why I took time to
+learn it in first place (and why this guide was created!).
 
 Chances are that if you've done your homework, learnt the tools and
 can deliver results, you'll have a successful project.  If you
 convince your boss to try a tool that you don't know very well, your
 results may suffer.  If your boss follows your development process
-closely and sees much worse than expected progress, you might be told
-to "forget it" and never give mod_perl a second chance.
+closely and sees that your progress is much worse than expected, you
+might be told to "forget it" and mod_perl might not get a second
+chance.
 
 Advocacy is a great thing for the open-source software movement, but
 it's best done quietly until you have confidence that you can show
@@ -63,8 +64,8 @@ reputation it deserves.
 
 =head1 A summary of perl/cgi discussion at slashdot.org
 
-Well, there was a nice discussion of merits of Perl in CGI world. I
-took the time to summarize this thread, so here is what I've got:
+Well, there was a nice discussion of merits of Perl in CGI world. 
+I took the time to summarize this thread, so here is what I've got:
 
 Perl Domination in CGI Programming?
 http://slashdot.org/askslashdot/99/10/20/1246241.shtml
@@ -73,15 +74,15 @@ http://slashdot.org/askslashdot/99/10/20/1246241.shtml
 
 =item *
 
-Perl is cool and fun to code with
+Perl is cool and fun to code with.
 
 =item *
 
-Perl is very fast to develop with
+Perl is very fast to develop with.
 
 =item *
 
-Perl is even faster to develop with if you know what CPAN is :)
+Perl is even faster to develop with if you know what CPAN is. :)
 
 =item *
 
@@ -91,17 +92,17 @@ programmers.
 
 =item *
 
-Most CGI apps do text processing, which perl excels at
+Most CGI applications do text processing, at which Perl excels
 
 =item *
 
-Forking and loading (unless code is shared) of C/C++ optimized CGI
-programs produces an overhead
+Forking and loading (unless the code is shared) of C/C++ CGI programs
+produces an overhead.
 
 =item *
 
-Bandwidth is a bigger bottleneck than perl performance (vs C/C++) (except
-for Intranets, although this might change in a number of years)
+Except for Intranets, bandwidth is usually a bigger bottleneck than 
+Perl performance, although this might change in the future.
 
 =item *
 
@@ -110,24 +111,22 @@ Lots of posts talk about latency vs throughput.
 
 =item *
 
-mod_perl, FastCGI, Velocigen and PerlEx are good replacements for plain
-mod_cgi slowness
+mod_perl, FastCGI, Velocigen and PerlEx are all give good performance
+gains over plain mod_cgi.
 
 =item *
 
-other light alternatives to perl and its derivatives mentioned: PHP,
-Pyhton
+Other light alternatives to Perl and its derivatives which have
+been mentioned: PHP, Python.
 
 =item *
 
-well, there were almost no voices from the M$ and alike technologies
-users, I guess that's because they don't read /. :)
+There were almost no voices from users of M$ and similar technologies,
+I guess that's because they don't read http://slashdot.org :)
 
 =item *
 
-many said that in many people's minds: 'CGI' eq 'perl' > 0 (the
-entropy of perl grows bigger :)
-
+Many said that in many people's minds: 'CGI' eq 'Perl'
 
 =back
 

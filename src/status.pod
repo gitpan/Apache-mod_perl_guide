@@ -2,8 +2,8 @@ title: mod_perl Status. Peeking into the Server's Perl Innards
 
 =head1 Watching the server
 
-This is a very useful feature. You can watch what happens to the Perl parts of
-the server.  Here are the instructions for configuring and
+This is a very useful feature.  You can watch what happens to the Perl
+parts of the server.  Here are the instructions for configuring and
 using this feature:
 
 =head2 Configuration
@@ -18,15 +18,16 @@ Add this to http.conf:
     #allow from 
   </Location>
 
-If you are going to use C<Apache::Status> it's important to put it as the first module in the start-up
-file, or in the httpd.conf:
+If you are going to use C<Apache::Status> it's important to put it as
+the first module in the startup file (or in I<httpd.conf>, or wherever
+you prefer to put it):
 
   # startup.pl
-  use Apache::Registry ();
   use Apache::Status ();
+  use Apache::Registry ();
   use Apache::DBI ();
 
-If you don't put C<Apache::Status> before C<Apache::DBI>, you wouldn't
+If you don't put C<Apache::Status> before C<Apache::DBI>, you won't
 get C<Apache::DBI>'s menu entry in status.
 
 For more about C<Apache::DBI> see L<Persistent DB Connections|performance/Persistent_DB_Connections>.
@@ -36,10 +37,12 @@ For more about C<Apache::DBI> see L<Persistent DB Connections|performance/Persis
 Assuming that your mod_perl server listens on port 81, fetch
 http://www.myserver.com:81/perl-status
 
+You should see a couple of lines of information about your software
+versions followed by a number of hypertext links, something like the
+following:
+
   Embedded Perl version 5.00502 for Apache/1.3.2 (Unix) mod_perl/1.16 
   process 187138, running since Thu Nov 19 09:50:33 1998
-
-Below all sections should be links:
 
   Signal Handlers
   Enabled mod_perl Hooks
@@ -53,21 +56,31 @@ Below all sections should be links:
   Compiled Registry Scripts
   Symbol Table Dump
 
-Let's follow, for example, C<PerlRequire>'d Files.  We see:
+Some of the links give you further menus, from which you can continue
+to peek deeper into the server internals.  You can see the values of
+all the global variables in your packages, cached scripts and modules,
+and much more.  Just click around...
+
+Let's follow, for example, the link to C<PerlRequire>'d files.  We see
+something like this:
 
   PerlRequire                   Location
   /home/perl/apache-startup.pl  /home/perl/apache-startup.pl
 
-From some menus you can continue deeper to peek into the internals of
-the server, to see the values of the global variables in the packages,
-to the cached scripts and modules, and much more. Just click around...
+=head2 The Compiled Registry Scripts Section Seems To Be Empty
 
-=head2 Compiled Registry Scripts section seems to be empty.
+Sometimes when you fetch I</perl-status> and follow the link to
+I<Compiled Registry Scripts> you see no listing of scripts at all.
+This is usually the correct behaviour: C<Apache::Status> shows the
+registry scripts compiled in the httpd child which is serving your
+request for I</perl-status>.  If you happen to ask for the status
+information from a child which has not yet compiled the script that
+you are looking for, then I</perl-status> will just show you the main
+menu.  See also the section L<Sometimes it Works, Sometimes it
+Doesn't|porting/Sometimes_it_Works_Sometimes_it>"
 
-Sometimes when you fetch C</perl-status> and follow the B<Compiled
-Registry Scripts> you see no listing of scripts at all. This is
-absolutely correct: C<Apache::Status> shows the registry scripts
-compiled in the httpd child which is serving your request for
-/perl-status. If a child has not compiled yet the script you are
-asking for, /perl-status will just show you the main menu.
+
+=cut
+
+
 

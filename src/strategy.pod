@@ -37,6 +37,10 @@ In this chapter we will discuss
 =back
 
 
+
+
+
+
 =head1 mod_perl Deployment Overview
 
 There are several different ways to build, configure and deploy your
@@ -123,6 +127,13 @@ configured and tuned, improves the performance of any of the above
 three options by caching and buffering page results.
 
 =back
+
+
+
+
+
+
+
 
 =head1 Alternative architectures for running one and two servers
 
@@ -278,8 +289,8 @@ heavy C<httpd_perl> servers.
 
 An B<important> note: When a user browses static pages and the base
 URL in the B<Location> window points to the static server, for example
-C<http://www.nowhere.com/index.html> -- all relative URLs (e.g. C<<A
-HREF="/main/download.html">>) are being served by the light plain
+C<http://www.nowhere.com/index.html> -- all relative URLs (e.g. C<E<lt>A
+HREF="/main/download.html"E<gt>>) are being served by the light plain
 apache server. But this is not the case with dynamically generated
 pages. For example when the base URL in the B<Location> window points
 to the dynamic server --
@@ -287,8 +298,8 @@ to the dynamic server --
 in the dynamically generated HTML will be served by the heavy mod_perl
 processes. You must use fully qualified URLs and not relative ones!
 C<http://www.nowhere.com/icons/arrow.gif> is a full URL, while
-C</icons/arrow.gif> is a relative one. Using C<<BASE
-HREF="http://www.nowhere.com/">> in the generated HTML is another way
+C</icons/arrow.gif> is a relative one. Using C<E<lt>BASE
+HREF="http://www.nowhere.com/"E<gt>> in the generated HTML is another way
 to handle this problem. Also the C<httpd_perl> server could rewrite
 the requests back to C<httpd_docs> (much slower) and you still need
 the attention of the heavy servers.  This is not an issue if you hide
@@ -700,7 +711,7 @@ have to worry about authenticating twice.
 =item *
 
 Apache is able to accelerate secure HTTP requests completely, while also
-doing accelerated HTTP.  With squid you have to use an external redirection
+doing accelerated HTTP.  With Squid you have to use an external redirection
 program for that.
 
 =item *
@@ -960,7 +971,139 @@ have to serve and the hit rate.
 
 
 
-=head1 Do not put mod_ssl into mod_perl server
+
+
+=head1 Do Not Run Everything on One mod_perl Server
+
+Let's assume that you have two different sets of scripts/code which
+have a little or nothing in common at all (different modules, no code
+sharing). Typical numbers can be four megabytes of unshared and four
+megabytes of shared memory for each code set, plus three megabytes of
+shared basic mod_perl stuff.  Which makes each process 17Mb in size
+when the two code sets are loaded. (3Mb (server) + 4Mb (shared 1st
+code set ) + 4Mb (unshared 1st code set ) + 4Mb (shared 2nd code set )
++ 4Mb (unshared 2nd code set ). Where eleven megabytes are shared and
+eight megabytes not.
+
+We assume that four megabytes is the size of each code set unshared
+memory. This is pretty typical size of unshared memory, especially
+when connecting to databases, as the database connections cannot be
+shared, and especially DB's like Oracle take lots of RAM per
+connection.
+
+Let's assume that we have 260 megabytes of RAM dedicated for the
+webserver.
+
+According to the equation developed in the section: "L<Choosing
+MaxClients|performance/Choosing_MaxClients>":
+
+                    Total_RAM - Max_Process_Size
+  MaxClients = ---------------------------------------
+               Max_Process_Size - Shared_RAM_per_Child
+
+
+  MaxClients = (260 - 17)/(17-11) = 40
+
+We see that we can run 40 processes, using the given memory and the
+two code sets in the same server.
+
+Now consider this practical decision. Since we have recognized that
+the code sets are very distinct in nature and there is no significant
+memory sharing in place, the wise thing to do is to split the two code
+sets between two mod_perl servers (a single mod_perl server actually
+is a set of the parent process and a number of the child
+processes). So instead of running everything on one server, now we
+move the second code set onto another mod_perl server. At this point
+we are talking about a single machine.
+
+Let's look at the figures again. After the split we will have 20
+servers of eleven megabytes (4Mb unshared + 7mb shared) and another 20
+servers of eleven megabytes.
+
+How much memory do we need now? From the above equation we derive:
+
+  Total_RAM = MaxClients * (Max_Process_Size - Shared_RAM_per_Child)
+              + Max_Process_Size
+
+And using the numbers:
+
+  Total_RAM = 2 * (20 * (11-7) + 11) = 182
+
+A total of 182 megabytes of memory required. But, hey, we have 260Mb
+of memory. We've got 78Mb of memory freed up. If we recalculate again
+the C<MaxClients> we will see that we can run almost 60 servers:
+
+  MaxClients = (260 - 11*2)/(11-8) = 60
+
+So we can run about 20 more servers using the same memory size. 30
+servers for each code set. We have enlarged the servers pool by a half
+without changing machine's hardware.
+
+Moreover this new setup allows us to fine tune the two code sets,
+since in reality the smaller in size code base might have a higher
+hit rate, so we can benefit even more. 
+
+Let's assume that based on the usage statistics we know that the first
+code set is deployed in 70% of requests and the other 30% are used by
+the second set. Now we assume that the first code set requires only
+5Mbytes of RAM (3Mb shared plus 2Mb unshared) over the basic mod_perl
+server size, and the second set needs 11Mbytes (7Mb shared and 4Mb
+unshared).
+
+Lets compare this new requirement with our original 50%/50% setup.
+
+So now the first mod_perl server running the first code set will have
+all its processes of 8Mb (3Mb (server shared) + 3Mb (code shared) +
+2Mb (code unshared), and the second 14Mb (3+7+4).  Given that we have
+a 70:30 hits relation and that we have 260Mbytes of available memory,
+we have to solve these two equations:
+
+  X/Y = 7/3
+
+  X*(8-6) + 8 + Y*(14-10) + 14 = 260
+
+where X is the total number of the processes the first code set can
+use and Y the second. The first equation reflect the 70:30 hits
+relation, and the second uses the equation for the total memory
+requirements for the given number of servers and the shared and
+unshared memory sizes.
+
+When we solve these equations, we get that X equals 63 and Y equals
+27. So we have a total of 90 servers -- we have twice and a half more
+servers running compared to the original setup using the same memory
+size
+
+The hits rate optimized solution and the fact that the code sets can
+be different in their memory requirements, allowed us to run 30 more
+servers in total and gave us 33 more servers (63 versus 30) for the
+most wanted code base, relative to the simple 50:50 split as in the
+first example.
+
+Of course if you can identify more than two distinct sets of code and
+your hits rate statistics may require more complicated decisions.  You
+ought to make even more splits and run three and more mod_perl
+servers.
+
+Remember that having too many running processes doesn't necessarily
+mean a better performance because of all of them will fight over CPU
+time slices. The more processes are running the less CPU time each
+gets the slower the overall performance will be. Therefore after
+hitting a certain load you might want to start spreading servers over
+different machine.
+
+In addition to the obvious memory saving you gain the power to
+troubleshoot problems, that occur, much easier, when you have
+different components running on different servers. It's quite possible
+that a little change in the server configuration coming to fix or
+improve something in one code set, might completely break the second
+code set. For example if you upgrade the first code set and it
+requires an update of some modules that both code bases rely on. But
+there is a chance that the second code set won't work with a new
+module it was relying on.
+
+
+
+=head1 Do Not Put mod_ssl into mod_perl Server
 
 If you need an SSL functionality, you can get it by adding the mod_ssl
 or equivalent apache_ssl to the light front-end server (httpd_docs) or
@@ -985,11 +1128,11 @@ the images) defeating the whole purpose of having the front-end
 lightweight server. 
 
 You cannot serve a secure page which includes non-secured
-information. If you fetch an html over SSL and have an C<<IMG>> tag
-that fetches the image from the non-secure server, the image show
-broken. This is true for any other non-secured object as well. Of
-course if the generated response doesn't include any embedded objects,
-like images -- this is not a problem.
+information. If you fetch an html over SSL and have an
+C<E<lt>IMGE<gt>> tag that fetches the image from the non-secure
+server, the image show broken. This is true for any other non-secured
+object as well. Of course if the generated response doesn't include
+any embedded objects, like images -- this is not a problem.
 
 Choosing the front-end machine to have an SSL functionality also
 simplifies configuration of mod_perl by eliminating VirtualHost
@@ -1011,7 +1154,7 @@ initial connection.
 But then on the other hand, why even bother to run a full scale
 mod_ssl in front? You might as well just choose a small tunnel/port
 forwarding application like Stunnel or one of the many other mentioned
-at http://www.openssl.org/related/apps.html.
+at http://www.openssl.org/related/apps.html .
 
 Of course if you do a heavy SSL processing you should really be
 offloading it to dedicated cryptography hardware.
@@ -1122,88 +1265,6 @@ Configuration file or on the configure command line.
 
 =back
 
-
-
-
-
-=head1 Multithreading or not Multithreading
-
-I want to quote this question that showed up and the mod_perl list and
-the answer in their entireness. By the way, this question has been
-asked before perl5.6 and apache2.0 have been released (both with
-multithread support).
-
-John Henckel has asked:
-
-Thanks for your help.  I am slowly coming to terms with the fact that
-Perl is not multithreaded and so it will never be able to scale the
-way I need it to.  It is only a couple thousand lines of code.  I will
-have to rewrite it as a servlet in Java or else a C program using the
-FastCGI protocol.
-
-Many people thing FCGI can't handle multiple concurrent requests,
-however, that is only a perl limitation.  The C-FCGI interface, with
-multithreading, can process hundreds of CGI request simulataneously in
-ONE process with ONE socket to the Apache server.
-
-Shane has replied:
-
-Arg...!  Okay, lets backup.  Multithreading is not a good idea.  What
-your talking about is a process which takes 4 seconds to complete...,
-what are we talking about, remote system communication?  You have a
-process which takes 4 seconds to finish, it doesn't matter what you
-use as your design... it still takes 4 seconds.  If you have 100
-requests for a 4 second process... its going to take 400 seconds.
-(Actually, due to context switching, probably more like 500)
-
-Multi-threading ADDs, not subtracts from the load.  But you see it all
-depends on what sort of architecture your going to use too.  If you
-going to use a single processor machine, multithreading is going to
-slow the whole process down.  If your using a computer that has 100s
-of processors, then clearly, multithreading is the approach to take.
-
-The perl "limitation" of which is you speak is not a limitation per
-se.  Its a limitation if your only using one instance of the perl
-interpretor.  But you are free to use more than one instance of that
-interpretor.  (perldoc perlembed) However, it makes zero sense to have
-more interpretors than processors... due the context switching issue.
-
-The best way to solve the problem is to have one "processing" thread
-per processor.  (I.e. the thread that does work on the request that is
-supposed to take 4 seconds) That thread can be directly written in c,
-or you can write some code for a perl interpretor to process.  No big
-deal.., just keep in mind, if you start opening up more processing
-threads than processors you have and start cramming requests down
-throat faster than once per four seconds, the things going to tumble
-like dominos.  The best thing you could possibly do is this: Setup an
-engine of your own to handle this 4 second long process.  Initiate as
-many threads as you have processors.  Start a queue of processes that
-can be however long.  Hand out 4 second long processes to the queue.
-
-This design will keep things from crashing.  Even better would be to
-have a series of computers that grab requests from others.  I.e. setup
-a central thread written in c, then have it act as a queue.
-Processing threads grab new requests from that queue, and deliver
-them.  This is of course based on your effort of running a process
-that takes 4 seconds.
-
-If this is about remote communication, which I have no idea why it
-wouldn't be unless your doing some strange number crunching, then what
-you want to do is read up on select(), and poll().  Or if you want to
-have it work really well, read up on rt signal queues, and run on the
-2.3.x linux kernel, or some other unix variant.
-
-I'll reiterate... having more threads than processors in ANY language
-is a bad idea, if it can be avoided.  Which it can if you use the
-newer programming stuff.  Moving to Java will not solve your problems,
-it will create 100x worse ones in terms of performance.  Moving to c
-will not solve your problems.  Moving to Perl will not solve your
-problem.  Investigating your problem clearly will help eventually
-solve your problem.  (BTW: No CGI request should take 4 seconds to
-process, unless you are querying a database on the other side of the
-planet.  Unless its some sort of mathematics lab searching for prime
-numbers or something.  I might sound like I'm joking..., but I most
-certainly am not.)
 
 
 

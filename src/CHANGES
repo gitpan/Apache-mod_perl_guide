@@ -2,9 +2,121 @@
 		### mod_perl Guide CHANGES file ###
 		###################################
 
-04.10.2000 ver 1.22
 
-* updated the long due credits section
+05.09.2000 ver 1.23
+
+* guide's layout changed: Now there are two index files -- the default
+  index.html shows only the names of the chapters in TOC, the new
+  index_long.html shows the full TOC as before.
+
+* guide's layout changed: Changed to simple black_on_white no fancy
+  frames and colors anymore
+
+* guide: Changed the order of the the chapters towards logical
+  sequentiality. 
+
+* snippets: new: "Sending Cookies in REDIRECT Response" (Doug)
+
+* help: new: added the digest list info (Ask Bjoern Hansen)
+
+* performance: new: "Limiting the Number of Processes Serving the Same
+  Resource"
+
+* troubleshooting: updated: "RegistryLoader: Translation of uri [...]
+  to filename failed"
+
+* porting: update: "using format() and write()" -- using sprintf (Matt
+  Sergeant)
+
+* perl: new: "Variables Globally, Lexically Scoped And Fully
+  Qualified" (Ged W. Haywood)
+
+* build suite: documenting the build script so others could reuse this
+  code in their documentation generation chores.
+
+* performance: a complete reorganizing of the content toward a better
+  navigatibility.
+
+* strategy: removed "Multithreading or not Multithreading" -- has
+  flaws and needs a rewrite
+
+* performance: update: "KeepAlive" -- works only if there is a
+  Content-Length header (Andreas Koenig)
+
+* help: new: "get help with CVS"
+
+* troubleshooting: new: "Segfaults when using XML::Parser" (DeWitt
+  Clinton)
+
+* performance: new: "Do Not Run Everything on One mod_perl Server"
+  (Joshua Chamas, Shane shane@isupportlive.com, Gunther Birznieks)
+     
+* minor corrections: scenario (Eric Jain), debug (Geoffrey Young).
+
+* install: new: "mod_perl and Raven SSL" (Doug)
+
+* scenario: new: "mod_proxy: Security Issues" (Eric Cholet)
+
+* performance: new: "Improving Perl Code Performance Hints" =>
+  "Concatination or List" (Doug)
+
+* debug: new: "hanging processes detection: Using the Perl Trace"
+
+* debug: new:  "Hanging because of the OS Problem" (Greg Stark)
+
+* install: new: "About gdbm, db and ndbm libraries" (Les Mikesell)
+
+* performance: new: "Benchmarking Apache::Registry and Perl Content
+  Handler"
+
+* performance: new: "Benchmarking CGI.pm and Apache::Request"
+
+* porting: new: "Transitioning from Apache::Registry to Apache
+  handlers"
+
+* config: new: "Alias and Rewrite Conflicts" (Eric Cholet, Ask Bjoern
+  Hansen, Vivek Vhera)
+
+* scenario: new: "Front-end Back-end Proxying with Virtual Hosts"
+  (Vivek Vhera, Eric Cholet)
+
+* install: new: "APACHE_USER and APACHE_GROUP env" (Doug)
+
+* config: new: "Overriding <Location> Setting in "Sub-Location""
+  (Darren Chamberlain, Vivek Vhera)
+
+* review: Mark Summerfield has reviewed these chapters: porting,
+  correct_headers, intro, multiuser, snippets and performance.
+
+* troubleshooting: new: "Processes Get Stuck on Graceful Restart" (Doug)
+
+* debug: updated: "Safe Resource Locking" added utils to trace the
+  open files owner processes. (Doug, Eric Cholet)
+
+* databases: new: "Database Locking Risks"
+
+* performance: update: "Limiting the Resources Used by httpd
+  Children", explanation of the soft and hard limits (Eric Cholet)
+
+* help: added subscription info for perl5-porters mailing list
+
+* perl: new: "Exception Handling for mod_perl" (Matt Sergeant)
+
+* review: Ged W. Haywood was very kind to review and correct the
+  config, perl, dbm, snippets, advocacy, browserbugs, download, help,
+  modules, troubleshooting, multiuser, obvious, correct_headers,
+  status and hardware chapters.
+
+* modules: new: "Apache::RequestNotes" (Geoffrey Young)
+
+
+
+
+
+
+04.09.2000 ver 1.22
+
+* intro: updated the long due credits section
 
 * snippets: new: "Authentication Snippets" (Michael Finke, Eric
   Cholet)

@@ -6,68 +6,116 @@ title: Code Snippets
 
 =head1 Redirecting Errors to the Client Instead of error_log
 
-To trap (almost) all Perl run-time errors and send the output to the
-client instead of to Apache's C<error_log> add this line to your script:
+Many error conditions result in an I<exception> (or I<signal> -- same
+thing) which is I<raised> in order to tell the operating system that a
+condition has arisen which needs more urgent attention than can be
+given by other means.  One of the most familiar ways of raising a
+signal is to hit C<Ctrl-C> on your terminal's keyboard.  The signal
+interrupts the processor.  In the case of C<Ctrl-C> the C<INT> signal
+is generated and the interrupt is usually I<trapped> by a default
+I<signal handler> supplied by OS, which causes the operating system to
+stop the process currently attached to the terminal.
+
+Under mod_perl, a Perl runtime error causes an exception.  By default
+this exception is trapped by default mod_perl handler.  The handler
+logs information about the error (such as the date and time that the
+error occurred) to I<error_log>.  If you want to redirect this
+information to the client instead of to I<error_log> you have to take
+the responsibility yourself, by writing your own exception handler to
+implement this behaviour.  See the section "L<Exception Handling for
+mod_perl|perl/Exception_Handling_for_mod_perl>" for more information.
+
+The code examples below can be useful with your own exception handlers 
+as well as with the default handlers.
+
+META: Integrate the 2 sections
+
+The CGI::Carp package implements handlers for signals.  To trap
+(almost) all Perl run-time errors and send the output to the client
+instead of to Apache's C<error_log> add this line to your script:
 
   use CGI::Carp qw(fatalsToBrowser);
 
 Refer to the C<CGI::Carp> man page for more detailed information.
 
-You can also write your own custom C<__DIE__> and C<__WARN__> signal
-handlers. Suppose that I don't want users to see an error message, but
-I want it to be emailed to me if it's severe enough. The handler is to
-trap various errors and perform according to some defined logic.
+You can trap individual exceptions: for example you can write custom
+C<__DIE__> and C<__WARN__> signal handlers.  The special C<%SIG> hash
+contains references to signal handlers.  The signal handler is just a
+subroutine, in the example below it is called "mydie".  To install the
+handler we assign a reference to our handler to the appropriate
+element of the C<%SIG> hash.  This causes the signal handler to call
+mydie(error_message) whenever the C<die()> sub is called as a result
+of something which happened when our script was executing.
 
-I wrote this handler for the modperl environment, but it works
-correctly when called from the shell.  A stripped-down version of the
-code is shown here:
+Do not forget the C<local> keyword!  If you do, then after the signal
+handler has been loaded it will be called whenever C<die()> is called
+by I<any> script executed by the same process. Probably that's not
+what you want.  If it is, you can put the assignment statement in any
+module, as long as it will be executed at the right time.
 
-  # assign the DIE sighandler to call mydie(error_message) whenever a
-  # die() sub is being called. Cannot be added anywhere in the code.
-  # should be added in the script itself only because of the
-  # local(). if you remove local you can put it in any module, but
-  # then it'll affect the whole process.
-  local $SIG{'__DIE__'} = \&mydie;
+Here is an example of a handler which I wrote because I wanted users
+to know that there was an error, without displaying the error message,
+but instead email it to me. If the error is caused by user
+(e.g. uploading image whose size is bigger than the limit I had set) I
+want to tell them about it.  I wrote this handler for the mod_perl
+environment, but it works correctly when called from the shell.  The
+code shown below is a stripped-down version with additional comments.
 
-  # If you want to have the sighandler in a separate module, i.e
-  # Error.pm, you should set the handler with:
-  local $SIG{'__DIE__'} = \&Error::mydie;
+The following code must be added to the script:
+
+  # Using the local() keyword restricts the scope of the directive to 
+  # the block in which it is found, so this line must be added at the 
+  # right place in the right script.  It will not affect other blocks 
+  # unless the local() keyword is removed.  Usually you will want the 
+  # directive to affect the entire script, so you just place it near 
+  # the beginning of the file, where the innermost enclosing block is 
+  # the file itself.
+  local $SIG{__DIE__} = \&mydie;
+
+  # The line above assumes that the subroutine "mydie" is in the same script.
+  # Alternatively you can create a separate module for the error handler.
+  # If you put the signal handler in a separate module, e.g. Error.pm,
+  # you must explicitly give the package name to set the handler in your
+  # script, using a line like this instead of the one above:
+  local $SIG{__DIE__} = \&Error::mydie;
   # again within the script!
   
   # Do not forget the C<local()>, unless you want this signal handler to
   # be invoked every time any scripts dies (including events where this
   # treatment may be undesirable).
-   
+
+  my $max_image_size = 100*1024; # 100k
+  my $admin_email    = 'foo@example.com';
+
   # and the handler itself
+  # Here is the handler itself:
+  # The handler is called with a text message in a scalar argument
   sub mydie{
     my $why = shift;
-  
-    my $UNDER_MOD_PERL = ( (exists $ENV{'GATEWAY_INTERFACE'} 
-                           and $ENV{'GATEWAY_INTERFACE'} =~ /CGI-Perl/)
-  			 or exists $ENV{'MOD_PERL'} ) ? 1 : 0;
   
     chomp $why;
     my $orig_why = $why;		# an ASCII copy for email report
   
     # handle the shell execution case (so we will not get all the HTML)
-    print("Error: $why\n"), exit unless $UNDER_MOD_PERL;
+    print("Error: $why\n"), exit unless $ENV{MOD_PERL};
   
     my $should_email = 0;
     my $message = '';
   
     $why =~ s/[<&>]/"&#".ord($&).";"/ge;    # entity escape
   
-    # Now we need to trap various kinds of errors, that come from CGI.pm
-    # And we don't want these errors to be emailed to us, since
-    # these aren't programmatical errors
+    # Now we need to trap various kinds of errors that come from CGI.pm
+    # We don't want these errors to be emailed to us, since
+    # they aren't programmatical errors
     if ($orig_why =~ /Client attempted to POST (\d+) bytes/o) {
   
       $message = qq{
   		  You cannot POST messages bigger than 
-  		  @{[1024*$c{max_image_size}]} bytes.<BR>
+  		  @{[1024*$max_image_size]} bytes.<BR>
   		  You have tried to post $1 bytes<BR>
-  		  If you are trying to upload an image, make sure its size is not 
-  		  bigger than @{[1024*$c{max_image_size}]} bytes.<P>
+  		  If you are trying to upload an image, make sure its
+		  size is no bigger than @{[1024*$max_image_size]}
+		  bytes.<P>
   		  Thank you!
   		 };
   
@@ -92,8 +140,9 @@ code is shown here:
     } else {
   
       $message = qq{
-                    <B>There is no action to be performed on your side, since
-  		  the error report has been already sent to webmaster. <BR><P>
+                  <B>You need take no action since
+  		  the error report has already been 
+	          sent to the webmaster. <BR><P>
   		  <B>Thank you for your patience!</B>
   		 };
   
@@ -122,25 +171,25 @@ code is shown here:
   
       |;
   
-        # send error reports to admin and author
-      send_mail($c{email}{'admin'},$c{email}{'admin'},$subject,$body);
-      send_mail($c{email}{'admin'},$c{email}{'author'},$subject,$body);
+        # send error reports to admin 
+      send_mail($admin_email,$admin_email,$subject,$body);
       print STDERR "[".scalar localtime()."] [SIGDIE] Sending Error Email\n";
     }
   
-       # print to error_log so we will know we've sent
+       # print to error_log so we will know there was an error
     print STDERR "[".scalar localtime()."] [SIGDIE] $orig_why \n";
   
     exit 1;
   }				# end of sub mydie
   
 
-You may have noticed that I trap the CGI.pm's die() calls here, I don't
-see any reason why my users should see ugly error messages, but
-that's the way CGI.pm written. The workaround is to trap them yourself.
+You may have noticed that I trap the CGI.pm's die() calls here, I
+don't see any reason why my users should see ugly error messages, but
+that's the way CGI.pm written. The workaround is to trap them
+yourself.
 
-Please note that as of version 2.49, CGI.pm provides a cgi_error() method
-to print the errors and won't die() unless you want it to.
+Please note that as of version 2.49, CGI.pm provides the cgi_error()
+method to print the errors and won't die() unless you want it to.
 
 
 
@@ -149,35 +198,40 @@ to print the errors and won't die() unless you want it to.
 =head1 Emulating the Authentication Mechanism
 
 You can provide your own mechanism to authenticate users, instead of
-the standard one. If you want to make Apache think user was
-authenticated thru the standard mechanism, set the username with:
+the standard one.  If you want to make Apache think that the user was
+authenticated by the standard mechanism, set the username with:
 
   $r->connection->user('username');
 
-Now you can use this info for example during the logging, so that you
-can have your "username" passed as if it was transmitted to Apache
-through HTTP authentification?
+Now you can use this information for example during the logging, so 
+that you can have your "username" passed as if it was transmitted to 
+Apache through HTTP authentication.
 
 
 
+=head1 Caching POSTed Data
 
-=head1 Caching the POSTed Data
+What happens if you need to access the POSTed data more than once,
+say to reuse it on subsequent requests?  POSTed data comes directly 
+from the socket, and at the low level data can only be read from a 
+socket once.  So you have to store it to make it available for reuse.  
 
-What happens if you need to access the POSTed data more than once?
-May be if you want to reuse it on subsequent requests. At the
-low-level data can only be read from a socket once. So you have to
-store it once and make it available for reuse.  There is an
-experimental option for C<Makefile.PL> called C<PERL_STASH_POST_DATA>.
-If you turn it on, you can get at it again with
-C<$r-E<gt>subprocess_env("POST_DATA")>.  This is not on by default
-because of the overhead it adds.  And, because not all C<POST> data is
-read in one clump, what do we do with large multipart file uploads?
-It's not a problem that's easy to solve in a general way. You might
-try the following approach:
+There is an experimental option for C<Makefile.PL> called 
+C<PERL_STASH_POST_DATA>.  If you turn it on, you can get at it again 
+with C<$r-E<gt>subprocess_env("POST_DATA")>.  This is not on by default
+because it adds overhead.
+
+And what do we do with large multipart file uploads?  Because C<POST> 
+data is not all read in one clump, it's a problem that's not easy to 
+solve in a general way.  You might try the following approach:
+
+In httpd.conf:
 
   <Limit POST>
      PerlFixupHandler    My::fixup_handler
   </Limit>
+
+In your script:
 
   use Apache::Constants;
   sub My::fixup_handler {
@@ -190,7 +244,7 @@ try the following approach:
     OK;
   }
 
-Now when C<CGI.pm>, C<Apache::Request> or whoever parses the client
+Now when C<CGI.pm>, C<Apache::Request> or whatever parses the client
 data, it can do so more than once since C<$r-E<gt>args> doesn't go
 away (unless you make it go away).
 
@@ -208,7 +262,7 @@ To disable caching you should use the headers:
   Pragma: no-cache
   Cache-control: no-cache
 
-For normally generated responds use:
+For normally generated response use:
 
   $r->header_out("Pragma","no-cache");
   $r->header_out("Cache-control","no-cache");
@@ -219,14 +273,16 @@ If for some reason you need to use them in Error control code use:
   $r->err_header_out("Pragma","no-cache");
   $r->err_header_out("Cache-control","no-cache");
 
+META: $r->no_cache(1); ?
+
 
 =head1 Convert a POST Request into a GET Request
 
-First, let me stress it: B<You can only read POST data once>.  If you
-need to read it more than once, you need to save it somewhere.
+Remember that B<you can only read POST data from the socket once>.  If
+you need to use it more than once, you need to save it somewhere.
 
 A transparent way to do this is to switch the request method from POST
-to GET and store the POST data in the query string:
+to GET, and store the POST data in the query string:
 
   package Apache::POST2GET;
   use Apache::Constants qw(M_GET);
@@ -253,9 +309,9 @@ Then add this directive to I<httpd.conf>:
 =head1 Redirect a POST Request, Forwarding the Content
 
 With mod_perl you can easily redirect a POST request to some other
-location. All it takes is reading in the contents, setting the method
-to be of a C<GET> type and args with the content to be forwarded and
-finally doing the redirect:
+location.  All you have to do is read in the contents, set the method
+to C<GET>, populate C<args()> with the content to be forwarded and
+finally do the redirect:
 
   my $r = shift;
   my $content = $r->content;
@@ -265,8 +321,7 @@ finally doing the redirect:
   $r->args($content);
   $r->internal_redirect_handler("/new/url");
 
-Of course that last line can be any kind of redirect, not necessarily
-an internal redirect.
+Of course that last line can be any other kind of redirect.
 
 
 
@@ -294,12 +349,11 @@ been read.
 
 =head1 Redirecting While Maintaining Environment Variables
 
-Let's say you have a module that sets some 
-environment variables.
+Let's say you have a module that sets some environment variables.
 
 If you redirect, that's most likely telling the web browser to fetch
-the new page.  This makes it a totally new request and none of
-environment variables stays preserved.
+the new page.  This makes it a totally new request, so no environment 
+variables are preserved.
 
 However, if you're using internal_redirect(), then subprocess_env()
 should do the trick, but the C<%ENV> keys will be prefixed with
@@ -320,12 +374,12 @@ C<REDIRECT_>.
 =head1 Terminating a Child Process on Request Completion
 
 If you want to terminate the child process serving the current
-request, upon completion of processing, call anywhere in the code:
+request, upon completion of processing anywhere in the code call:
 
   $r->child_terminate;
 
-Apache won't actually terminate the child until everything is done and
-the connection is closed.
+Apache won't actually terminate the child until everything it needs to 
+do is done and the connection is closed.
 
 
 
@@ -334,11 +388,13 @@ the connection is closed.
 
 =head1 More on Relative Paths
 
-Many people use relative paths for C<require>, C<use>, etc., or open
-files in the current directory or relative to the current
-directory. But this will fail if you don't C<chdir()> into the correct
-directory first (e.g when you call the script by its full
-path). This code would work:
+Many people use relative paths for C<require>, C<use>, etc., and when
+they open files in their scripts they make assumptions about the
+current directory.  This will fail if you don't C<chdir()> to the
+correct directory first (as could easily happen if you have another
+script which calls the first script by its full path).
+
+For example:
 
   /home/httpd/perl/test.pl:
   -------------------------
@@ -346,40 +402,25 @@ path). This code would work:
   open IN, "./foo.txt";
   -------------------------
 
-if we call the script by:
+This snippet would work if we call the script like this:
 
   % chdir /home/httpd/perl
   % ./test.pl
 
-since C<foo.txt> is located at the same directory the script is being
-called from. if we call the script by:
+since C<foo.txt> is located in the current directory.  But when the
+current directory isn't I</home/httpd/perl>, if we call the script
+like this:
 
   % /home/httpd/perl/test.pl
 
-when we aren't chdir to the C</home/httpd/perl>, the script will fail
-to find C<foo.txt>. If you don't want to use hardcoded directories in
-your scripts, C<FindBin.pm> package will come to rescue.
+then the script will fail to find C<foo.txt>.  Think about 
+C<crontab>s!
 
-  use FindBin qw($Bin);
-  use lib $Bin;
-  open IN, "./foo.txt";
-
-or
-
-  use FindBin qw($Bin);
-  open IN, "$Bin/foo.txt";
-
-Now C<$Bin> includes the path of the directory the script resides in,
-so you can move the script from one directory to the other and call it
-from anywhere else.  The paths will be always correct.
-
-It's different from using C<"./foo">, for you first have to C<chdir> to the
-directory in which the script is located. (Think about C<crontab>s!!!)
-
-B<Important:> C<FindBin> will not work in mod_perl environment as it's
-loaded and executed only for the first script executed inside the
-process, all the other will use the cached value, which would be
-probably incorrect.
+Notice that you cannot use the C<FindBin.pm> package, something that
+you'd do in the regular Perl scripts, because it relies on the BEGIN
+block it won't work under mod_perl. It's loaded and executed only for
+the first script executed inside the process, all the others will use
+the cached value, which would be probably incorrect.  Aargh.
 
 
 
@@ -394,22 +435,22 @@ probably incorrect.
 =head1 Watching the error_log File Without Telneting to the Server
 
 I wrote this script a long time ago, when I had to debug my CGI
-scripts but didn't have the access to the C<error_log> file. I 
-asked the admin to install this script and have used it happily since then.
+scripts but didn't have access to the C<error_log> file.  I asked 
+the admin to install this script and have used it happily since then.
 
 If your scripts are running on these 'Get-free-site' servers, and you
 cannot debug your script because you can't telnet to the server or
 can't see the C<error_log>, you can ask your sysadmin to install this
 script.
 
-Note, that it was written for a plain Apache, and isn't prepared to
-handle complex multiline error and warning messages generated by
-mod_perl. It also uses a system() call to do the main work with tail()
-utility, probably a more efficient perl implementation is due (take a
-look at C<File::Tail> module). You are welcome to fix it and
-contribute it back to mod_perl community. Thank you!
+Note, that it was written for plain Apache, and isn't prepared to
+handle the complex multiline error and warning messages generated by
+mod_perl.  It also uses a system() call to do the main work with the 
+tail() utility, probably a more efficient perl implementation is due 
+(take a look at C<File::Tail> module).  You are welcome to fix it and
+contribute it back to mod_perl community.  Thank you!
 
-Ok, here is the code:
+Here is the code:
 
   # !/usr/bin/perl -Tw
   
@@ -446,7 +487,8 @@ Ok, here is the code:
   
   print($q->b("$error_log doesn't exist!!!")),exit unless -e $error_log;
   
-  open LOG, "tail -$counts $error_log|" or die "Can't open tail on $error_log :$!\n";
+  open LOG, "tail -$counts $error_log|" 
+    or die "Can't tail $error_log :$!\n";
   my @logs = <LOG>;
   close LOG;
     # format and colorize each line nicely
@@ -493,11 +535,13 @@ Ok, here is the code:
 =head1 Accessing Variables from the Caller's Package
 
 Sometimes you want to access variables from the caller's
-package. One way is to do:
+package. One way is to do something like this:
 
-  my $caller = caller;
-  print qq[$caller --- ${"${caller}::var"}];
-
+  {
+    no strict 'vars' ;
+    my $caller = caller;
+    print qq[$caller --- ${"${caller}::var"}];
+  }
 
 
 
@@ -505,16 +549,15 @@ package. One way is to do:
 
 =head1 Handling Cookies
 
-Unless you use some well known module like CGI.pm you can handle the
-cookies yourself.
+Unless you use some well known module like C<CGI.pm>, handle cookies yourself.
 
-Cookies come in the C<$ENV{HTTP_COOKIE}> variable. You can print the raw
+Cookies come in the C<$ENV{HTTP_COOKIE}> variable.  You can print the raw
 cookie string as C<$ENV{HTTP_COOKIE}>.
 
 Here is a fairly well-known bit of code to take cookie values and put them
 into a hash:
 
-  sub getCookies {
+  sub get_cookies {
       # cookies are seperated by a semicolon and a space, this will
       # split them and return a hash of cookies
     local(@rawCookies) = split (/; /,$ENV{'HTTP_COOKIE'});
@@ -528,6 +571,12 @@ into a hash:
     return %cookies;
   }
 
+Or a slimmer version:
+
+    sub get_cookies {
+        map { split /=/, $_, 2 } split /; /, $ENV{'HTTP_COOKIE'} ;
+    }
+        
 
 
 
@@ -535,10 +584,9 @@ into a hash:
 
 
 
+=head1 Sending Multiple Cookies with the Perl API
 
-=head1 Sending Multiple Cookies with Perl API
-
-Taken that you have prepared your cookies in C<@cookies>, the
+Given that you have prepared your cookies in C<@cookies>, the
 following would do:
 
   for(@cookies){
@@ -547,10 +595,17 @@ following would do:
 
 
 
+=head1 Sending Cookies in REDIRECT Response
 
+You should use err_headers_out() and not headers_out() when you want
+to send cookies in the C<REDIRECT> response.
 
-
-
+  my $r = shift;
+  $r->err_headers_out->add('Set-Cookie' => $cookie);
+  $r->headers_out(Location => $location);
+  $r->status(REDIRECT);
+  $r->send_http_header;
+  return OK;
 
 
 
@@ -558,9 +613,9 @@ following would do:
 =head1 Passing and Preserving Custom Data Structures Between Handlers
 
 Let's say that you wrote a few handlers to process a request, and they
-all need to share some custom Perl data structure. The pnotes() method
-comes to your rescue. Given that one of the handlers stored some data in
-a hash C<%my_data>, before it finishes its activity:
+all need to share some custom Perl data structure.  The pnotes() method
+comes to your rescue.  Given that one of the handlers stored some data 
+in a hash C<%my_data>, then before it terminates:
 
    # First handler:
    my %my_data = qw(foo => 1, bar => 2);
@@ -580,18 +635,18 @@ The stored information will be destroyed at the end of the request.
 
 
 
-=head1 Passing Notes Between mod_perl and other (non-perl) Apache Modules
+=head1 Passing Notes Between mod_perl and other (non-Perl) Apache Modules
 
 the notes() method can be used to make various Apache modules talk to
-each other. In this example (snippet) the php application calls the
-mod_perl app, by marking up a bunch of notes in its own request and
-then issuing a sub-request to a mod_perl page. The mod_perl request
+each other.  In this snippet the php application calls the mod_perl 
+application by marking up a bunch of notes in its own request and
+then issuing a sub-request to a mod_perl page.  The mod_perl request
 handler that gets this internal sub-request reads those notes and
 writes its replies in the same place.
 
-First you read this request with:
+First you read the request with (the following code is in PHP):
 
-   if (isset($user) && substr($user,0,1) == "+") {
+  if (isset($user) && substr($user,0,1) == "+") {
     apache_note("imp_euser", substr($user,1));
     virtual("/internal/getquota");
     $quota      = apache_note("imp_quota");
@@ -602,8 +657,8 @@ First you read this request with:
       $message .= " | Using $percent_pp% of $quota_pp limit";
   }
 
-and then read and write the notes with C<$r-E<gt>main-E<gt>notes> from
-mod_perl.
+and then you read and write the notes with C<$r-E<gt>main-E<gt>notes>
+from mod_perl.
 
 
 
@@ -619,7 +674,7 @@ Having a configuration:
   PerlAccessHandler My::Access
   PerlLogHandler My::Log
 
-and startup.pl:
+and in I<startup.pl>:
 
   sub My::Access::handler {
     my $r = shift;
@@ -642,14 +697,14 @@ access_log works fine too.
 
 =head1 CGI::params in the mod_perl-ish Way
 
-Extracting request params in the mod_perl-ish way:
+Extracting request parameters in the mod_perl-ish way:
 
   my $r = shift;  # or $r = Apache->request
   my %params = $r->method eq 'POST' ? $r->content : $r->args;
 
 
-Also take a look at C<Apache::Request> which has the same parameters
-extraction and setting API.
+Also take a look at C<Apache::Request> which has the same API for 
+extracting and setting parameters.
 
 
 
@@ -657,7 +712,9 @@ extraction and setting API.
 
 
 
-=head1 Subclassing Apache::Request Example
+=head1 Subclassing Apache::Request
+
+To subclass a package you simply modify @ISA, for example:
 
   package My::TestAPR;
     
@@ -674,6 +731,7 @@ extraction and setting API.
   sub param {
         my ($self, $key) = @_;
         my $apr = $self->{_r};
+        # Here we are calling the Apache::Request object's param method
         $apr->param($key) . '42';
   }
   
@@ -701,33 +759,47 @@ extraction and setting API.
 
 =head1 Sending Email from mod_perl
 
-Well, there is nothing special about sending email from mod_perl, it's
-just that we do that a lot. And there are a few important issues about
-it. The most widely used approach is firing a C<sendmail> process and
-piping the headers and the body to it. The problem is that C<sendmail>
-is a very heavy process and it makes mod_perl processes less
-efficient.
+There is nothing special about sending email from mod_perl, it's
+just that we do it a lot.  There are a few important issues.  The 
+most widely used approach is starting a C<sendmail> process and
+piping the headers and the body to it.  The problem is that 
+C<sendmail> is a very heavy process and it makes mod_perl 
+processes less efficient.
 
-One of the improvements is to say to C<sendmail> not to deliver the
-email at the "real time" but to do that in the background or just
-queue the job until the next queue run, if you don't want your process
-to wait until delivery is complete, which sometimes significantly
-diminishes the delay for mod_perl process waiting for the C<sendmail>
-proces to complete. This can be specified for all deliveries in
-I<sendmail.cf> or on each invocation on the sendmail command line:
-C<-odb> (background) C<-odq> (queue-only) or C<-odd> (queue and also
-defer the DNS/NIS lookups).
+If you don't want your process to wait until delivery is complete, you 
+can tell C<sendmail> not to deliver the email straight away, but either 
+do it in the background or just queue the job until the next queue run.  
+This can significantly reduce the delay for the mod_perl process which 
+would otherwise have to wait for the C<sendmail> process to complete.  
+This can be specified for all deliveries in I<sendmail.cf> or on each 
+invocation on the sendmail command line:
 
-Some people prefer using a lighter mail delivery programs like
+=over
+
+=item *
+
+C<-odb> (deliver in the background)
+
+=item *
+
+C<-odq> (queue-only) or
+
+=item *
+
+C<-odd> (queue, and also defer the DNS/NIS lookups).
+
+=back
+
+Some people prefer using lighter mail delivery programs like
 C<qmail>.
 
-The most efficient approach is to talk directly to the SMTP
-server. Luckily C<Net::SMTP> modules makes this task a very easy one.
+The most efficient approach is to talk directly to the SMTP 
+server.  Luckily C<Net::SMTP> modules makes this very easy.
 The only problem is when <Net::SMTP> fails to deliver the mail,
-because the destination peer server is temporarely down. But from the
+because the destination peer server is temporarily down.  But from the
 other side C<Net::SMTP> allows you to send email much much faster,
-since you don't have to invoke a dedicated process for that. Here is
-an example of the subroutine that sends email.
+since you don't have to invoke a dedicated process.  Here is
+an example of a subroutine that sends email.
 
 
   use Net::SMTP ();
@@ -737,10 +809,13 @@ an example of the subroutine that sends email.
   # Sends email by using the SMTP Server
   #
   # The SMTP server as defined in Net::Config 
-  # or you can hardcode it here, look for $smtp_server below 
+  # Alternatively you can hardcode it here, look for $smtp_server below 
   #
   sub send_mail{
     my ($from, $to, $subject, $body) = @_;
+
+    carp "From missing" unless defined $from ; # Prefer to exit early if errors
+    carp "To missing"   unless defined $to ;
   
     my $mail_message = <<__END_OF_MAIL__;
   To: $to
@@ -770,34 +845,6 @@ an example of the subroutine that sends email.
     $smtp->quit or carp ("Failed to quit\n");
   
   } #  end of sub send_mail
-
-
-
-
-
-
-
-
-
-
-=head1 Code Unloading
-
-We urge to preload as much code as possible all the time as it reduces
-the memory footprint. But sometimes we want to unload the code that
-was loaded before. For example, you could load many modules to do some
-configuration or initialization work at the server startup, but none
-of the children will need these modules later. You can unload the
-code.
-
-For example if you use C<XML::Parser in a C<<Perl>> section only, you
-could remove it with:
-
-  delete $INC{'XML/Parser.pm'};
-  Apache::PerlRun->flush_namespace('XML::Parser');
-
-
-
-
 
 
 
@@ -844,11 +891,11 @@ The invocation:
 
 =head1 mod_rewrite Based On Query String and URI Implemented in Perl
 
-The task: need to perform a redirect based on the query string and the
-logical path (URI).
+The task: we need to perform a redirect based on the query string 
+and the logical path (URI).
 
-The solution:write a PerlTransHandler that does what mod_rewrite
-does. You can get the query string from C<$r-E<gt>args> and send
+The solution: we write a PerlTransHandler that does what mod_rewrite
+does.  You can get the query string from C<$r-E<gt>args> and send
 redirect headers.
 
   package Apache::Redirect::Based::On::Query::String::Plus::URI;
@@ -878,7 +925,7 @@ Set it up in I<httpd.conf> as:
 
 =head1 PerlTransHandler example
 
-Suppose that before a content handler get invoked you want make this
+Suppose that before a content handler is invoked you want make this
 translation:
 
   /articles/10/index.html  =>  /articles/index.html?id=10
@@ -899,14 +946,14 @@ This I<TransHandler> will do that for you:
   }
   1;
 
-and the settings:
+and in I<httpd.conf>:
 
   PerlModule My::Trans 
   PerlTransHandler My::Trans
 
 Notice the technique to set the I<args>.  By the time the
 apache-request object has been created, args are handled in a separate
-slot, so you cannot just push them into an original URI.
+slot, so you cannot just push them into the original URI.
 
 
 
@@ -916,11 +963,12 @@ slot, so you cannot just push them into an original URI.
 
 Q: Is there a way to set a PerlHandler for a specific MIME type?
 Something like I<"PerlTypeHandler text/html HTML::Template">?  (One
-can use a C<<Files>> section. Not quite as slick, and that mucks up
+can use a C<E<lt>FilesE<gt>> section.  Not quite as slick, and that mucks up
 C<$r-E<gt>location>.)
 
-A: There's no builtin config like that, though you could to magic with
-directive handlers. Otherwise, something like this should work:
+A: There's no built-in configuration directive like that, though you
+could do magic with directive handlers. Otherwise, something like this
+should work:
 
   package My::MimeTypeDispatch;
 
@@ -937,7 +985,7 @@ directive handlers. Otherwise, something like this should work:
   }
   __END__
 
-And in the I<httpd.conf>:
+And in I<httpd.conf>:
 
   PerlFixupHandler My::MimeTypeDispatch
 
@@ -950,9 +998,9 @@ And in the I<httpd.conf>:
 
 =head1 SSI and Embperl -- Doing Both
 
-This handler allows to use both SSI and Embperl in the same request:
+This handler lets you use both SSI and Embperl in the same request:
 
-Use it in a C<<FilesMatch>> Section or similar:
+Use it in a C<E<lt>FilesMatchE<gt>> Section or similar:
 
   PerlModule Apache::EmbperlFilter Apache::SSI
   <FilesMatch "\.epl">
@@ -1015,9 +1063,9 @@ Use it in a C<<FilesMatch>> Section or similar:
 
 =head1 Getting the Front-end Server's Name in the Back-end Server
 
-Assuming that you have more than one front-end server, and you want to
+Assume that you have more than one front-end server, and you want to
 dynamically figure out the front-end server name in the back-end
-server, mod_proxy and mod_rewrite provide the solution.
+server.  mod_proxy and mod_rewrite provide the solution.
 
 Compile apache with both mod_proxy and mod_rewrite, then use a
 directive something like this
@@ -1025,24 +1073,24 @@ directive something like this
   RewriteEngine On
   RewriteLog /somewhere/rewrite.log
   RewriteLogLevel 3
-  RewriteRule ^/foo/bar(.*)$
+  RewriteRule ^/foo/bar(.*)$ \
   http://example.com:8080/foo/bar/$1?IP=%{REMOTE_HOST} [QSA,P]
 
 This will have all the urls starting with I</some/url> proxied off to
 the other server at the same url.  It will append the C<REMOTE_HOST>
-header as a query string arguement. (QSA = Query String Append, P =
-Proxy). There is probably a way to remap it as an X-Header of somesort,
-but if query string is good enough for you, then this should work
-really nicely.
+header as a query string arguement.  (QSA = Query String Append, P =
+Proxy).  There is probably a way to remap it as an X-Header of some 
+sort, but if query string is good enough for you, then this should 
+work really nicely.
 
 
 
 =head1 Authentication Snippets
 
-Getting authenticated username: C<$r-E<gt>connection-E<gt>user()>, or
-C<$ENV{REMOTE_USER}> if you're in CGI emulation.
+Getting the authenticated username: C<$r-E<gt>connection-E<gt>user()>, or
+C<$ENV{REMOTE_USER}> if you're in a CGI emulation.
 
-The code example:
+Example:
 
   my $r = shift;
   
@@ -1055,9 +1103,9 @@ The code example:
 
 =head1 Using DESTROY to Finalize Output
 
-Well, as it's always with Perl -- TMTOWTDI (There Is More Than One Way
-To Do It), one of the readers is using C<DESTROY> to finalize output,
-as a cheap means of buffering.
+Well, as always with Perl -- TMTOWTDI (There's More Than One Way To Do
+It), one of the readers is using C<DESTROY> to finalize output, and as
+a cheap means of buffering.
 
   package buffer;
   use Apache;
@@ -1098,7 +1146,7 @@ and save a bunch of duplicate code across otherwise inconvenient
 gaggles of small scripts.
 
 But suppose you also want to redirect the client under some
-circumstances, and send a 302 HTTP result. You might try to code:
+circumstances, and send the HTTP status code 302.  You might try this:
 
   sub redir {
         my $self = shift;
@@ -1121,12 +1169,12 @@ and re-code C<DESTROY> as:
         }
   }
 
-But you'll find that, while the browser redirects itself, mod_perl
+But you'll find that while the browser redirects itself, mod_perl
 logs the result code as 200.  It turns out that status() only touches
 the Apache response, and the log message is determined by the Apache
 return code.
 
-Aha! So we'll change the exit() in redir() to exit(REDIRECT). This
+Aha!  So we'll change the exit() in redir() to exit(REDIRECT).  This
 fixes the log code, but causes a bogus I<"[error] 302"> line in the
 I<error_log>.  That comes from C<Apache::Registry>:
 
@@ -1144,7 +1192,7 @@ I<error_log>.  That comes from C<Apache::Registry>:
   }
 
 So you see that any time the return code causes C<$@> to return true,
-we'll get an error line. Not wanting this, what can we do?
+we'll get an error line.  Not wanting this, what can we do?
 
 We can hope that a future version of mod_perl will allow us to set the
 HTTP result code independent from the handler return code (perhaps a
@@ -1152,12 +1200,14 @@ log_status() method? or at least an C<Apache::LOG_HANDLER_RESULT>
 config variable?).
 
 In the meantime, there's
-L<Apache::RedirectLogFix|modules/Apache__RedirectLogFix>. Place:
+L<Apache::RedirectLogFix|modules/Apache__RedirectLogFix>.
+
+Put this in your I<httpd.conf> 
 
   PerlLogHandler Apache::RedirectLogFix
 
-in your I<httpd.conf> and take a look at the source code. Note that it
-requires us to return 200.
+and take a look at the source code below.  Note that it
+requires us to return the HTTP status code 200.
 
   package Apache::RedirectLogFix;
   
@@ -1178,11 +1228,11 @@ requires us to return 200.
   
   1;
 
-Now, if we wanted to do the same sort of thing for an error-500
+Now, if we wanted to do the same sort of thing for an error 500
 handler, we could write another C<PerlLogHandler> (call it
-C<ServerErrorLogFix>). But we'll leave that as an exercise to the
+C<ServerErrorLogFix>).  But we'll leave that as an exercise for the
 reader, and hope that it won't be needed in the next mod_perl
-release. After all, it's a little awkward to need a C<LogHandler> to
+release.  After all, it's a little awkward to need a C<LogHandler> to
 clean up after ourselves....
 
 
@@ -1192,24 +1242,24 @@ clean up after ourselves....
 
 =head1 Mysql Backup and Restore Scripts
 
-Well, this is something off-topic but since many of us use mysql or
+This is somewhat off-topic, but since many of us use mysql or some
 other RDBMS in their work with mod_perl driven sites, it's good to
 know how to backup and restore the databases in case of database
 corruption.
 
-First we should tell the mysql to log all the clauses that modify the
+First we should tell mysql to log all the clauses that modify the
 databases (we don't care about SELECT queries for database
-backups). Modify the C<safe_mysql> script by adding the
-I<--log-update> options to the C<mysql> server starting parameters and
-restart the server. From now on all the non-select queries will be
-logged into I</var/lib/mysql/www.bar.com> file. Your hostname will show
-up instead of I<www.bar.com>.
+backups).  Modify the C<safe_mysql> script by adding the
+I<--log-update> options to the C<mysql> server startup parameters and
+restart the server.  From now on all the non-select queries will be
+logged to the I</var/lib/mysql/www.bar.com> logfile.  Your hostname 
+will show up instead of I<www.bar.com>.
 
-Now create a I<dump> directory under I</var/lib/mysql/>. That's where
+Now create a I<dump> directory under I</var/lib/mysql/>.  That's where
 the backups will be stored (you can name the directory as you wish of
 course).
 
-Prepare the backup script and store it in file, e.g:
+Prepare the backup script and store it in a file, e.g:
 I</usr/local/sbin/mysql/mysql.backup.pl>
 
 =code mysql-3.22.29_backup.pl This is the original code 
@@ -1219,31 +1269,30 @@ mysql-3.22.30+
 
 
 You might need to change the executable paths according to your
-system. And list the names of the databases you want to backup, using
+system.  List the names of the databases you want to backup using
 the C<db_names> array.
 
 Now make the script executable and arrange the crontab entry to run
-the backup script nightly. Notice that in time there backups will use
-lots of disk space and you should remove the old ones. A sample
-crontab entry, to run the script at 4am every day:
+the backup script nightly.  Note that the disk space used by the
+backups will grow without bound and you should remove the old backups.
+Here is a sample crontab entry to run the script at 4am every day:
 
   0 4 * * * /usr/local/sbin/mysql/mysql.backup.pl > /dev/null 2>&1
 
-So what we have achieved is this. At any moment we have the dump of
-the databases from the last execution of the backup script and the log
-file of all the clauses that has updated the databases since then. So
-if the database gets corrupted we have all the information to restore
-it, without loosing a single bit of information. We restore it with
-the following script, which I put in:
-I</usr/local/sbin/mysql/mysql.restore.pl>
+So now at any moment we have the dump of the databases from the last
+execution of the backup script and the log file of all the clauses
+that have updated the databases since then.  If the database gets
+corrupted we have all the information to restore it to the state it
+was in at our last backup.  We restore it with the following script,
+which I put in: I</usr/local/sbin/mysql/mysql.restore.pl>
 
 =code mysql-3.22.29_restore.pl This is the original code
 
 =code mysql-3.22.30+_restore.pl This is the code modified to work with
 mysql-3.22.30+
 
-These are kinda dirty scripts, but they work... if you come up with a
-more clean scripts, please contribute... thanks
+These are kinda dirty scripts, but they work... if you come up with 
+cleaner scripts, please contribute them... thanks
 
 
 =cut

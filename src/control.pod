@@ -50,13 +50,13 @@ be omitted and under some operating systems they will need to be preceeded by
 a minus sign, e.g. C<kill -15> or C<kill -TERM> followed by the PID.
 
 
-=head1 Implications of sending TERM, HUP, and USR1 to the server
+=head1 Server Stopping and Restarting 
 
-We will concentrate here on the implications of sending these signals
-to a mod_perl enabled server.  See
-http://www.apache.org/docs/stopping.html for documentation on the
-implications of sending these signals to a plain Apache server.
-
+We will concentrate here on the implications of sending C<TERM>,
+C<HUP>, and C<USR1> signals (as an arguments to kill(1)) to a mod_perl
+enabled server.  See http://www.apache.org/docs/stopping.html for
+documentation on the implications of sending these signals to a plain
+Apache server.
 
 =over 4
 
@@ -181,6 +181,26 @@ create a symlink with that name pointing to the canonical location.
 root!  The startup scripts have root privileges during initialisation,
 and you don't want to open up any security holes.)
 
+You might also adopt the server executables naming convention in the
+control script and have:
+
+  /usr/local/sbin/httpd_perl/httpd_perl_ctl
+  /usr/local/sbin/httpd_docs/httpd_docs_ctl
+
+And to have in the I<rc.d> directory:
+
+  /etc/rc.d/rc3.d/S92httpd_perl_ctl
+  /etc/rc.d/rc3.d/S93httpd_docs_ctl
+
+
+
+
+
+
+
+
+
+
 =head1 Safe Code Updates on a Live Production Server
 
 You have prepared a new version of code, uploaded it into a production
@@ -277,6 +297,8 @@ Usually everything will be fine, and I have had only about 10 seconds
 of downtime, which is pretty good!
 
 
+
+
 =head1 An Intentional Disabling of Live Scripts
 
 What happens if you really must take down the server or disable the
@@ -297,10 +319,16 @@ the promise!) that the service will become fully functional in X
 minutes.  There are a few ways to do this:
 
 The first doesn't require messing with the server.  It works when you
-have to disable a script, but not a module!  Just prepare a little
-script like this:
+have to disable a script running under C<Apache::Registry> and relies
+on the fact that it checks whether the file was modified before using
+the cached version.  Obviously it won't work under other handlers
+because these serve the compiled version of the code and don't check
+to see if there was a change in the code on the disk.
 
-  /home/http/perl/construction.pl
+So if you want to disable an C<Apache::Registry> script, prepare a
+little script like this:
+
+  /home/http/perl/maintenance.pl
   ----------------------------
   #!/usr/bin/perl -Tw
   
@@ -317,14 +345,15 @@ So if you now have to disable a script for example
 C</home/http/perl/chat.pl>, just do this:
 
   % mv /home/http/perl/chat.pl /home/http/perl/chat.pl.orig
-  % ln -s /home/http/perl/construction.pl /home/http/perl/chat.pl
+  % ln -s /home/http/perl/maintenance.pl /home/http/perl/chat.pl
 
 Of course you server configuration should allow symbolic links for
 this trick to work.  Make sure you have the directive
 
   Options FollowSymLinks
 
-in the C<<Location>> or C<<Directory>> section of your C<httpd.conf>.
+in the C<E<lt>LocationE<gt>> or C<E<lt>DirectoryE<gt>> section of your
+I<httpd.conf>.
 
 When you're done, it's easy to restore the previous setup.  Just do
 this:
@@ -341,21 +370,23 @@ Apache will automatically detect the change and will use the moved
 script instead.
 
 The second approach is to change the server configuration and
-configure a whole directory to be handled by a C<Construction> handler
-(which you must write).  For example if you write something like this:
+configure a whole directory to be handled by a C<My::Maintenance>
+handler (which you must write).  For example if you write something
+like this:
 
-  Construction.pm
-  ---------------
+  My/Maintenance.pm
+  ------------------
+  package My::Maintenance;
   use strict;
-  use CGI;
   use Apache::Constants qw(:common);
   sub handler {
-    my $q = new CGI;
-    print $q->header, $q->p(
-  "Sorry, the service is temporarily down for maintenance. 
-   It will be back in ten to fifteen minutes.
-   Please, bear with us.
-   Thank you!");
+    my $r = shift;
+    print $r->send_http_header("text/plain");
+    print qq{
+      We apologize, but this service is temporarily stopped for
+      maintenance.  It will be back in ten to fifteen minutes.  
+      Please, bear with us.  Thank you!
+    };
     return OK;
   }
 
@@ -364,7 +395,7 @@ the scripts in Location C</perl> you would replace:
 
   <Location /perl>
     SetHandler perl-script
-    PerlHandler Apache::Registry
+    PerlHandler My::Handler
     [snip]
   </Location>
 
@@ -372,16 +403,24 @@ with
 
   <Location /perl>
     SetHandler perl-script
-    PerlHandler Construction
+    PerlHandler My::Maintenance
     [snip]
   </Location>
 
 Now restart the server.  Your users will be happy to go and read
-slashdot.org for ten minutes, knowing that you are working on a much
-better version of the service.
+http://slashdot.org for ten minutes, knowing that you are working on a
+much better version of the service.
 
 If you need to disable a location handled by some module, the second
 approach would work just as well.
+
+
+
+
+
+
+
+
 
 =head1 SUID Start-up Scripts
 
@@ -1083,6 +1122,13 @@ won't. :) But these shouldn't be used in hostile situations.
 
 =head1 Preventing mod_perl Processes From Going Wild
 
+Sometimes people report that they had a problem with their code
+running under mod_perl that has caused all the RAM or all the disk to
+be used. The following tips should help you prevent these problems,
+before if at all they hit you.
+
+=head2 All RAM Consumed 
+
 Sometimes calling an undefined subroutine in a module can cause a
 tight loop that consumes all the available memory.  Here is a way to
 catch such errors.  Define an autoload subroutine:
@@ -1094,6 +1140,8 @@ catch such errors.  Define an autoload subroutine:
 
 This will produce a nice error in error_log, giving the line number of
 the call and the name of the undefined subroutine.
+
+=head2 All Disk Space Consumed 
 
 Sometimes an error happens and causes the server to write millions of
 lines into your I<error_log> file and in a few minutes this will bring your

@@ -4,16 +4,16 @@ title: Introduction. Incentives. Credits.
 
 The Apache/Perl integration project brings together the full power of
 the Perl programming language and the Apache HTTP server. With
-mod_perl it is possible to write Apache modules entirely in Perl, 
+mod_perl it is possible to write Apache modules entirely in Perl,
 letting you easily do things that are more difficult or impossible in
-regular CGI programs, such as running sub requests. In
-addition, the persistent Perl interpreter embedded in the server saves the
-overhead of starting an external interpreter, i.e. the penalty of Perl
-start-up time.  And not the least important feature is code caching, where
-modules and scripts are loaded and compiled only once, then for
-the rest of the server's life they are served from the
-cache, thus the server spends its time only on running already loaded and
-compiled code, which is very fast.
+regular CGI programs, such as running sub requests. In addition, the
+persistent Perl interpreter embedded in the server saves the overhead
+of starting an external interpreter, i.e. the penalty of Perl start-up
+time.  And not the least important feature is code caching, where
+modules and scripts are loaded and compiled only once, and for the
+rest of the server's life they are served from the cache. Thus the
+server spends its time only running already loaded and compiled code,
+which is very fast.
 
 The primary advantages of mod_perl are power and speed. You have full
 access to the inner workings of the web server and can intervene at
@@ -22,29 +22,29 @@ of (to name just a few of the phases) URI->filename translation,
 authentication, response generation, and logging. There is very little
 run-time overhead. In particular, it is not necessary to start a
 separate process, as is often done with web-server extensions. The
-most wide-spread such extension, the Common Gateway
-Interface (CGI), can be replaced entirely with Perl code that handles
-the response generation phase of request processing.  mod_perl includes
-2 general purpose modules for this purpose: C<Apache::Registry>, which
-can transparently run existing perl CGI scripts and
-C<Apache::PerlRun>, which does a similar job but allows you to run
-"dirtier" (to some extent) scripts.
+most wide-spread such extension, the Common Gateway Interface (CGI),
+can be replaced entirely with Perl code that handles the response
+generation phase of request processing.  mod_perl includes two general
+purpose modules for this purpose: C<Apache::Registry>, which can
+transparently run existing perl CGI scripts and C<Apache::PerlRun>,
+which does a similar job but allows you to run "dirtier" (to some
+extent) scripts.
 
 You can configure your httpd server and handlers in Perl (using
 C<PerlSetVar>, and E<lt>PerlE<gt> sections). You can even define your
 own configuration directives.
 
-Many people wonder and ask "How much of a performance improvement does
-mod_perl give?" Well, it all depends on what you are doing with
-mod_perl and possibly who you ask. Developers report speed boosts from
-200% to 2000%. The best way to measure is to try it and see for
-yourself! (See http://perl.apache.org/tidbits.html and
+Many people ask "How much of a performance improvement does mod_perl
+give?" Well, it all depends on what you are doing with mod_perl and
+possibly who you ask. Developers report speed boosts from 200% to
+2000%. The best way to measure is to try it and see for yourself! (See
+http://perl.apache.org/tidbits.html and
 http://perl.apache.org/stories/ for the facts.)
 
 
 =head2 mod_cgi
 
-When you run your CGI scripts by using a configuration of:
+When you run your CGI scripts by using a configuration like this:
 
   ScriptAlias /cgi-bin/ /home/httpd/cgi-bin/
 
@@ -52,10 +52,10 @@ you run it under a mod_cgi handler, you never define it
 explicitly. Apache does all the configuration work behind the scenes,
 when you use a ScriptAlias.
 
-By the way, don't confuse it with a C<ExecCGI> configuration option, it's
-being enabled so the script will be executed and not returned as a
-plain file. For example for mod_perl and C<Apache::Registry> you would
-use a configuration like:
+By the way, don't confuse C<ScriptAlias> with the C<ExecCGI>
+configuration option, which we enable so that the script will be
+executed rather than returned as a plain text file. For example for
+mod_perl and C<Apache::Registry> you would use a configuration like:
 
   <Location /perl>
     SetHandler perl-script
@@ -74,40 +74,41 @@ META: complete
 
 =head2 Apache::Registry
 
-From the viewpoint of the Perl API, C<Apache::Registry> is just yet another
-handler that's not conceptually different from any other handler. It
-reads in the file, compiles, executes it and stores into the cache.
-Since the perl interpreter keeps running from child process' creation
-to its death, any code compiled by the interpreter is not removed from
-memory until the child dies.
+From the viewpoint of the Perl API, C<Apache::Registry> is simply
+another handler that's not conceptually different from any other
+handler. C<Apache::Registry> reads in the script file, compiles,
+executes it and stores into the cache.  Since the perl interpreter
+keeps running from child process' creation to its death, any code
+compiled by the interpreter is kept in memory until the child dies.
 
-To keep the script names from collisions, it prepends
-C<Apache::ROOT::> and the mangled path of the URI to the key of the
-cached script. This key is actually a package name, the script resides
-in. So if you have requested a script C</perl/project/test.pl>, the
-scripts would be wrapped in code which starts with package declaration
-of:
+To prevent script name collisions, C<Apache::Registry> creates a
+unique key for each cached script by prepending C<Apache::ROOT::> to
+the mangled path of the script's URI.  This key is actually the
+package name that the script resides in. So if you have requested a
+script C</perl/project/test.pl>, the scripts would be wrapped in code
+which starts with a package declaration of:
 
   package Apache::ROOT::perl::project::test_e2pl;
 
 C<Apache::Registry> also stores the script's last modification time.
-Everytime the script changes, the cached code would be discarded and
-recompiled using the modified source. However, it doesn't check any of
-the perl libraries the script might use.
+Everytime the script changes, the cached code is discarded and
+recompiled using the modified source. However, it doesn't check the
+modification times of any of the perl libraries the script might use.
 
-C<Apache::Registry> overrides the C<CORE::exit()> with
-<Apache::exit()>, so the CGI scripts that used the <exit()> will run
-correctly. We will talk about all these details in depth later.
+C<Apache::Registry> overrides C<CORE::exit()> with C<Apache::exit()>,
+so CGI scripts that use C<exit()> will run correctly. We will talk
+about all these details in depth later.
 
-The last thing C<Apache::Registry> does, is emulation of the mod_cgi's
-environment variables. Like C<$ENV{SERVER_NAME}>, C<$ENV{REMOTE_USER}>
-and so on. B<PerlSetupEnv Off> disables this feature and saves some
-memory bits and CPU clocks.
+The last thing C<Apache::Registry> does, is emulation of mod_cgi's
+environment variables, like C<$ENV{SERVER_NAME}>, C<$ENV{REMOTE_USER}>
+and so on. B<PerlSetupEnv Off> disables this feature which saves some
+memory and CPU cycles.
 
-From the viewpoint of the programmer, there is almost no difference 
-between running a script as a plain CGI under mod_cgi and running it 
-under mod_perl.  There is however a great speed improvement, but at
-the expense of much heavier memory usage (there is no free lunch :).
+From the viewpoint of the programmer, there is almost no difference
+between running a script as a plain CGI script under mod_cgi and
+running it under mod_perl.  There is however a great speed
+improvement, but at the expense of much heavier memory usage (there is
+no free lunch :).
 
 When they run under  mod_cgi, your CGI scripts are loaded each time 
 they are called and then they exit.  Under mod_perl they are loaded 
@@ -123,9 +124,9 @@ action yourself to ensure that they are recompiled.
 
 Of course the guide will answer all these issues in depth.
 
-Let's see what happens with your script when it's being
-executed under C<Apache::Registry>. If we take the simplest code of
-(URI C</perl/project/test.pl>)
+Let's see what happens to your script when it's being executed under
+C<Apache::Registry>. If we take the simplest code of (URI
+C</perl/project/test.pl>)
 
   print "Content-type: text/html\n\n";
   print "It works\n";
@@ -139,6 +140,16 @@ C<Apache::Registry> will convert it into the following:
     print "It works\n";
   }
 
+The first line provides a unique namespace for the code to use, and a
+unique key by which the code can be referenced from the cache.
+
+The second line imports C<Apache::exit> which over-rides perl's
+built-in C<exit>.
+
+The C<sub handler> subroutine is wrapped around your code. By default
+(i.e. if you do not specify an alternative), when you use mod_perl and
+your code's URI is called, mod_perl will seek to execute the URI's
+associated C<handler> subroutine.
 
 META: Complete
 
@@ -150,16 +161,17 @@ META: Complete
 
 This document was written in an effort to help you start using
 Apache's mod_perl extension as quickly and easily as possible. It
-includes information about installation and configuration of Perl and
-the Apache web server and delves deeply into issues of writing and
-porting existing Perl scripts to run under mod_perl. Note that it does
-not attempt to enter the big world of using the Perl API or C API.
-You will find pointers covering these topics in the L<Getting Help
-and Further Learning|help/> section of this document. This guide tries
-to cover the most of the C<Apache::Registry> and C<Apache::PerlRun>
-modules. Along with mod_perl related topics, there are many more
-issues related to administrating apache servers, debugging scripts,
-using databases, Perl reference, code snippets and more. The L<Guide's
+includes information about the installation and configuration of both
+Perl and the Apache web server and delves deeply into the issues of
+writing and porting existing Perl scripts to run under mod_perl. Note
+that it does not attempt to enter the big world of using the Perl API
+or C API.  You will find pointers to coverage of these topics in the
+L<Getting Help and Further Learning|help/> section of this
+document. This guide tries to cover the most of the
+C<Apache::Registry> and C<Apache::PerlRun> modules. Along with
+mod_perl related topics, there are many more issues related to
+administering Apache servers, debugging scripts, using databases,
+mod_perl related Perl, code snippets and more. The L<Guide's
 Overview|start/> will help you to find your way through the guide.
 
 It is assumed that you know at least the basics of building and
@@ -169,19 +181,24 @@ this guide you will find specific Perl and Apache installation and
 configuration notes, which will help you successfully complete the
 mod_perl installation and get the server running in a short time.
 
-If after reading this guide and other documents listed in L<Getting Help
-and Further Learning|help/> you feel that your question is yet not answered,
-please ask the apache/mod_perl mailing list to help you.  But first
-try to browse the mailing list archive (located at
-http://forum.swarthmore.edu/epigone/modperl ). Often you will find the
-answer to your question by searching the mailing list archive, since there
-is a good chance someone else has already encountered the problem and
-found a solution. If you ignore this advice, do not be
-surprised if your question goes unanswered - it bores people to answer
-the same question more than once (twice?). This does not mean that you
-should avoid asking questions, just do not abuse the available help
-and B<RTFM> before you call for B<HELP>. (You have certainly heard the
-infamous fable of the shepherd boy and the wolves...)
+If after reading this guide and the other documents listed in
+L<Getting Help and Further Learning|help/> you feel that your
+questions remain unanswered, you could try asking the apache/mod_perl
+mailing list to help you.  But first try to browse the mailing list
+archive (located at http://forum.swarthmore.edu/epigone/modperl
+). Often you will find the answer to your question by searching the
+mailing list archive, since most questions have already been asked and
+answered already!  If you ignore this advice, do not be surprised if
+your question goes unanswered - it bores people when they're asked to
+answer the same question repeatedly - especially if the answer can be
+found in the archive or in the documentation.  This does not mean that
+you should avoid asking questions, just do not abuse the available
+help and B<RTFM> before you call for B<HELP>. (You have certainly
+heard the infamous fable of the shepherd boy and the wolves...) And if
+you do ask questions on the mailing list I<please> make your subject
+line descriptive of the problem, not just "Help" - you're far more
+likely to get replies if people can see the issue you are talking
+about straight away.
 
 If you find incorrect details or mistakes in my grammar, or you want 
 to contribute to this document please feel free to send me an email at
@@ -367,13 +384,13 @@ B<My personal experience with mod_perl>.
 
 =back
 
-As I said, I have quoted many information snippets from FAQs and
-emails, and I did not credit people after each quote in the guide.  I
-did not mean to take the credit for myself, it's just that I 
-tried to keep track of names, and became lost, so I preferred not to
-put credit throughout the guide, but rather to centralize it here. If you 
-want your name to show up under your original quote,
-please tell me and I'll add it for you.
+I have quoted many snippets of information from FAQs and emails, but I
+have not credited each quote in the guide individually.  I did not
+mean to take the credit for myself, it's just that I tried to keep
+track of names, and became lost, so instead of scattering credits
+thoughout the Guide I have gathered them all together here.  If you
+want your name to show up under your original quote, please tell me
+and I'll add it for you.
 
 Major contributors:
 
@@ -382,7 +399,7 @@ Major contributors:
 =item *
 
 B<Doug MacEachern>. A large part of this guide is built upon his email
-replies to users' questions.
+replies to users questions.
 
 =item *
 
@@ -394,7 +411,7 @@ B<Vivek Khera>. For his mod_perl performance tuning guide.
 
 =item *
 
-B<Steve Reppucci>, who made a thorough review of the stuff I wrote. 
+B<Steve Reppucci>, who did a thorough review of the stuff I wrote. 
 He fixed lots of spelling and grammar errors, and made the guide readable to
 English speakers :)
 
@@ -408,14 +425,20 @@ out technical errors in it.
 B<Ken Williams>, who reviewed a lot of stuff in the guide.  Many
 snippets from his emails are included in the guide.
 
+=item * 
+
+B<Matt Sergeant>, who contributed the section "Exception Handling for
+mod_perl" for the perl reference chapter and made many other
+contributions.
+
 =item *
 
-B<Wesley Darlington> for contributing a big section for scenario
+B<Wesley Darlington> for contributing a big section for the scenario
 chapter.
 
 =item *
 
-B<Geoffrey S Young> and B<David Harris> for contributing a big
+B<Geoffrey S Young> and B<David Harris> for contributing big
 sections about mod_perl and RPM packages.
 
 =item *
@@ -426,7 +449,7 @@ document.
 =item *
 
 B<Ged W. Haywood> for reviewing and fixing the whole guide, providing
-lots of constructive critics and helping to reorganize the guide to
+lots of constructive criticisms and helping to reorganize the guide to
 make it more user friendly.
 
 =item *
@@ -440,7 +463,8 @@ B<Jeffrey W. Baker> for his "guide to mod_perl database performance".
 
 =item *
 
-B<Richard A. Wells> for reviewing a correcting a large part of the guide.
+B<Richard A. Wells> for reviewing and correcting a large part of the
+guide.
 
 =item *
 

@@ -1,5 +1,12 @@
 #!/usr/bin/perl -w
 
+#
+##
+### explanation and documentation
+### => execute 'perldoc build.pl' to get the built in docs rendered
+##
+#
+
 use strict;
 
 $|=1;
@@ -63,6 +70,11 @@ if ($makefile_mode) {
   $print_anchors  = 0;
   $validate_links = 0;
 } else {
+    # I'm not sure all users have this module installed.
+    # I neither put it into prerequisites list
+
+    # it just saves me time when I change only a few files and don't
+    # want to wait for everything to get rebuilt
   require Storable;
 }
 
@@ -81,14 +93,14 @@ my @ordered_srcs =
   qw(intro
      start
      perl
-     porting
-     performance
      install
      config
+     control
      strategy
      scenario
+     porting
+     performance
      frequent
-     control
      obvious
      troubleshooting
      correct_headers
@@ -106,7 +118,7 @@ my @ordered_srcs =
      download
     );
 
-# Non pod/html files
+# Non pod/html files or dirs to be copied unmodified
 my @other_srcs = qw(CHANGES style.css images code);
 
 # Main Table of Contents for index.html
@@ -185,6 +197,10 @@ for(my $i=0;$i<@ordered_srcs;$i++) {
 			      \%valid_anchors,\%links_to_check
 			     );
 
+    # add the <a name="anchor##"> for each para
+    my $anchor_count = 0;
+    s|\n<P>\n|qq{\n<P><A NAME="anchor}.$anchor_count++.qq{"></A>\n}|seg for @content;
+
       # make it html ext if it was pod
     $file =~ s/\.pod/.html/;
   }
@@ -217,21 +233,48 @@ foreach my $file (@other_srcs) {
 
 # Generate PS files
 if ($generate_ps) {
-  make_indexps_file();
-  print "Generating a PostScript\n";
-  my $command = "html2ps -f html2psrc -o $ps_root/mod_perl_guide.ps ";
-  $command .= join " ", map {"$ps_root/$_.html"} "index", @ordered_srcs;
-  print "Doing $command\n";
-  system $command;
-}
+
+  print "Generating a PostScript file\n";
+
+  if (`which html2ps`) {
+    make_indexps_file();
+    my $command = "html2ps -f html2psrc -o $ps_root/mod_perl_guide.ps ";
+    $command .= join " ", map {"$ps_root/$_.html"} "index", @ordered_srcs;
+    print "Doing $command\n";
+    system $command;
+
+  } else {
+
+      # reset the flag 
+    $generate_ps = 0;
+    $generate_pdf = 0;
+    
+    print qq{It seems that you do not have html2ps package installed!
+	     You have to install it if you want to generate the PS
+	     file, or a PDF (since we need PS to get PDF).  You can
+	     install it from http://www.tdb.uu.se/~jan/html2ps.html
+	   };
+  }
+
+} # end of if ($generate_ps)
 
 # Generate PDF file
 if ($generate_pdf) {
-  print "Generating a PDF\n";
-  my $command = "ps2pdf $ps_root/mod_perl_guide.ps $ps_root/mod_perl_guide.pdf";
-  print "Doing $command\n";
-  system $command;
-}
+
+  print "Generating a PDF file\n";
+  if (`which ps2pdf`) {
+    my $command = "ps2pdf $ps_root/mod_perl_guide.ps $ps_root/mod_perl_guide.pdf";
+    print "Doing $command\n";
+    system $command;
+  } else {
+    $generate_pdf = 0;
+    
+    print qq{It seems that you do not have ps2pdf installed! You have
+	     to install it  if you want to generate the PDF file
+	   };
+  }
+  
+} # end of if ($generate_pdf)
 
 # Validate pod's L<> links
 if ($validate_links) {
@@ -255,24 +298,19 @@ if ($print_anchors) {
 
 
 # build a complete toc
-my $main_toc = join "\n", map {$$rh_main_toc{"$_.html"} } @ordered_srcs;
+my $main_long_toc  = join "\n", 
+  map {$$rh_main_toc{"$_.html"} } @ordered_srcs;
+my $main_short_toc = join "\n", 
+  map {$$rh_main_toc{"$_.html"} =~ s|<UL>.*</UL>||ism;
+       $$rh_main_toc{"$_.html"} =~ s|<B><FONT SIZE=\+1>([^<]+)</FONT></B></A></LI><P>|$1</A></LI>|ism;
+       $$rh_main_toc{"$_.html"} =~ s^<P>^^gism;
+       $$rh_main_toc{"$_.html"} } @ordered_srcs;
+
+#				     $$rh_main_toc{"$_.html"} =~ s^<B>|</B>|<P>^^gism;
+#				     $$rh_main_toc{"$_.html"} =~ s^<FONT.*?>|</FONT>^^gism;
 
 # create index.html
-make_index_file(\$main_toc);
-
-#  # build one long page with all pages inside
-#open LONG, ">$rel_root/all.html" or die "Can't open $rel_root/all.html for writing :$!\n";
-#print LONG qq{<HTML><BODY BGCOLOR="white"><CENTER>
-#	      <H1>This page includes the entire guide and is suitable for printing!</H1>
-#	      </CENTER><HR>
-#	      };
-#foreach ("index",@ordered_srcs) {
-#  my $fh = IO::File->new("$rel_root/$_.html") or die "Couldn't open $rel_root/$_.html: $!\n";
-#  print "$_\n";
-#  print LONG <$fh>;
-#  print LONG "\cL\n\n<HR SIZE=6>\n";
-#}
-#close LONG;
+make_index_file(\$main_long_toc,\$main_short_toc);
 
   # build the dist
 make_tar_gz() if $make_tgz;
@@ -281,12 +319,33 @@ make_tar_gz() if $make_tgz;
 chdir $orig_dir;
 
 ###########################################################################
-###########################################################################
+###############               Subroutines           #######################
 ###########################################################################
 
+
+# Using the same template file create the long and the short index
+# html files
 ###################
 sub make_index_file{
-  my $r_main_toc = shift || \undef;
+  my $r_main_long_toc  = shift || \undef;
+  my $r_main_short_toc = shift || \undef;
+
+  my %r_toc = (
+	     long  => $r_main_long_toc,
+	     short => $r_main_short_toc,
+	    );
+
+  my %file = (
+	      long  => "$rel_root/index_long.html",
+	      short => "$rel_root/index.html",
+	     );
+
+  my %toc_link = (
+		  long  => qq{[ <A HREF="#toc">TOC</A> ] 
+			      [ <A HREF="index.html">Dense TOC</A> ]},
+		  short => qq{[ <A HREF="#toc">TOC</A> ] 
+			      [ <A HREF="index_long.html">Full TOC</A> ]},
+		 );
 
   use vars qw($VERSION);
   require $version_file;
@@ -297,26 +356,34 @@ sub make_index_file{
 
   my $date = sprintf "%s, %d %d", (split /\s+/, scalar localtime)[1,2,4];
 
+  open INDEX, "$src_root/index.tmpl" or die "Can't open $src_root/index.tmpl: $!\n";
+  local $/ = "";
+  my @orig_content = <INDEX>;
+  close INDEX;
+
   my %replace_map = 
     (
      VERSION  => $VERSION,
      DATE     => $date,
-     MAIN_TOC => $$r_main_toc,
      MODIFIED => $time_stamp,
     );
 
-  open INDEX, "$src_root/index.tmpl" or die "Can't open $src_root/index.tmpl: $!\n";
-  local $/ = "";
-  my @content = <INDEX>;
-  close INDEX;
+  for (qw(short long)) {
 
-  foreach (@content) {
-    s/\[(\w+)\]/$replace_map{$1}/g;
+    $replace_map{MAIN_TOC} = ${$r_toc{$_}};
+    $replace_map{TOC} = $toc_link{$_};
+
+    my @content = @orig_content;
+
+    foreach (@content) {
+      s/\[(\w+)\]/$replace_map{$1}/g;
+    }
+
+    open INDEX, ">$file{$_}" or die "Can't open $file{$_}: $!\n";
+    print INDEX @content;
+    close INDEX;
+
   }
-
-  open INDEX, ">$rel_root/index.html" or die "Can't open $rel_root/index.html: $!\n";
-  print INDEX @content;
-  close INDEX;
 
 } # end of sub make_index_file
 
@@ -364,14 +431,14 @@ sub make_tar_gz{
     # copy all to an out dir
   system "cp -r $rel_root/* $out_dir";
 
-  chdir $root;
-
   if ($generate_pdf) {
     print "gzip $ps_root/mod_perl_guide.pdf\n";
     system("gzip $ps_root/mod_perl_guide.pdf");
     print "mv $ps_root/mod_perl_guide.pdf.gz $out_name\n";
-    move("$ps_root/mod_perl_guide.pdf.gz",$out_name);
+    move("$ps_root/mod_perl_guide.pdf.gz","$root/$out_name");
   }
+
+  chdir $root;
 
   print "mv $out_name.tar.gz $out_name.tar.gz.old\n" if -e "$out_name.tar.gz";
   rename "$out_name.tar.gz", "$out_name.tar.gz.old" if -e "$out_name.tar.gz";
@@ -390,9 +457,9 @@ sub usage{
   print <<USAGE;
     ./build.pl [options]
 
-  -h    this help 
+  -h    this help
   -v    verbose
-  -t    create tar.gz    
+  -t    create tar.gz
   -p    generate PS file
   -d    generate PDF file
   -f    force a complete rebuild
@@ -411,60 +478,118 @@ USAGE
 
 __END__
 
-################
-#sub make_tar_gz{
+=head1 NAME
 
-#  mkdir $out_dir, 0755 unless -d $out_dir;
-#    # copy files to a new directory
-##  map { copy("$rel_root/$_","$out_dir/$_")} grep /\.html$/, DirHandle->new($rel_root)->read();
+Pod::HTML-n-PDF::Builder -- builds HTML, PS and PDF from multiple POD files
 
-#    # copy all to an out dir
-#  system "cp -r $rel_root/* $out_dir";
+=head1 SYNOPSYS
 
-#  chdir $root;
+ ./bin/build.pl -<options>
 
-#    # tar all the release files, compress them and put into a release directory
-#  print "tar cvf $out_name.tar $out_name\n";
-#  system("tar cvf $out_name.tar $out_name");
-#		# Compress it and save the prev copy
-#  print "mv $out_name.tar.gz $out_name.tar.gz.old\n" if -e "$out_name.tar.gz";
-#  rename "$out_name.tar.gz", "$out_name.tar.gz.old" if -e "$out_name.tar.gz";
-#  print "gzip $out_name.tar\n";
-#  system("gzip $out_name.tar");
-#  print "mv $out_name.tar.gz $out_name\n";
-#  move("$out_name.tar.gz",$out_name);
+Options:
 
-#  if ($generate_ps) {
-#    print "gzip ./ps/mod_perl_guide.ps\n";
-#    system("gzip ./ps/mod_perl_guide.ps");
-#    print "mv ./ps/mod_perl_guide.ps.gz $out_name\n";
-#    move("./ps/mod_perl_guide.ps.gz",$out_name);
-#  }
+  -h    this help
+  -v    verbose
+  -t    create tar.gz
+  -p    generate PS file
+  -d    generate PDF file
+  -f    force a complete rebuild
+  -a    print available hypertext anchors
+  -l    do hypertext links validation
+  -m    executed from Makefile (forces rebuild,
+				no PS/PDF file,
+				no tgz archive!)
 
-#    # tar all the source and bin files, compress them and put into a
-#    # release directory
-#    # clean the src and bin dirs
-#  my $src = "guide-src";
-#  mkdir $src, 0755;
-#  system("cp -r src bin $src");
+=head1 DESCRIPTION
 
-#  print "Ignore the error about ': No such file or directory' if it shows up\n";
-#  system("rm $src/src/*~ $src/bin/*~ $src/bin/*/*~");
+This code knows to do three things with your POD files.
 
-#  system("tar cvf guide-src.tar $src");
-#		# Compress it and save the prev copy
-#  rename "guide-src.tar.gz", "guide-src.tar.gz.old" if -e "guide-src.tar.gz";
-#  system("gzip guide-src.tar");
-#  move("guide-src.tar.gz",$out_name);
+=over
 
-#  system("tar cvf $out_name.tar $out_name");
-#  system("gzip $out_name.tar");
+=item 1.
 
-#		# Clean up
-#  system("rm -rf $out_name");
-#  system("rm -rf $src");
+Generate HTMLs
 
-#  print "*** Error: PostScript did not enter the release package!\n"
-#    unless $generate_ps;
+=item 2.
 
-#} # end of sub make_tar
+Generate a special version of HTMLs and convert them into a single
+PostScript file
+
+=item 3.
+
+Generate a special version of HTMLs and convert them into a single
+PostScript file and then into a PDF file.
+
+=back
+
+You can customise the look and feel of the PS and therefore the PDF by
+tweaking the I<./bin/html2ps> file. You might need to read the html2ps
+manual to do some complex changes.
+
+Be careful that if your documentation that you want to put in one PS
+or PDF file is very big and you tell html2ps to put the TOC at the
+beginning you will need lots of memory because it won't write a single
+byte to the disk before it gets all the HTML markup converted to PS.
+
+When you want to use your own files in this convertor, make sure you
+list them in I<./bin/build.pl> using the order you want them to show
+up in the PS or PDF format.
+
+
+=head1 EXTENSION
+
+Note that this tool uses Guide::Pod2Html and Guide::Pod2HtmlPS which
+understand an extended POD symantics. It's described in
+I<docs/extended_pod.pod>
+
+
+=head1 PREREQUISITES
+
+All these are not required if all you want is to generate only the
+html version.
+
+=over 
+
+=item * html2ps
+
+from http://www.tdb.uu.se/~jan/html2ps.html
+
+Needed to generate the PS and PDF versions
+
+=item * ps2pdf
+
+Needed to generate the PDF version
+
+=item * Storable
+
+Perl module available from CPAN (http://cpan.org/)
+
+Allows source modification control, so if you modify only one file you
+will not have to rebuild everything to get the updated HTML files.
+
+=back
+
+
+
+=head1 SUPPORT
+
+Notice that this tool relies on two tools (ps2pdf and html2ps) which I
+don't support. So if you have any problem first make sure that it's
+not a problem of these tools.
+
+=head1 BUGS
+
+Huh?
+
+=head1 AUTHOR
+
+Stas Bekman <stas@stason.org>
+
+=head1 SEE ALSO
+
+perl(1), Pod::HTML, html2ps, ps2pod(1), Storable(3)
+
+=head1 COPYRIGHT
+
+This program is distributed under the Artistic License.
+

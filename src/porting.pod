@@ -2,31 +2,35 @@ title: CGI to mod_perl Porting. mod_perl Coding guidelines.
 
 =head1 Document Coverage
 
-This chapter is relevant to both writing a new CGI or perl handler
-from scratch and migrating an application from plain CGI to mod_perl.
+This chapter is relevant to both writing a new CGI script or perl
+handler from scratch and migrating an application from plain CGI to
+mod_perl.
 
-It also covers the case where the CGI script being ported does the
-job, but is too dirty to be altered easily to run as a mod_perl
-program. (a.k.a. C<Apache::PerlRun> mode)
+It also addresses the situation where the CGI script being ported does
+the job, but is too dirty to be altered easily to run as a mod_perl
+program. (C<Apache::PerlRun> mode)
 
-If you are in the porting stage, use it as a reference for possible
-problems you might encounter when running an existing CGI script in
+If you are at the porting stage, you can use this chapter as a reference for
+possible problems you might encounter when running an existing CGI script in
 the new mode.
 
 If your project schedule is tight, I would suggest converting to
 mod_perl in the following steps: Initially, run all the scripts in the
 C<Apache::PerlRun> mode. Then as time allows, move them into
-C<Apache::Registry> mode. Later if you need an Apache Perl API
+C<Apache::Registry> mode. Later if you need Apache Perl API
 functionality you can always add it.
 
 If you are about to write a new CGI script from scratch, it would be a
-good idea to learn about possible pitfalls and to avoid them in first
-place.
+good idea to learn about possible mod_perl related pitfalls and to avoid them
+in the first place.
 
 If you don't need mod_cgi compatibility, it's a good idea to start
 writing using the mod_perl API in first place. This will make your
 application a little bit more efficient and it will be easier to use
-the mod_perl set of features inaccessible by core Perl functionality.
+the full mod_perl feature set, which extends the core Perl
+functionality with Apache specific functions and overriden Perl core
+functions that were reimplemented to work better in mod_perl
+environment.
 
 
 
@@ -72,6 +76,8 @@ See the details at http://www.modperl.com .
 
 =item * "Perl Cookbook" Book
 
+=item * "Object Oriented Perl" Book
+
 =back
 
 
@@ -91,7 +97,7 @@ detect bugs and debug them, discuss possible pitfalls and how to avoid
 them.
 
 I will use a simple CGI script, that initializes a C<$counter> to 0,
-and prints its value to the screen while incrementing it.
+and prints its value to the browser while incrementing it.
 
   counter.pl:
   ----------
@@ -148,11 +154,11 @@ warnings what we see is:
   at /home/httpd/perl/conference/counter.pl line 13.
 
 The I<Variable "$counter" will not stay shared> warning is generated
-when the script contains a named nested subroutine (a not anonymous
-subroutine defined inside another subroutine) that refers to a
-lexically scoped variable defined outside this nested subroutine.
-This effect is explained in L<my() Scoped Variable in Nested
-Subroutines|perl/my_Scoped_Variable_in_Nested_S>.
+when the script contains a named nested subroutine (a named - as
+opposed to anonymous - subroutine defined inside another subroutine)
+that refers to a lexically scoped variable defined outside this nested
+subroutine.  This effect is explained in L<my() Scoped Variable in
+Nested Subroutines|perl/my_Scoped_Variable_in_Nested_S>.
 
 Do you see a nested named subroutine in my script? I don't!  What's
 going on? Maybe it's a bug? But wait, maybe the perl interpreter sees
@@ -161,9 +167,9 @@ changes before it actually gets executed? The easiest way to check
 what's actually happening is to run the script with a debugger.
 
 But since we must debug it when it's being executed by the webserver,
-a normal debugger wouldn't help, because the debugger has to be
-invoked from within the webserver. Luckily Doug MacEachern wrote the
-C<Apache::DB> module and we will use it to debug my script. While
+a normal debugger won't help, because the debugger has to be invoked
+from within the webserver. Luckily Doug MacEachern wrote the
+C<Apache::DB> module and we will use this to debug my script. While
 C<Apache::DB> allows you to debug the code interactively, we will do
 it non-interactively.
 
@@ -183,10 +189,10 @@ Restart the server and issue a request to I<counter.pl> as before. On
 the surface nothing has changed--we still see the correct output as
 before, but two things happened in the background:
 
-First, the file I</tmp/db.out> was written, with a complete trace of
+Firstly, the file I</tmp/db.out> was written, with a complete trace of
 the code that was executed.
 
-Second, I<error_log> now contains the real code that was actually
+Secondly, I<error_log> now contains the real code that was actually
 executed.  This is produced as a side effect of reporting the
 I<Variable "$counter" will not stay shared at...> warning that we saw
 earlier.
@@ -217,21 +223,21 @@ Here is the code that was actually executed:
     }
   }
 
-The original code wasn't idented. I've idented it for you to stress
-that the code was wrapped inside the handler() subroutine.
+The code in the I<error.log> wasn't indented. I've indented it for you to
+stress that the code was wrapped inside the handler() subroutine.
 
 What do we learn from this?
 
-First, that every cgi script is cached under a package whose name is
-formed from the C<Apache::ROOT::> prefix and the relative part of the
-script's URL (C<perl::conference::counter_2epl>) by replacing all
-occurrences of C</> with C<::>. That's how mod_perl knows what script
-should be fetched from the cache--each script is just a package with a
-single subroutine named C<handler>.
+Well firstly that every CGI script is cached under a package whose
+name is formed from the C<Apache::ROOT::> prefix and the relative part
+of the script's URL (C<perl::conference::counter_2epl>) by replacing
+all occurrences of C</> with C<::> and C<.> with C<_2e>. That's how
+mod_perl knows what script should be fetched from the cache--each
+script is just a package with a single subroutine named C<handler>.
 
-Second, you see now why the C<diagnostics> pragma talked about an
-inner (nested) subroutine--C<increment_counter> is actually a nested
-subroutine.
+If we were to add C<use diagnostics> to the script we would also see a
+reference in the error text to an inner (nested)
+subroutine--C<increment_counter> is actually a nested subroutine.
 
 With mod_perl, each subroutine in every C<Apache::Registry> script is
 nested inside the C<handler> subroutine.
@@ -270,7 +276,7 @@ at the end of the library or the require() might fail.)
     increment_counter();
   }
 
-Personally, unless the script is very short, I tend to write all the
+Unless the script is very short, I tend to write all the
 code in external libraries, and to have only a few lines in the main
 script.  Generally the main script simply calls the main function of
 my library. Usually I call it C<init()>. I don't worry about nested
@@ -294,11 +300,11 @@ using mod_perl, I wrote a simple user registration program. I'll give
 a very simple representation of this program.
 
   use CGI;
-  $q = new CGI;
+  $q = CGI->new;
   my $name = $q->param('name');
-  print_respond();
+  print_response();
   
-  sub print_respond{
+  sub print_response{
     print "Content-type: text/plain\r\n\r\n";
     print "Thank you, $name!";
   }
@@ -356,10 +362,11 @@ problem on the second reload.
 But before that, let the C<error_log> help you detect most of the
 possible errors--most of the warnings can become errors, so you should
 make sure to check every warning that is detected by perl, and
-probably you should write the code in such a way that no warnings
+probably you should write your code in such a way that no warnings
 appear in the C<error_log>. If your C<error_log> file is filled up
 with hundreds of lines on every script invocation, you will have
-difficulty noticing and locating real problems.
+difficulty noticing and locating real problems--and on a production
+server you'll soon run out of disk space if your site is popular.
 
 Of course none of the warnings will be reported if the warning
 mechanism is not turned B<On>. Refer to the section "L<Tracing
@@ -387,7 +394,7 @@ up. Often the problem is easily detectable and solvable. You have to
 test your script under a server running in single process mode
 (C<httpd -X>).
 
-Generally the problem you have is of using global variables. Because
+Generally the problem is the result of using global variables. Because
 global variables don't change from one script invocation to another
 unless you change them, you can find your scripts do strange things.
 
@@ -396,18 +403,19 @@ Let's look at three real world examples:
 =head2 An Easy Break-in
 
 The first example is amazing--Web Services. Imagine that you enter
-some site where you have an account, perhaps a free email account. Now
-you want to see other users' mail.
+some site where you have an account, perhaps a free email
+account. Having read your own mail you decide to take a look at
+someone else's.
 
-You type in a username you want to peek at and a dummy password and
+You type in the username you want to peek at and a dummy password and
 try to enter the account. On some services this will work!!!
 
 You say, why in the world does this happen? The answer is simple:
 B<Global Variables>. You have entered the account of someone who
 happened to be served by the same server child as you. Because of
 sloppy programming, a global variable was not reset at the beginning
-of the program and voila, you can easily peek into others' email!
-Here is an example of sloppy code:
+of the program and voila, you can easily peek into someone else's
+email!  Here is an example of sloppy code:
 
   use vars ($authenticated);
   my $q = new CGI;
@@ -429,17 +437,17 @@ Here is an example of sloppy code:
   }
 
 Do you see the catch? With the code above, I can type in any valid
-username and any dummy passwd and enter that user's account, if
-someone has successfully entered his account before me using the same
-child process! Since C<$authenticated> is global--if it becomes 1
-once, it'll stay 1 for the remainder of the child's life!!! The solution
-is trivial--reset C<$authenticated> to 0 at the beginning of the
-program.
+username and any dummy password and enter that user's account,
+providing she has successfully entered her account before me using the
+same child process! Since C<$authenticated> is global--if it becomes 1
+once, it'll stay 1 for the remainder of the child's life!!! The
+solution is trivial--reset C<$authenticated> to 0 at the beginning of
+the program.
 
 A cleaner solution of course is not to rely on global variables, but
 rely on the return value from the function.
 
-  my $q = new CGI;
+  my $q = CGI->new;
   my $username = $q->param('username');
   my $passwd   = $q->param('passwd');
   my $authenticated = authenticate($username,$passwd);
@@ -596,7 +604,8 @@ and load the startup file from the configuration file by:
 =head1 Reloading Modules and Required Files
 
 You might want to read the "L<use(), require(), do(), %INC and @INC
-Explained|perl/use_require_do_INC_and>" before you proceed.
+Explained|perl/use_require_do_INC_and>" before you proceed with this
+section.
 
 When you develop plain CGI scripts, you can just change the code, and
 rerun the CGI from your browser. Since the script isn't cached in
@@ -635,8 +644,8 @@ you will look for other solutions.
 Help comes from the C<Apache::StatINC> module.  When Perl pulls a file
 via require(), it stores the full pathname as a value in the global
 hash C<%INC> with the file name as the key.  C<Apache::StatINC> looks
-through C<%INC> and it immediately reloads any files it finds in there
-if it sees that they have been updated on disk.
+through C<%INC> and immediately reloads any files that have been
+updated on disk.
 
 To enable this module just add two lines to C<httpd.conf>.
 
@@ -738,9 +747,10 @@ For example:
   $color_warn   = "#990066";
   $color_normal = "#000000";
 
-The C<use strict;> pragma demands all the variables be declared.  When
-we want to use these variables in a mod_perl script we must declare
-them with C<use vars> in the script.
+The C<use strict;> pragma demands that all the variables be declared.
+When we want to use these variables in a mod_perl script we must
+declare them with C<use vars> in the script. (Under Perl v5.6.0
+C<our()> has replaced C<use vars>.)
 
 So we start the script with:
 
@@ -836,8 +846,8 @@ probably familiar with:
 
   use CGI qw(:standard :html);
 
-We can implement it quite easily, with help of export_ok_tags() from
-C<Exporter>. For example:
+We can implement this quite easily, with the help of export_ok_tags()
+from C<Exporter>. For example:
 
   BEGIN {
     use Exporter ();
@@ -859,9 +869,9 @@ being exported is a symbol. The definition of these subroutines is not
 shown here.
 
 Notice that we didn't use export_tags(), as it exports the variables
-automatically without user asking for them in first place, which is
-considered a bad style. If a module automatically exports variables
-with export_tags() you can avoid this by not exporting at all:
+automatically without the user asking for them in first place, which is
+considered bad style. If a module automatically exports variables
+with export_tags() you can stop this by not exporting at all:
 
   use My::Config ();
 
@@ -872,8 +882,8 @@ In your code you can now write:
 Groups of group tags:
 
 The C<:all> tag from C<CGI.pm> is a group tag of all other groups. It
-will require a little more effort from you, but you can always save
-time by looking at the solution in the code of C<CGI.pm>. It's just a
+will require a little more effort to implement, but you can always save
+time by looking at the solution in C<CGI.pm>'s code. It's just a
 matter of a little code to expand all the groups recursively.
 
 After going through the pain of maintaining a list of variables in a
@@ -932,9 +942,20 @@ So now the script looks like this:
 Do you see the difference? The whole mess has gone, there is only one
 variable to worry about.
 
-So far so good, but let's make it even better. I would like to get rid
-of the C<Exporter> stuff completely. I remove all the exporting code
-so my config file now looks like:
+There is one small downside to taking this approach:
+auto-vivification. For example, if we wrote C<$c{url}{doc}> by mistake,
+perl would silently create this element for us with the value
+I<undef>. When we C<use strict;> Perl will tell us about any
+misspelling of this kind for a simple scalar, but this check is not
+performed for hash elements. This puts the onus of responsibility back
+on us since we must take greater care. A possible solution to this is
+to use pseudo-hashes, but they are still considered experimental so we
+won't cover them here.
+
+The benefits of the hash approach are significant and we can make do
+even better. I would like to get rid of the C<Exporter> stuff
+completely. I remove all the exporting code so my config file now
+looks like:
 
   package My::Config;
   use strict;
@@ -968,7 +989,8 @@ And the code:
 
 Since we still want to save lots of typing, and since now we need to
 use a fully qualified notation like C<$My::Config::c{url}{docs}>,
-let's use a magical perl aliasing feature. I'll modify the code to be:
+let's use the magical Perl aliasing feature. I'll modify the code to
+be:
 
   use strict;
   use My::Config ();
@@ -1032,7 +1054,7 @@ variables into a script's namespace.
 
 First, lets look at a simple case, when we just have to look after a
 simple configuration file like the one below. Imagine a script that
-tells you who is patch pumpkin of the current perl release.
+tells you who is the patch pumpkin of the current Perl release.
 
 Sidenote: <Pumpkin> A humorous term for the token (notional or real)
 that gives its possessor (the "pumpking" or the "pumpkineer")
@@ -1044,11 +1066,11 @@ of some source (for which the token is called the "patch pumpkin").
   
   my $fname = "Larry";
   my $lname = "Wall";
-  my $q = new CGI;
+  my $q = CGI->new;
   
   print $q->header(-type=>'text/html');
-  print $q->p("$fname $lname holds the patch pumpkin
-               for this perl release.");
+  print $q->p(qq{$fname $lname holds the patch pumpkin
+               for this perl release.});
 
 The script has a hardcoded value for the name. It's very simple:
 initialize the CGI object, print the proper HTTP header and tell the
@@ -1068,7 +1090,7 @@ package if none was declared. This means that the variables C<$fname>
 and C<$lname> will override (or initialize if they weren't yet) the
 variables with the same names in the caller's namespace. This works
 for global variables only--you cannot update variables defined
-lexically (with my()) by this technique.
+lexically (with my()) using this technique.
 
 You have started the server and everything is working properly. After
 a while you decide to modify the configuration. How do you let your
@@ -1078,8 +1100,8 @@ be quite expensive for us.  One of the simplest solutions is to poll
 the file's modification time by calling stat() before the script
 starts to do real work.  If we see that the file was updated, we force
 a reconfiguration of the variables located in this file. We will call
-the function that reloads the configuration reread_conf() and it
-accepts a single argument, which is a relative path to the
+the function that reloads the configuration reread_conf() and have it
+accept a single argument, which is the relative path to the
 configuration file.
 
 C<Apache::Registry> calls a chdir() to the script's directory before
@@ -1097,22 +1119,27 @@ in C<@INC>.
     return unless $file;
     return unless -e $file and -r _;
     unless ($MODIFIED{$file} and $MODIFIED{$file} == -M _){
-      my $return;
-      unless ($return = do $file) {
+      my $result;
+      unless ($result = do $file) {
         warn "couldn't parse $file: $@" if $@;
-        warn "couldn't do $file: $!"    unless defined $return;
-        warn "couldn't run $file"       unless $return;
+        warn "couldn't do $file: $!"    unless defined $result;
+        warn "couldn't run $file"       unless         $result;
       }
       $MODIFIED{$file} =  -M _; # Update the MODIFICATION times
     }
   } # end of reread_conf
 
-When require(), use() or do() operators successfully return, the file
-that was passed as an argument is inserted into C<%INC> (the key is
-the name of the file and the value the path to it). Specifically, when
-Perl sees require() or use() in the code, it first tests C<%INC>
-to see whether it's already there and thus loaded. If the test returns
-true, Perl saves the overhead of code re-reading and re-compiling.
+Notice that we use the C<==> comparison operator when checking file's
+modification timestamp, because all we want to know whether the file
+was changed or not.
+
+When the require(), use() and do() operators successfully return, the
+file that was passed as an argument is inserted into C<%INC> (the key
+is the name of the file and the value the path to it). Specifically,
+when Perl sees require() or use() in the code, it first tests C<%INC>
+to see whether the file is already there and thus loaded. If the test
+returns true, Perl saves the overhead of code re-reading and
+re-compiling; however calling do() will (re)load regardless.
 
 You generally don't notice with plain perl scripts, but in mod_perl
 it's used all the time; after the first request served by a process
@@ -1143,9 +1170,9 @@ production (because it slows things down by stat()'ing all the files
 listed in C<%INC>) so this shouldn't be a problem.
 
 Note that we assume that the entire purpose of this function is to
-reload the configuration if it was changed.  This is fail-safe, as if
-something goes wrong we just return without modifying the server
-configuration. The script should not be used to initialize the
+reload the configuration if it was changed.  This is fail-safe,
+because if something goes wrong we just return without modifying the
+server configuration. The script should not be used to initialize the
 variables on its first invocation.  To do that, you would need to
 replace each occurence of return() and warn() with die(). If you do
 that, take a look at the section "L<Redirecting Errors to the Client
@@ -1167,23 +1194,23 @@ A sample script using the presented subroutine would be:
   use CGI ();
   use strict;
   
-  my $q = new CGI;
+  my $q = CGI->new;
   print $q->header(-type=>'text/plain');
   my $config_file = "./config.pl";
   reread_conf($config_file);
-  print $q->p("$fname $lname holds the patch pumpkin
-               for this perl release.");
+  print $q->p(qq{$fname $lname holds the patch pumpkin
+               for this perl release.});
   
   sub reread_conf{
     my $file = shift;
     return unless $file;
     return unless -e $file and -r _;
     unless ($MODIFIED{$file} and $MODIFIED{$file} == -M _){
-      my $return;
-      unless ($return = do $file) {
+      my $result;
+      unless ($result = do $file) {
         warn "couldn't parse $file: $@" if $@;
-        warn "couldn't do $file: $!"    unless defined $return;
-        warn "couldn't run $file"       unless $return;
+        warn "couldn't do $file: $!"    unless defined $result;
+        warn "couldn't run $file"       unless $result;
       }
       $MODIFIED{$file} =  -M _; # Update the MODIFICATION times
     }
@@ -1207,9 +1234,10 @@ variables get updated with the values from the reloaded code.
 The CGI script below allows a system administrator to dynamically
 update a configuration file through the web interface. Combining this
 with the code we have just seen to reload the modified files, you get
-a system which is dynamically reconfigurable without server restart.
-Configuration can be performed from any machine having just a web
-interface (a simple browser connected to the Internet).
+a system which is dynamically reconfigurable without needing to
+restart the server. Configuration can be performed from any machine
+having just a web interface (a simple browser connected to the
+Internet).
 
 Let's say you have a configuration file like this:
 
@@ -1225,14 +1253,13 @@ Let's say you have a configuration file like this:
   
         other    => "More config values",
   
-        hash     => { foo  => "bar",
-                    fooo => "barr",
-                  },
+        hash     => { foo => "ouch",
+                      bar => "geez",
+                    },
   
         array    => [qw( a b c)],
   
        );
-
 
 You want to make the variables C<name>, C<release> and C<comments>
 dynamically configurable. You want to have a web interface with an input
@@ -1254,7 +1281,7 @@ file breaks it, the whole service won't work. If the file is very
 big and includes comments and complex data structures, parsing the
 file can be quite a challenge.
 
-So let's simplify the task.  If all we want is to updated a few
+So let's simplify the task.  If all we want is to update a few
 variables, why don't we create a tiny configuration file with just those
 variables? It can be modified through the web interface and overwritten
 each time there is something to be changed. This way we don't have
@@ -1274,7 +1301,7 @@ the default values in the main file.
 
 META: extend on the comments:
 
-  # remember to run this code under taint mode
+  # remember to run this code in taint mode
   
   use strict;
   use vars qw($q %c $dynamic_config_file %vars_to_change %validation_rules);
@@ -1287,7 +1314,7 @@ META: extend on the comments:
   
   $dynamic_config_file = "./config.pl";
   
-  # load the dynamic configuration file if exists, and override the
+  # load the dynamic configuration file if it exists, and override the
   # default values from the main configuration file
   do $dynamic_config_file if -e $dynamic_config_file and -r _;
   
@@ -1306,9 +1333,9 @@ META: extend on the comments:
      'comments' => sub { 1;                        },
     );
   
-  $q = new CGI;
-  print $q->header(-type=>'text/html'),
-    $q->start_html();
+  $q = CGI->new;
+  print $q->header(-type=>'text/html'), 
+        $q->start_html();
   
   my %updates = ();
   
@@ -1362,7 +1389,7 @@ META: extend on the comments:
       $malformatted{$_} = delete $updates{$_}
         unless $validation_rules{$_}->($updates{$_});
   
-    } # end of foreach my $var (keys %updates)
+    } # end of foreach (keys %updates)
   
     # print warnings if there are any invalid changes
     print $q->hr,
@@ -1392,7 +1419,7 @@ META: extend on the comments:
       # now add '1;' to make require() happy
     $content .= "\n1;";
   
-      # keep the dummy result in $r so it won't complain
+      # keep the dummy result in $res so it won't complain
     eval {my $res = $content};
     if ($@) {
       print qq{Warning! Something went wrong with config file
@@ -1414,10 +1441,11 @@ META: extend on the comments:
     close $fh;
   
       # OK, now we make a real file
-    rename "$dynamic_config_file.bak",$dynamic_config_file;
+    rename "$dynamic_config_file.bak",$dynamic_config_file
+      or die "Failed to rename: $!";
   
       # rerun it to update variables in the current process! Note that
-      # it won't update the variables in other processes. A special
+      # it won't update the variables in other processes. Special
       # code that watches the timestamps on the config file will do this
       # work for each process. Since the next invocation will update the
       # configuration anyway, why do we need to load it here? The reason
@@ -1442,7 +1470,7 @@ META: extend on the comments:
       # know whether we have to do some changes or not
     map {$q->param("prev_$_",$c{$_}) } keys %vars_to_change;
   
-      # raws for the table, go into the form
+      # rows for the table, go into the form
     my @configs = ();
   
       # prepare one textfield entries
@@ -1532,7 +1560,7 @@ do() reloads C<MyTest.pm> on every request.
 
 =head1 Name collisions with Modules and libs
 
-This sections requires an indepth understanding of L<use(), require(),
+This sections requires an in-depth understanding of L<use(), require(),
 do(), %INC and @INC |perl/use_require_do_INC_and>.
 
 To make things clear before we go into details: each child process has
@@ -1607,11 +1635,11 @@ following discussion we will consider just one individual child process.
 
 =item Scenario 1
 
-First, You can't have two identical module names running under the
+First, You can't have two identical module names running on the
 same server!  Only the first one found in a use() or require()
 statement will be compiled into the package, the request for the other
 module will be skipped, since the server will think that it's already
-compiled.  This is a direct result of using <%INC>, which has keys
+compiled.  This is a direct result of using C<%INC>, which has keys
 equal to the names of the modules.  Two identical names will refer to
 the same key in the hash.  (Refer to the section 'L<Looking inside the
 server|debug/Looking_inside_the_server>' to find out how you can know
@@ -1629,7 +1657,7 @@ like this:
   ./tool2/tool2.pl
 
 
-Where a sample code could be:
+Where some sample code could be:
 
   ./tool1/tool1.pl
   ----------------
@@ -1780,15 +1808,20 @@ to invoke it.
 
 Make sure you read all of this solution.
 
-Declare a package name in the required files!  It should be unique to
-the rest of the package names you use.  C<%INC> will then use the
-unique package name for the key. It's a good idea to use at least
-two-level package names for your private modules,
+Declare a package name in the required files!  It should be unique in
+relation to the rest of the package names you use.  C<%INC> will then
+use the unique package name for the key. It's a good idea to use at
+least two-level package names for your private modules,
 e.g. C<MyProject::Carp> and not C<Carp>, since the latter will collide
-with an existing standard package.  Even if as of the time of your
-coding it doesn't yet exist, a package might enter the next perl
-distribution as a standard module and your code will be
-broken. Foresee problems like this and save yourself future trouble.
+with an existing standard package.  Even though a
+package may not exist in the standard distribution now, a package may
+come along in a later distribution which collides with a name you've
+chosen. Using a two part package name will help avoid this problem.
+
+Even a better approach is to use three level naming, like
+C<CompanyName::ProjectName::Module>, which is most unlikely to have
+conflicts with later Perl releases. Foresee problems like this and
+save yourself future trouble.
 
 What are the implications of package declaration?
 
@@ -1849,7 +1882,7 @@ If you have the following:
   PerlHandler Apache::Work::Foo
   PerlHandler Apache::Work::Foo::Bar
 
-If you make a request that pulls in C<Apache/Work/Foo/Bar.pm> first,
+And you make a request that pulls in C<Apache/Work/Foo/Bar.pm> first,
 then the C<Apache::Work::Foo> package gets defined, so mod_perl does
 not try to pull in C<Apache/Work/Foo.pm>
 
@@ -1963,8 +1996,12 @@ tie() function is not yet complete. The format() and write() functions
 are missing. If you configure Perl with C<sfio>, write() and format()
 should work just fine.
 
+Otherwise you could use sprintf() to replace format(): C<##.##>
+becomes C<%2.2f> and C<####.##> becomes C<%4.2f>.
 
-
+Pad all strings with S<(" " x 80)> before using, and set their length
+with: S<%.25s> for a max 25 char string. Or prefix the string with
+S<(" " x 80)> for right-justifying.
 
 
 
@@ -1975,7 +2012,7 @@ should work just fine.
 
 Perl's C<exit()> built-in function cannot be used in mod_perl
 scripts. Calling it causes the mod_perl process to exit (which defeats
-the object of using mod_perl). The C<Apache::exit()> function should
+the purpose of using mod_perl). The C<Apache::exit()> function should
 be used instead.
 
 You might start your scripts by overriding the exit() subroutine (if
@@ -1983,39 +2020,29 @@ you use C<Apache::exit()> directly, you will have a problem testing
 the script from the shell, unless you put C<use Apache ();> into your
 code.) I use the following code:
 
-  BEGIN {
-      # Auto-detect if we are running under mod_perl or CGI.
-    $USE_MOD_PERL = ( (exists $ENV{'GATEWAY_INTERFACE'}
-                   and $ENV{'GATEWAY_INTERFACE'} =~ /CGI-Perl/)
-                      or exists $ENV{'MOD_PERL'} ) ? 1 : 0;
-  }
   use subs qw(exit);
-  
   # Select the correct exit function
-  ########
-  sub exit{
-    $USE_MOD_PERL ? Apache::exit(0) : CORE::exit(0);
-  }
+  *exit = $ENV{MOD_PERL} ? \&Apache::exit : sub { CORE::exit };
 
-Now the correct C<exit()> will be always chosen, whether you run the
+Now the correct C<exit()> will always be chosen, whether you run the
 script under mod_perl, ordinary CGI or from the shell.
 
 Note that if you run the script under C<Apache::Registry>, B<The
 Apache function C<exit()> overrides the Perl core built-in
-function>. While you see exit() listed in C<@EXPORT_OK> of the Apache
-package, C<Apache::Registry> does something you don't see and imports
-this function for you. This means that if your script is running under
-C<Apache::Registry> handler you don't have to worry about exit().  The
-same applies to C<Apache::PerlRun>.
+function>. While you see exit() listed in the C<@EXPORT_OK> list of
+the Apache package, C<Apache::Registry> does something you don't see
+and imports this function for you. This means that if your script is
+running under the C<Apache::Registry> handler you don't have to worry
+about exit().  The same applies to C<Apache::PerlRun>.
 
-If you use C<CORE::exit()> in scripts running under modperl, the child
-will exit, but neither a proper exit nor logging will happen on the
-way. C<CORE::exit()> cuts off the server's legs.
+If you use C<CORE::exit()> in scripts running under mod_perl, the
+child will exit, but neither a proper exit nor logging will happen on
+the way. C<CORE::exit()> cuts off the server's legs.
 
-Note that C<Apache::exit(-2)> or
-C<Apache::exit(Apache::Constants::DONE)> will cause the server to exit
-gracefully, completing the logging functions and protocol requirements
-etc. (Apache::Constants::OK == 0).
+Note that C<Apache::exit(Apache::Constants::DONE)> will cause the
+server to exit gracefully, completing the logging functions and
+protocol requirements etc. ( Apache::Constants::DONE == -2,
+Apache::Constants::OK == 0.)
 
 If you need to shut down the child cleanly after the request was
 completed, use the C<$r-E<gt>child_terminate> method. You can call it
@@ -2026,7 +2053,7 @@ connection is broken, because of the C<keepalive> flag, and the parent
 tells the child to cleanly quit, because C<MaxRequestsPerChild> is
 smaller than the number of requests served.
 
-In the C<Apache::Registry> script you would do:
+In an C<Apache::Registry> script you would do:
 
   Apache->request->child_terminate;
 
@@ -2038,10 +2065,10 @@ You would want to use the latter example only if you wanted the child
 to terminate every time the registered handler is called.  Probably
 this is not what you want.
 
-Even if you don't need to call the child_terminate() at the end of the
+Even if you don't need to call child_terminate() at the end of the
 request if you want the process to quit afterwards, here is an example
-of assigning of the postprocessing handler, in case you might want to
-execute your own code a moment before the process quits.
+of assigning the postprocessing handler. You might do this if you
+wanted to execute your own code a moment before the process quits.
 
   my $r = shift;
   $r->post_connection(\&exit_child);
@@ -2069,30 +2096,31 @@ When you write:
 
   open FILE, "foo" or die "Cannot open foo file for reading: $!";
 
-in a perl script and execute it--the script would die() if it will be
+in a perl script and execute it--the script would die() if it is
 unable to open the file, by aborting the script execution, printing
 the death reason and quitting the Perl interpreter.
 
-You hardly will find a properly written Perl script that doesn't have
+You will hardly find a properly written Perl script that doesn't have
 at least one die() statement in it, if it has to cope with system
-calls and alike.
+calls and the like.
 
-CGI script running under mod_cgi exits on its completion. The Perl
+A CGI script running under mod_cgi exits on its completion. The Perl
 interperter exits as well. So it doesn't really matter whether the
 interpreter quits because the script died by natural death (when the
-last statement was executed) or aborted by die() statement.
+last statement was executed) or was aborted by a die() statement.
 
-In mod_perl we don't want the interpreter to quit. We know already
+In mod_perl we don't want the interpreter to quit. We already know
 that when the script completes its chores the interpeter won't quit.
-There is no reason why it should quit when the script is stopped
-because of die(). As a result calling die() wouldn't quit the process.
+There is no reason why it should quit when the script has stopped
+because of die(). As a result calling die() won't quit the process.
 
 And this is how it works--when the die() gets triggered, it's
 mod_perl's C<$SIG{__DIE__}> handler that logs the error message and
-calls Apache::exit() instead of real die(). Thus the script stops, but
+calls Apache::exit() instead of CORE::die(). Thus the script stops, but
 the process doesn't quit.
 
-This is an example of a trapping code, not the real code:
+Here is an example of such trapping code, although it isn't the real
+code:
 
   $SIG{__DIE__} = sub { print STDERR @_; Apache::exit(); }
 
@@ -2104,14 +2132,8 @@ This is an example of a trapping code, not the real code:
 =head1 Testing the Code from the Shell
 
 Your CGI scripts will B<not> yet run from the command line unless you
-use C<CGI::Switch> or C<CGI.pm> and at least Perl 5.004.  They must
-also make no direct calls to Apache Perl API methods.
-
-
-
-
-
-
+use C<CGI::Switch> or C<CGI.pm> and have Perl 5.004 or later.  They
+must not make any direct calls to Apache's Perl API methods.
 
 
 
@@ -2119,34 +2141,13 @@ also make no direct calls to Apache Perl API methods.
 
 =head1 I/O is different
 
-If you are using Perl 5.004 or better, most CGI scripts can run under
-mod_perl untouched. If you're using 5.003, Perl's built-in C<read()>
-and C<print()> functions do not work as they do under CGI. If you're
-using C<CGI.pm>, use C<$query-E<gt>print> instead of plain ol'
-C<print()>.
+If you are using Perl 5.004 or later, most CGI scripts can run under
+mod_perl untouched. 
 
+If you're using 5.003, Perl's built-in C<read()> and C<print()>
+functions do not work as they do under CGI. If you're using C<CGI.pm>,
+use C<$query-E<gt>print> instead of plain ol' C<print()>.
 
-
-=head1 Apache::print() and CORE::print()
-
-Under mod_perl C<CORE::print()> will redirect its data to
-C<Apache::print()> since the STDOUT filehandle is tied to the
-I<Apache> module. This allows to run the CGI scripts unmodified under
-C<Apache::Registry> and chaining the output of one content handler to
-the input of the other handler.
-
-C<Apache::print()> behaves mostly like the built-in I<print()>
-function. In addition it sets a timeout so that if the client
-connection is broken the handler won't wait forever trying to send
-data.
-
-There is also an optimization built into C<Apache::print()>.  If any
-of the arguments to the method are scalar references to strings, they
-are automatically dereferenced for you.  This avoids needless copying
-of large strings when passing them to subroutines. For example:
-
- $long_string = "A" x 10000000;
- $r->print(\$long_string);
 
 
 
@@ -2156,9 +2157,36 @@ of large strings when passing them to subroutines. For example:
 In mod_perl both C<STDIN> and C<STDOUT> are tied to the socket the
 request came from. C<STDERR> is tied to the I<error_log> file.
 
-To print to STDOUT you can either use a regular print() (which is
-automagically tied to the the socket) or the C<$r-E<gt>print> method.
 
+
+=head1 Apache::print() and CORE::print()
+
+Under mod_perl C<CORE::print()> will redirect its data to
+C<Apache::print()> since the STDOUT filehandle is tied to the
+I<Apache> module. This allows us to run CGI scripts unmodified under
+C<Apache::Registry> by chaining the output of one content handler to
+the input of the other handler.
+
+C<Apache::print()> behaves mostly like the built-in I<print()>
+function. In addition it sets a timeout so that if the client
+connection is broken the handler won't wait forever trying to print
+data downstream to the client.
+
+There is also an optimization built into C<Apache::print()>.  If any
+of the arguments to the method are scalar references to strings, they
+are automatically dereferenced for you.  This avoids needless copying
+of large strings when passing them to subroutines. For example:
+
+ $long_string = "A" x 10000000;
+ $r->print(\$long_string);
+
+If you still want to print the reference you can always call:
+
+  $r->print(\\$foo);
+
+or by forcing it into a scalar context:
+
+  print(scalar($foo));
 
 
 
@@ -2173,9 +2201,9 @@ and fully qualified|perl/Variables_Globally_Lexically_Sc>" for more
 info.
 
 You should avoid using global variables unless it's impossible without
-them, because it will make the code development harder and you will
-have to make very sure that all the variables are initialized before
-being used. Use my() scoped variables everywhere you can.
+them, because it will make code development harder and you will
+have to make certain that all the variables are initialized before
+they are used. Use my() scoped variables wherever you can.
 
 You should be especially careful with L<Perl Special
 Variables|perl/The_Scope_of_the_Special_Perl_Va> which cannot be
@@ -2197,7 +2225,7 @@ and MIME type header C<Content-type>:
 
 After adding one more new line, you can start printing the content. A
 more complete response includes the date timestamp and server
-type, like in this response:
+type, for example:
 
   HTTP/1.0 200 OK
   Date: Tue, 28 Dec 1999 18:47:58 GMT
@@ -2209,31 +2237,42 @@ to tell the client that the connection was closed, with:
 
   Connection: close
 
-There can be other headers as well, like caching control and other
-specified by HTTP protocol. You can code the response header with a
-single print():
+There can be other headers as well, like caching control and others
+specified by the HTTP protocol. You can code the response header with
+a single print():
 
-  print qq{HTTP/1.1 200 OK    
-Date: Tue, 28 Dec 1999 18:49:41 GMT
-Server: Apache/1.3.10-dev (Unix) mod_perl/1.21_01-dev
-Connection: close
-Content-type: text/plain
+    print qq{HTTP/1.1 200 OK    
+  Date: Tue, 28 Dec 1999 18:49:41 GMT
+  Server: Apache/1.3.10-dev (Unix) mod_perl/1.21_01-dev
+  Connection: close
+  Content-type: text/plain
+  
+    };
 
-  };
+or with a I<"here"> style print:
+
+    print <<EOT;
+  HTTP/1.1 200 OK    
+  Date: Tue, 28 Dec 1999 18:49:41 GMT
+  Server: Apache/1.3.10-dev (Unix) mod_perl/1.21_01-dev
+  Connection: close
+  Content-type: text/plain
+  
+  EOT
 
 Notice the double new line at the end. But you have to prepare a
 timestamp string (C<Apache::Util::ht_time()> does just this) and to
 know what server you are running under. You needed to send only the
-response MIME type (C<Content-type>) under mod_cgi, why should you do
-that manually under mod_perl. 
+response MIME type (C<Content-type>) under mod_cgi, so why would you 
+want to do this manually under mod_perl? 
 
-Actually something you do want to set some headers manually, but not
-everytime. So mod_perl gives you the default set of headers, just like
+Actually sometimes you do want to set some headers manually, but not
+every time. So mod_perl gives you the default set of headers, just like
 in the example above. And if you want to override or add more headers
 you can do that as well. Let's see how to do that.
 
 When writing your own handlers and scripts with the Perl Apache API
-the proper way to send the HTTP header is with send_http_header()
+the proper way to send the HTTP header is with the send_http_header()
 method. If you need to add or override methods you can use the
 headers_out() method:
 
@@ -2260,14 +2299,14 @@ A typical handler looks like this:
 
 If the client issues an HTTP C<HEAD> request rather than the usual
 C<GET>, to be compliant with the HTTP protocol we should not send the
-document body, but the HTTP header only. When Apache receives a HEAD
+document body, but only the HTTP header. When Apache receives a C<HEAD>
 request, I<header_only()> returns I<true>.  If we see that this has
 happened, we return from the handler immediately with an C<OK> status
 code.
 
 Generally, you don't need the explicit content type setting, since
 Apache does this for you, by looking up the MIME type of the request
-by matching the extension of the URI in the MIME tables (from the
+and by matching the extension of the URI in the MIME tables (from the
 I<mime.types> file). So if the request URI is I</welcome.html>, the
 C<text/html> content-type will be picked. However for CGI scripts or
 URIs that cannot be mapped by a known extension, you should set the
@@ -2285,7 +2324,7 @@ change this by adding
 
   PerlSendHeader On
 
-in the C<Apache::Registry> C<<Location>> section of your
+in the C<Apache::Registry> C<E<lt>LocationE<gt>> section of your
 configuration.  Now, the response line and common headers will be sent
 as they are by mod_cgi.  Just as with mod_cgi, C<PerlSendHeader> will
 not send the MIME type and a terminating double newline. Your script
@@ -2330,8 +2369,7 @@ like this:
 
 
 Note that you can always use the code in the else part of the above
-example, no matter of whether C<PerlSendHeader> is directive takes an
-effect or not.
+example, no matter whether the C<PerlSendHeader> directive is On or Off.
 
 If you use C<CGI.pm>'s C<header()> function to generate HTTP headers,
 you do not need to activate this directive because C<CGI.pm> detects
@@ -2350,7 +2388,7 @@ there, namely the assumption that each print statement contains one or
 more complete headers.  If for example you generate a
 C<Set-Cookie> header by multiple C<print()> statements, like this:
 
-   print "Content-type: text/html\n";
+   print "Content-type: text/plain\n";
    print "Set-Cookie: iscookietext\; ";
    print "expires=Wednesday, 09-Nov-1999 00:00:00 GMT\; ";
    print "path=\/\; ";
@@ -2358,26 +2396,28 @@ C<Set-Cookie> header by multiple C<print()> statements, like this:
    print "\r\n\r\n";
    print "hello";
 
-your generated C<Set-Cookie> header is split over a number of print
+Your generated C<Set-Cookie> header is split over a number of print()
 statements and gets lost. The above example wouldn't work! Try this
 instead:
 
-   print "Content-type: text/html\n";
    my $cookie = "Set-Cookie: iscookietext\; ";
    $cookie .= "expires=Wednesday, 09-Nov-1999 00:00:00 GMT\; ";
    $cookie .= "path=\/\; ";
    $cookie .= "domain=\.mmyserver.com\; ";
-   print $cookie;
-   print "\r\n\r\n";
+   print "Content-type: text/plain\n",
+   print "$cookie\r\n\r\n";
    print "hello";
 
-Sometimes when you call a script you see an ugly C<"Content-Type:
-text/html"> displayed at the top of the page, and of course the HTML
-the rest of the HTML code won't be rendered correctly by the
-browser. As you have seen above, this generally happens when your code
-has already sent the header so you see it rendered into a browser's
-page. This might happen when you call the C<CGI.pm> C<$q-E<gt>header>
-method or mod_perl's C<$r-E<gt>send_http_header>.
+Of course using a special purpose cookie generator modules, like
+C<Apache::Cookie>, C<CGI::Cookie> etc is an even cleaner solution.
+
+Sometimes when you call a script you see an ugly S<"Content-Type:
+text/html"> displayed at the top of the page, and of course the rest
+of the HTML code won't be rendered correctly by the browser. As you
+have seen above, this generally happens when your code has already
+sent the header so you see the duplicate header rendered into the
+browser's page. This might happen when you call the C<CGI.pm>
+C<$q-E<gt>header> method or mod_perl's C<$r-E<gt>send_http_header>.
 
 If you have a complicated application where the header might be
 generated from many different places, depending on the calling logic,
@@ -2404,14 +2444,15 @@ sent:
     }
   }
 
-C<$header_printed> variable that flags whether the header was sent or
-not gets initialized to false (0) at the beginning of each code
-invocation. Note that the second invocation of print_header() within
-the same code, will do nothing, since C<$header_printed> will become
-true after print_header() will be executed for the first time.
+C<$header_printed> is the variable that flags whether the header was
+sent or not and it gets initialized to false (0) at the beginning of
+each code invocation. Note that the second invocation of
+print_header() within the same code, will do nothing, since
+C<$header_printed> will become true after print_header() will be
+executed for the first time.
 
-A little bit memory more friendly solution is to use a fully qualified
-variable instead:
+A solution that is a little bit more memory friendly is to use a fully
+qualified variable instead:
 
   use strict;
   $main::header_printed = 0;
@@ -2430,12 +2471,12 @@ variable instead:
     }
   }
 
-We just removed the global variable predeclaration, allowing you to
-use C<$header_printed> under C<"use strict"> and replaced
+We just removed the global variable predeclaration, which allowed us
+to use C<$header_printed> under C<"use strict"> and replaced
 C<$header_printed> with C<$main::header_printed>;
 
-Someone may become tempted to use a more elegant Perl solution--the
-closure effect which seems to be a natural to be used here.
+You may become tempted to use a more elegant Perl solution--the nested
+subroutine effect which seems to be a natural approach to take here.
 Unfortunately it will not work. If the process was starting fresh for
 each script or handler, like with plain mod_cgi scripts, it would work
 just fine:
@@ -2465,19 +2506,27 @@ it. Curly braces define the block which limits the scope of the
 lexically variable.
 
 This means that once print_header() sets it to 1, it will stay 1 as
-long as the code is running. So all consequent calls to this
-subroutine will just return without doing a thing. Which serves our
-goal, but unfortunately it will work only for the first time the
-script will be invoked within a process. When the script will be
-accessed for a second time and will be served by the same process--the
-header will not be printed anymore, since print_header() will remember
-that the value of C<$header_printed> equals to 1, it wouldn't be
-reinitialized, since the soubroutine wouldn't be recompiled.
+long as the code is running. So all subsequent calls to this
+subroutine will just return without doing a thing. This would serve
+our purpose, but unfortunately it will work only for the first time
+the script is invoked within a process. When the script is executed
+for the second or subsequent times and is served by the same
+process--the header will not be printed anymore, since print_header()
+will remember that the value of C<$header_printed> is equal to 1--it
+won't be reinitialized, since the subroutine won't be recompiled.
 
-Let's make our smart method more elaborate with C<PerlSendHeader>
-directive settings, so it always does the right thing. It's especially
-important if you write an application that you are going to
-distribute, hopefully under one of the Open Source or GPL licences.
+Why can't we use a lexical without hitting the nested subroutine
+effect? Because when we've discussed L<Apache::Registry
+secrets|porting/Exposing_Apache_Registry_secret> we have seen that the
+code is wrapped in a C<handler> routine, effectively turning any
+subroutines within the file a script resides in into nested
+subroutines. Hence we are forced to use a global in this situation.
+
+Let's make our smart method more elaborate with respect to the
+C<PerlSendHeader> directive, so that it always does the right
+thing. It's especially important if you write an application that you
+are going to distribute, hopefully under one of the Open Source or GPL
+licences.
 
 You can continue to improve this subroutine even further to handle
 additional headers, such as cookies.
@@ -2546,7 +2595,7 @@ Once per-child process if not pulled in by the parent process.
 =item *
 
 An additional time, once per child process if the module is pulled in
-off a disk again via C<Apache::StatINC>.
+off disk again via C<Apache::StatINC>.
 
 =item *
 
@@ -2648,15 +2697,16 @@ Pressed the Stop Button'|debug/Handling_the_User_pressed_Stop_>.
 =head1 Command line Switches (-w, -T, etc)
 
 Normally when you run perl from the command line, you have the shell
-invoke it with C<#!/bin/perl> (sometimes referred to as a shebang
+invoke it with C<#!/bin/perl> (sometimes referred to as the shebang
 line).  In scripts running under mod_cgi, you may use perl execution
 switch arguments as described in the C<perlrun> manpage, such as
 C<-w>, C<-T> or C<-d>. Since scripts running under mod_perl don't need
 the shebang line, all switches except C<-w> are ignored by mod_perl.
 This feature was added for a backward compatibility with CGI scripts.
 
-Most command line switches have a special variable equivalent. Consult
-the C<perlvar> manpage for more details.
+Most command line switches have a special variable equivalent which
+allows them to be set/unset in code. Consult the C<perlvar> manpage
+for more details.
 
 =head2 Warnings
 
@@ -2691,6 +2741,7 @@ This code turns warnings mode B<On> for the scope of the block.
     local $^W = 1;
     # some code
   }
+  # $^W assumes its previous value here
 
 This turns it B<Off>:
 
@@ -2698,6 +2749,7 @@ This turns it B<Off>:
     local $^W = 0;
     # some code
   }
+  # $^W assumes its previous value here
 
 Note, that if you forget the C<local> operator this code will affect the
 child processing the current request, and all the subsequent requests
@@ -2718,11 +2770,11 @@ at the start of the file will be effective for the whole file.
 
 =back
 
-While having warning mode turned B<On> is a must for a development
+While having warning mode turned B<On> is essential for a development
 server, you should turn it globally B<Off> in a production server,
-since if every served request generates only one warning, and your
-server serves millions of requests per day, your log file will eat up
-all of your disk space and your system will die.
+since, for example, if every served request generates only one
+warning, and your server serves millions of requests per day, your log
+file will eat up all of your disk space and your system will die.
 
 =head2 Taint Mode
 
@@ -2732,8 +2784,8 @@ mode you are looking for trouble from malicious users. (See the
 I<perlsec> manpage for more information)
 
 If you have some scripts that won't run under Taint mode, run only the
-ones that run under mod_perl with enabled Taint mode and the rest on
-another server with disabled Taint mode -- this can be either a
+ones that run under mod_perl with Taint mode enabled and the rest on
+another server with Taint mode disabled -- this can be either a
 mod_cgi in the front-end server or another back-end mod_perl server.
 You can use the mod_rewrite module and redirect requests based on the
 file extensions. For example you can use I<.tcgi> for the taint-clean
@@ -2762,7 +2814,7 @@ ignore it.
 
 Finally, if you still need to to set additional perl startup flags
 such as C<-d> and C<-D>, you can use an environment variable
-C<PERL5OPT>. Switches in this variable are taken as if they were on
+C<PERL5OPT>. Switches in this variable are treated as if they were on
 every Perl command line.
 
 Only the C<-[DIMUdmw]> switches are allowed.
@@ -2798,7 +2850,7 @@ inside the block, e.g:
     ... some code
   }
 
-It's more important to have C<strict> pragma enabled under mod_perl
+It's more important to have the C<strict> pragma enabled under mod_perl
 than anywhere else.  While it's not required by the language, its use
 cannot be too strongly recommended. It will save you a great deal of
 time.  And, of course, clean scripts will still run under mod_cgi
@@ -2856,7 +2908,7 @@ enable/disable environment variables settings.
 =head1 -M and other time() file tests under mod_perl
 
 Under mod_perl, files that have been created after the server's
-(child?) startup are reported with negative age with C<-M>
+(child) startup are reported as having a negative age with C<-M>
 (C<-C> C<-A>) test. This is obvious if you remember that you will get
 the negative result if the server was started before the file was
 created.  It's normal behavior with perl.
@@ -2907,7 +2959,8 @@ the process was forked, you might want to perform:
 at the beginning of your scripts to simulate the regular perl script
 behaviour of file tests.
 
-
+META: Above is near duplicate of "-M and other time() file tests under mod_perl"
+make a link instead
 
 
 
@@ -2931,10 +2984,10 @@ files you opened!
   close IN;
 
 If you forget to C<close()>, you might get file descriptor leakage
-and (if you C<flock()ed> on this file descriptor) unlock problems.
+and (if you C<flock()ed> on this file descriptor) also unlock problems.
 
-Even if you do close the files, but for some reason the interpreter
-was stopped before the C<close()> call, the leakage is still there.
+Even if you do call close(), if for some reason the interpreter
+was stopped before the C<close()> call, the leakage will still happen.
 See for example L<Handling the 'User pressed Stop button'
 case|debug/Handling_the_User_pressed_Stop_>.  After a long run without
 restarting Apache your machine might run out of file descriptors, and
@@ -2950,7 +3003,7 @@ the middle.  If the variable was defined inside some internal block,
 it will go out of scope at the end of the block. For example:
 
   {
-    my $fh = new IO::File("filename") or die $!;
+    my $fh = IO::File->new("filename") or die $!;
     # read from $fh
   } # ...$fh is closed automatically at end of block, without leaks.
 
@@ -2958,7 +3011,7 @@ As I have just mentioned, you don't have to create a special block for
 this purpose.  A script in a file is effectively written in a block with 
 the same scope as the file, so you can simply write:
 
-  my $fh = new IO::File("filename") or die $!;
+  my $fh = IO::File->new("filename") or die $!;
     # read from $fh
     # ...$fh is closed automatically at end of script, without leaks.
 
@@ -2973,6 +3026,10 @@ An even faster and lighter technique is to use C<Symbol.pm>:
 Use these approaches to ensure you have no leakages, but don't be too
 lazy to write C<close()> statements.  Make it a habit.
 
+Under perl 5.6.0 we can do this instead:
+
+  open my $fh, $filename or die $! ;
+
 
 
 
@@ -2985,58 +3042,9 @@ lazy to write C<close()> statements.  Make it a habit.
 =head1 Code has been changed, but it seems the script is running the old code
 
 Files pulled in via B<use> or B<require> statements are not
-automatically reloaded when changed on disk. See L<Reloading Modules
+automatically reloaded when they change on disk. See L<Reloading Modules
 and Required Files|/Reloading_Modules_and_Required_F> for more
 info.
-
-
-
-
-
-
-
-=head1 Accessing Request Object in non-Perl*Handler Modules
-
-C<Perl*Handler>s can obtain a reference to the request object when it
-is passed to them via C<@_>. For example:
-
-  sub handler {
-    my $r = shift;
-    # ... some code
-    return OK;
-  }
-
-In the C<Apache::Registry> scripts (and friends), the request object
-is available through C<Apache-E<gt>request($r)> method. For example:
-
-  my $r = Apache->request;
-  print $r->uri;
-
-In order to make the above work, C<Apache::Registry> internally passes
-the original object to C<Apache-E<gt>request($r)> (transparantly to
-the users of itself). It does:
-
-    sub handler {
-    my $r = shift;
-    Apache->request($r);
-    # ... lots of woodoo code :)
-    return OK;
-  }
-
-Some modules, like C<CGI.pm>, rely on the fact that
-C<Apache-E<gt>request()> will retrieve the request object. So when you
-use these modules with script running under C<Apache::Registry> (and
-friends) everything is fine. However if you write your own
-C<Perl*Handler> you should explicitly write C<Apache-E<gt>request($r)>
-to make these modules work, just like in the above code snippet.
-
-
-
-
-
-
-
-
 
 
 
@@ -3049,10 +3057,9 @@ One approach is to replace the C<Apache::Registry> handler with
 C<Apache::PerlRun> and define a new location.  The script can reside
 in the same directory on the disk.
 
-  # srm.conf
+  # httpd.conf
   Alias /cgi-perl/ /home/httpd/cgi/
   
-  # httpd.conf
   <Location /cgi-perl>
     #AllowOverride None
     SetHandler perl-script
@@ -3067,7 +3074,7 @@ See L<Apache::PerlRun--a closer look|/Apache_PerlRun_a_closer_look>
 Another "bad", but workable method is to set C<MaxRequestsPerChild> to
 1, which will force each child to exit after serving only one request.
 You will get the preloaded modules, etc., but the script will be
-compiled for each request, then thrown away. This isn't good for
+compiled for each request, then be thrown away. This isn't good for
 "high-traffic" sites, as the parent server will need to fork a new
 child each time one is killed.  You can fiddle with C<MaxStartServers>
 and C<MinSpareServers>, so that the parent pre-spawns more servers
@@ -3135,11 +3142,11 @@ and you'll see:
   Done with script
   Foo->DESTROY
 
-If you run this example with circular reference enabled under mod_perl
-you won't see C<Foo-E<gt>DESTROY> until the server shutdown, or until
-your module properly took care of things. Note that the warn() call
+If you run this example with the circular reference enabled under mod_perl
+you won't see C<Foo-E<gt>DESTROY> until server shutdown, or until
+your module properly takes care of things. Note that the warn() call
 logs its messages to the I<error_log> file, so you should expect the
-printings there and not together with STDOUT.
+output there and not together with STDOUT.
 
 
 
@@ -3162,7 +3169,7 @@ META: to be completed
 
 =item *
 
-Global variables initialized at the server startup, through the Perl
+Global variables initialized at server startup, through the Perl
 startup file, can be shared between processes, until modified by some
 of the processes. e.g. when you write:
 
@@ -3191,14 +3198,498 @@ other methods?
 
 
 
+=head1 Transitioning from Apache::Registry to Apache handlers
+
+Even if you are a CGI script die-hard at some point you might want to
+move a few or all your scripts to Apache Perl handlers. Actually this
+is an easy task, since we saw already what C<Apache::Registry> makes
+our scripts appear to Apache to be Perl handlers.
+
+When you no longer need backward mod_cgi compatibility you
+can benefit from the Perl libraries working only under
+mod_perl. We will see why in a moment.
+
+Let's see an example. We will start with a mod_cgi compatible CGI
+script running under C<Apache::Registry>, transpose it into a Perl
+content handler and then convert it to use C<Apache::Request> and
+C<Apache::Cookie>.
+
+=head2 Starting with mod_cgi Compatible Script
+
+This is the original script's code we are going to work with:
+
+  cookie_script.pl
+  ----------------
+  use strict;
+  use CGI;
+  use CGI::Cookie;
+  use vars qw($q $switch $status $sessionID);
+  
+  init();
+  print_header();
+  print_status();
+  
+  ### <-- subroutines --> ###
+  
+  # the init code
+  ###########
+  sub init{
+    $q = new CGI;
+    
+    $switch = $q->param("switch") ? 1 : 0;
+    
+      # try to retrieve the session ID
+              # fetch existing cookies
+    my %cookies = CGI::Cookie->fetch;
+    $sessionID = exists $cookies{'sessionID'} 
+       ? $cookies{'sessionID'}->value : '';
+    
+      # 0 = not running, 1 = running
+    $status = $sessionID ? 1 : 0;
+    
+      # switch status if asked to
+    $status = ($status+1) % 2 if $switch;
+    
+    if ($status){
+        # preserve sessionID if exists or create a new one
+      $sessionID ||= generate_sessionID() if $status;
+    } else {
+        # delete the sessionID
+      $sessionID = '';
+    }
+    
+  } # end of sub init
+  
+  #################
+  sub print_header{
+      # prepare a cooke
+    my $c = CGI::Cookie->new
+      (-name    => 'sessionID',
+       -value   => $sessionID,
+       -expires => '+1h');
+    
+    print $q->header
+      (-type   => 'text/html',
+       -cookie => $c);
+  
+  } # end of sub print_header
+  
+  
+  # print the current Session status and a form to toggle the status
+  #################
+  sub print_status{
+    
+    print qq{<HTML><HEAD><TITLE>Cookie</TITLE></HEAD><BODY>};
+  
+      # print status
+    print "<B>Status:</B> ",
+          $status
+            ? "Session is running with ID: $sessionID"
+            : "No session is running";
+    
+    
+      # change status form
+    my $button_label = $status ? "Stop" : "Start";
+    print qq{<HR>
+    	 <FORM>
+    	   <INPUT TYPE=SUBMIT NAME=switch VALUE=" $button_label "> 
+    	 </FORM>
+           };
+    
+    print qq{</BODY></HTML>};
+  
+  } # end of sub print_status
+  
+  # A dummy ID generator
+  # Replace with a real session ID generator
+  ########################
+  sub generate_sessionID {
+    return scalar localtime;
+  } # end of sub generate_sessionID
+
+
+The code is very simple. It creates a session if you've pressed the
+I<'Start'> button or deletes it if you've pressed the the I<'Stop'>
+button. The session is stored and retrieved using the cookies
+technique.
+
+Note that we have split the obviously simple and short code into 
+three logical units, by putting the code into three subroutines.
+init() to initialize global variables and parse incoming data,
+print_header() to print the HTTP headers including the cookie header,
+and finally print_status() to generate the output. Later we will see
+that this logical separation will allow us an easy conversion to Perl
+content handler code.
+
+We have used global variables for a few variables since we didn't want
+to pass them from function to function. In a big project you should be
+very restrictive about what variables should be allowed to be global,
+if any at all. In any case, the init() subroutine makes sure all these
+variables are re-initialized for each code reinvocation.
+
+Note that we have used a very simple generate_sessionID() function
+that returns a date string (i.e. S<Wed Apr 12 15:02:23 2000>) as a
+session ID. You want to replace this one with code which generates a
+unique session every time it was called. And it should be secure,
+i.e. users will not be able to forge one and do nasty things.
 
 
 
+=head2 Converting into Perl Content Handler
+
+Now let's convert this script into a content handler. There are two
+parts to this task; the first one is to configure Apache to run the new
+code as a Perl handler, the second one is to modify the code itself.
+
+First we add the following snippet to I<httpd.conf>:
+
+  PerlModule Test::Cookie
+  <Location /test/cookie>
+    SetHandler perl-script
+    PerlHandler Test::Cookie
+  </Location>
+
+After we restart the server, when there is a request whose URI starts
+with I</test/cookie>, Apache will execute the C<Test::Cookie::handler()>
+subroutine as a content handler.  We made sure to preload the
+C<Test::Cookie> module at server start-up, with the C<PerlModule>
+directive.
+
+Now we are going to modify the script itself. We copy the content to
+the file I<Cookie.pm> and place it into one of the directories listed
+in C<@INC>. For example if I</home/httpd/perl> is a part of C<@INC>
+and since we want to call this package C<Test::Cookie>, we can put
+I</Cookie.pm> into the I</home/httpd/perl/Test/> directory.
+
+So this is the new code. Notice that all the subroutines were left
+unmodified from the original script, so to make the differences
+clear we do not repeat them here.
+
+  Test/Cookie.pm
+  --------------
+  package Test::Cookie;
+  use Apache::Constants qw(:common);
+  
+  use strict;
+  use CGI;
+  use CGI::Cookie;
+  use vars qw($q $switch $status $sessionID);
+  
+  sub handler{
+    my $r = shift;
+    Apache->request($r);
+  
+    init();
+    print_header();
+    print_status();
+  
+    return OK;
+  }
+  
+  ### <-- subroutines --> ###
+  # all subroutines as before
+  
+  1;
+
+As you see there are two lines added to the beginning of the code:
+
+  package Test::Cookie;
+  use Apache::Constants qw(:common);
+
+The first one declares the package name and the second one imports
+some symbols commonly used in Perl handlers to return status codes.
+
+  use strict;
+  use CGI;
+  use CGI::Cookie;
+  use vars qw($q $switch $status $sessionID);
+
+This code is left unchanged just as before.
+
+  sub handler{
+    my $r = shift;
+    Apache->request($r);
+  
+    init();
+    print_header();
+    print_status();
+  
+    return OK;
+  }
+
+Each content handler (and any other handler) should begin with
+a subroutine called handler(). This subroutine is called
+when a request's URI starts with I</test/cookie> as per our
+configuration. Of course you can choose a different name, for example
+execute(), but then you must explicitly use it in the configuration
+directives in the following way:
+
+  PerlModule Test::Cookie
+  <Location /test/cookie>
+    SetHandler perl-script
+    PerlHandler Test::Cookie::execute
+  </Location>
+
+But we will use the default name, handler(). 
+
+The handler() subroutine is just like any other subroutine, but
+generally it has the following structure:
+
+  sub handler{
+    my $r = shift;
+   
+    # the code
+  
+    # status (OK, DECLINED or else)
+    return OK;
+  }
+
+First we get the request object by shifting it from C<@_> and
+assigning it to the C<$r> variable.
+
+Second we write the code that does the processing of the request.
+
+Third we return the status of the execution. There are many possible
+statuses, the most commonly used are C<OK> and C<DECLINED>, which tell the
+server whether they have completed the request phase that the handler was
+assigned to do or not.  If not, another handler must
+complete the processing. C<Apache::Constants> imports these two and
+other some commonly used status codes.
+
+So in our example all we had to do was to wrap the three calls:
+
+    init();
+    print_header();
+    print_status();
+
+inside:
+
+  sub handler{
+    my $r = shift;
+    Apache->request($r);
+  
+    return OK;
+  }
+
+There is one line we didn't discuss:
+
+    Apache->request($r);
+
+Since we use <CGI.pm>, it relies on the fact that C<$r> was set in the
+C<Apache> module. C<Apache::Registry> did that behind the scenes.
+Since we don't use C<Apache::Registry> here, we have to do that
+ourselves.
+
+The one last thing we should do is to add C<1;> at the end of the
+module, just like with any Perl module, so C<PerlModule> will not fail
+when it tries to load C<Test::Cookie>.
+
+So to summarise, we took the original script's code and added the
+following eight lines:
+
+  package Test::Cookie;
+  use Apache::Constants qw(:common);
+  
+  sub handler{
+    my $r = shift;
+    Apache->request($r);
+  
+    return OK;
+  }
+  1;
 
 
+and now we have a fully fledged Perl Content Handler.
+
+=head2 Converting to use Apache Perl Modules
+
+So now we have a complete PerlHandler, let's convert it to use Apache
+Perl modules. This breaks the backward compatibility, but gives us
+better performance, mainly because the internals of many of these Perl
+modules are implemented in C, therefore we should get a significant
+improvement in speed. The section "L<TMTOWTDI: Convenience and
+Performance|performance/TMTOWTDI_Convenience_and_Perfor>"
+compares the three approaches.
+
+
+What we are going to do is to replace C<CGI.pm> and C<CGI::Cookie>
+with C<Apache::Request> and C<Apache::Cookie> respectively.  The two
+modules are written in C with the XS interface to Perl, which makes
+code much faster if it utilizes any of these modules a lot.
+C<Apache::Request> uses an API similar to the one C<CGI> uses, the
+same goes for C<Apache::Cookie> and C<CGI::Cookie>. This allows an
+easy porting process. Basically we just replace:
+
+  use CGI;
+  $q = new CGI;
+
+with:
+
+  use Apache::Request ();
+  my $q = Apache::Request->new($r);
+
+and
+
+  use CGI::Cookie ();
+  my $cookie = CGI::Cookie->new(...)
+
+with
+
+  use Apache::Cookie ();
+  my $cookie = Apache::Cookie->new($r, ...);
+
+This is the new code for C<Test::Cookie2>:
+
+  Test/Cookie2.pm
+  --------------
+  package Test::Cookie2;
+  use Apache::Constants qw(:common);
+  
+  use strict;
+  use Apache::Request;
+  use Apache::Cookie ();
+  use vars qw($r $q $switch $status $sessionID);
+  
+  sub handler{
+    $r = shift;
+  
+    init();
+    print_header();
+    print_status();
+  
+    return OK;
+  }
+  
+  ### <-- subroutines --> ###
+  
+  # the init code
+  ###########
+  sub init{
+  
+    $q = Apache::Request->new($r);
+    $switch = $q->param("switch") ? 1 : 0;
+    
+        # fetch existing cookies
+    my %cookies = Apache::Cookie->fetch;
+      # try to retrieve the session ID
+    $sessionID = exists $cookies{'sessionID'} 
+       ? $cookies{'sessionID'}->value : '';
+    
+      # 0 = not running, 1 = running
+    $status = $sessionID ? 1 : 0;
+    
+      # switch status if asked to
+    $status = ($status+1) % 2 if $switch;
+    
+    if ($status){
+        # preserve sessionID if exists or create a new one
+      $sessionID ||= generate_sessionID() if $status;
+    } else {
+        # delete the sessionID
+      $sessionID = '';
+    }
+    
+    
+  } # end of sub init
+  
+  
+  #################
+  sub print_header{
+      # prepare a cooke
+    my $c = Apache::Cookie->new
+      ($r,
+       -name    => 'sessionID',
+       -value   => $sessionID,
+       -expires => '+1h');
+  
+      # Add a Set-Cookie header to the outgoing headers table
+    $c->bake;
+  
+    $r->send_http_header('text/html');
+    
+  } # end of sub print_header
+  
+  
+  # print the current Session status and a form to toggle the status
+  #################
+  sub print_status{
+      
+    print qq{<HTML><HEAD><TITLE>Cookie</TITLE></HEAD><BODY>};
+    
+      # print status
+    print "<B>Status:</B> ",
+          $status
+            ? "Session is running with ID: $sessionID"
+            : "No session is running";
+    
+    
+      # change status form
+    my $button_label = $status ? "Stop" : "Start";
+    print qq{<HR>
+    	 <FORM>
+    	   <INPUT TYPE=SUBMIT NAME=switch VALUE=" $button_label "> 
+    	 </FORM>
+           };
+    
+    print qq{</BODY></HTML>};
+  
+  } # end of sub print_status
+   
+  # replace with a real session ID generator
+  ########################
+  sub generate_sessionID {
+    return scalar localtime;
+  }
+  
+  1;
+
+The only other changes are in the print_header() function, where
+instead of passing the cookie code to the C<CGI>'s header() to
+return a proper HTTP header:
+
+    print $q->header
+      (-type   => 'text/html',
+       -cookie => $c);
+
+we do it in two stages.
+
+    $c->bake;
+
+Adds a C<Set-Cookie> header to the outgoing headers table, and:
+
+    $r->send_http_header('text/html');
+
+sends out the header itself. We have also eliminated:
+
+    Apache->request($r);
+
+since we don't rely on C<CGI.pm> any more and in this case we don't
+need it.
+
+The rest of the code is unchanged.
+
+Of course we add the following snippet to I<httpd.conf>:
+
+  PerlModule Test::Cookie2
+  <Location /test/cookie2>
+    SetHandler perl-script
+    PerlHandler Test::Cookie2
+  </Location>
+
+So now the magic URI that will trigger the above code execution will
+be the one starting with I</test/cookie2> .  We save the code in
+the file I</home/httpd/perl/Test/Cookie2.pm> since we have called this
+package C<Test::Cookie2>.
+
+
+=head2 Conclusion
+
+If your took care to write the original plain CGI script's code in a
+clean and modular way, you can see that the transition is a very
+simple one and doesn't take a lot of effort. Almost no code was
+modified.
 
 
 
 
 =cut
-

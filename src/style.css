@@ -1,15 +1,30 @@
-A { 
-	text-decoration: none; 
+
+BODY {	font-family: helvetica, arial, sans-serif; 
+	color: #000000; 
+	background-color: #ffffff;
 }
-PRE { 
-	white-space: pre;
-	font-family: profont, monaco, ocr-a, monospace, fixed;
-	font-size: medium;
-	line-height: normal;
-	color: black;
-	background-color: #ccccff;
-	padding: .25em; 
-	margin: .25em;
-	border: thin dashed black;
+
+H1 {font-family: helvetica, arial, sans-serif;}
+H2 {font-family: helvetica, arial, sans-serif;}
+H3 {font-family: helvetica, arial, sans-serif;}
+H4 {font-family: helvetica, arial, sans-serif;}
+H5 {font-family: helvetica, arial, sans-serif;}
+H6 {font-family: helvetica, arial, sans-serif;}
+
+P, DIV, TH, TD {font-family: helvetica, arial, sans-serif;}
+UL, UL, DL, LI, DD {font-family: helvetica, arial, sans-serif;}
+BIG, SMALL {font-family: helvetica, arial, sans-serif;}
+STRONG, B {font-family: helvetica, arial, sans-serif;}
+EM, I {font-family: helvetica, arial, sans-serif;}
+
+A { text-decoration: none; }
+A:link {font-family: helvetica, arial, sans-serif;}
+A:visited {font-family: helvetica, arial, sans-serif; }
+A:active {font-family: helvetica, arial, sans-serif; }
+A:hover {font-family: helvetica, arial, sans-serif;}
+
+KBD,PRE { 
+	color: #333333;
+	background-color: white;
 }
 

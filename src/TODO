@@ -1,5 +1,318 @@
+
+
+
+##########################################################
+> OK, if this is the case, I'd prefer to have only one variable type -- an
+> array - so $r->dir_config will always return a list. So if it's a sigular
+> value, it'll be the first element. If you want it to be a hash -- you can
+> have it as well. This makes thing simple and even eliminates the need for
+> PerlSetVar, you can have only PerlAddVar for everything. 
+
+my @values = $r->dir_config->get('Key');
+and
+my %hash = $r->dir_config->get('Key');
+
+already does that, regardless of using PerlSetVar or PerlAddVar.
+although, PerlSetVar would end up with odd number of elements for %hash.
+
+
+
+##########################################################
+
+This goes to debug
+
+Doug said:
+
+
+> I recently downloaded Apache_1.3.12 and installed it on Redhat 6.1,
+> everything was working fine. I run into problems when I tried to install
+> mod_perl-1.23. Everything was compiled ok, but I got error messages (see
+> below) when I try to run the make test. I'm new to both Apache and mod_perl,
+> thank you for your help in advance. 
+
+> still waiting for server to warm up...............not ok
+
+hmm, what happens if you run:
+
+% make start_httpd
+% GET http://localhost:8529/perl/perl-status
+% make kill_httpd
+
+?
+
+you can also get more details on why apache isn't reponding like so:
+
+% make start_httpd
+% strace -f -s1024 -o strace.out -p `cat t/logs/httpd.pid`
+% make run_tests
+% make kill_httpd
+
+have a look at strace.out
+
+The above is a much better example of starting strace without using
+hardcoded names.
+
+##########################################################
+add this to performance.pod
+
+
+Generating proper headers so the documents, that aren't getting
+modified frequenlty, could be cached by proxies, browsers and other
+Internet caches, will allow you to substantionally reduce the load on
+your machines. Again if the content that you provide shouldn't be
+unique for every request.
+
+More info in correct_headers.pod
+
+
+
+##########################################################
+add this to performance.pod
+
+=head1 Code Unloading
+
+We urge you to preload as much code as possible, as it helps to 
+increase the amount of memory which is shared and so reduces the 
+memory footprint.  But sometimes we want to unload code that was 
+previously loaded.  For example, you could load many modules to do 
+some configuration or initialization work at server startup, but 
+none of the children will need these modules later.  As the code 
+is no longer needed, you can unload it.
+
+For example if you use C<XML::Parser in a C<<Perl>> section only, you
+could remove it with:
+
+  delete $INC{'XML/Parser.pm'};
+  Apache::PerlRun->flush_namespace('XML::Parser');
+
+
+
+##########################################################
+
+One day this should become a nice intro into the Perl
+sharing/Multithreading stuff. I've added the section below but then
+removed it, since Shane's reply includes flaws. You don't want to have
+the number of active processes as the number of processors, because
+CPU is not the only resource the process consumes. If we let a single
+process possess a CPU and it goes to sleep on a lengthy IO from Disk
+or db query, the CPU cycles will be wasted.
+
+=head1 Multithreading or not Multithreading
+
+I want to quote this question that showed up and the mod_perl list and
+the answer in their entireness. By the way, this question has been
+asked before perl5.6 and apache2.0 have been released (both with
+multithread support).
+
+John Henckel has asked:
+
+Thanks for your help.  I am slowly coming to terms with the fact that
+Perl is not multithreaded and so it will never be able to scale the
+way I need it to.  It is only a couple thousand lines of code.  I will
+have to rewrite it as a servlet in Java or else a C program using the
+FastCGI protocol.
+
+Many people thing FCGI can't handle multiple concurrent requests,
+however, that is only a perl limitation.  The C-FCGI interface, with
+multithreading, can process hundreds of CGI request simulataneously in
+ONE process with ONE socket to the Apache server.
+
+Shane has replied:
+
+Arg...!  Okay, lets backup.  Multithreading is not a good idea.  What
+your talking about is a process which takes 4 seconds to complete...,
+what are we talking about, remote system communication?  You have a
+process which takes 4 seconds to finish, it doesn't matter what you
+use as your design... it still takes 4 seconds.  If you have 100
+requests for a 4 second process... its going to take 400 seconds.
+(Actually, due to context switching, probably more like 500)
+
+Multi-threading ADDs, not subtracts from the load.  But you see it all
+depends on what sort of architecture your going to use too.  If you
+going to use a single processor machine, multithreading is going to
+slow the whole process down.  If your using a computer that has 100s
+of processors, then clearly, multithreading is the approach to take.
+
+The perl "limitation" of which is you speak is not a limitation per
+se.  Its a limitation if your only using one instance of the perl
+interpretor.  But you are free to use more than one instance of that
+interpretor.  (perldoc perlembed) However, it makes zero sense to have
+more interpretors than processors... due the context switching issue.
+
+The best way to solve the problem is to have one "processing" thread
+per processor.  (I.e. the thread that does work on the request that is
+supposed to take 4 seconds) That thread can be directly written in c,
+or you can write some code for a perl interpretor to process.  No big
+deal.., just keep in mind, if you start opening up more processing
+threads than processors you have and start cramming requests down
+throat faster than once per four seconds, the things going to tumble
+like dominos.  The best thing you could possibly do is this: Setup an
+engine of your own to handle this 4 second long process.  Initiate as
+many threads as you have processors.  Start a queue of processes that
+can be however long.  Hand out 4 second long processes to the queue.
+
+This design will keep things from crashing.  Even better would be to
+have a series of computers that grab requests from others.  I.e. setup
+a central thread written in c, then have it act as a queue.
+Processing threads grab new requests from that queue, and deliver
+them.  This is of course based on your effort of running a process
+that takes 4 seconds.
+
+If this is about remote communication, which I have no idea why it
+wouldn't be unless your doing some strange number crunching, then what
+you want to do is read up on select(), and poll().  Or if you want to
+have it work really well, read up on rt signal queues, and run on the
+2.3.x linux kernel, or some other unix variant.
+
+I'll reiterate... having more threads than processors in ANY language
+is a bad idea, if it can be avoided.  Which it can if you use the
+newer programming stuff.  Moving to Java will not solve your problems,
+it will create 100x worse ones in terms of performance.  Moving to c
+will not solve your problems.  Moving to Perl will not solve your
+problem.  Investigating your problem clearly will help eventually
+solve your problem.  (BTW: No CGI request should take 4 seconds to
+process, unless you are querying a database on the other side of the
+planet.  Unless its some sort of mathematics lab searching for prime
+numbers or something.  I might sound like I'm joking..., but I most
+certainly am not.)
+
+
+
+
+########################################### 
+An attempt to explain why memory goes unshared:
+
+From: Stas Bekman <sbekman@stason.org>
+
+The Perl is a language that uses weak data types, i.e. you don't
+specify variable size (type) like you do in the strong typed languages
+like C.  Therefore Perl uses heap memory by allocating memory on
+demand, rather (unmodifiable) text and (modifiable) data memory pages,
+used by C.  The latter get allocated when the program is loaded into
+memory before it starts to run, the former is allocated at the
+run-time.
+
+On heap there is no separation for data and text pages, when you call
+malloc it just allocates you a chunk you have asked for, this leads to
+the case where the code (static in most cases) and the variables
+(dynamic) land on the same memory pages.
+
+From: shane@isupportlive.com
+
+
+Well... the structs for the "Code Values" are mixed with both code,
+and variables in the case of Lexicals.  However, during runtime these
+are not altered.  Their are structs within the main code value struct
+that will be altered during run time, namely the recursive lexical
+array.  (That's what I call it, but I'm sure Malcolm uses a more
+corect word :->) However, the actual Code (a series of highly
+optimized opcodes... instruction set workalike type stuff that take a
+few clockcycles each to do depending on the op and the architecture)
+is not memory inline with the structs for the recursive lexical array.
+
+What I'm saying is that if you include all your code at the very
+begining the design of perl will not alter that code, so it should be
+allowed to be fixed and shared.  Basically it just holds an opcode
+pointer as to which opcode its working at within the CV.  The
+recursive lexical array itself just has a pointer within the "code
+value" struct to itself.  So basically that main Code struct should
+never need to be realloc'd so it's fairly unlikely that it would need
+to be non-shared.  However maybe someone that understands how
+something is "unshared" within the kernel could be quite helpful.  If
+you were to change where something was pointing within a struct would
+that cause it to be unshared?  I think that it's fairly unlikely, but
+I suppose it's possible.  If that's the case then it's quite likely
+that code pieces could become unshared I suppose.  However the main
+hunk of actual function opcodes would remain fixed, only the execution
+pointer (where it's pointing at within the present program) would
+change.  So, in final (!) the code should always be shared.  However
+if you change the file and it checks the date on it and reloads it,
+obviously it won't be shared :-).
+
+> The Perl is a language that uses weak data types, i.e. you don't
+> specify variable size (type) like you do in the strong typed
+> languages like C.  Therefore Perl uses heap memory by allocating
+> memory on demand, rather (unmodifiable) text and (modifiable) data
+> memory pages, used by C.  The latter get allocated when the program
+> is loaded into memory before it starts to run, the former is
+> allocated at the run-time.
+
+Yes that's true.  There is some compile time stuff where it organizes
+the variable names within the lexical array, but I'm not sure whether
+or not it actually reserves space for those things at that time.  I'm
+really not sure about that item.
+
+> On heap there is no separation for data and text pages, when you
+> call malloc it just allocates you a chunk you have asked for, this
+> leads to the case where the code (static in most cases) and the
+> variables (dynamic) land on the same memory pages.
+
+This is a weak area in my knowledge.  I'm not certain how the kernel
+actually marks segments as shared and not... so I'll refrain from
+commenting.
+ 
+> I'm not sure this a very good explanation. Perl gurus are very
+> welcome to correct/improve my attempt to explain this.
+
+I've tryed to explain what I can.  The best book for this is "Advanced
+Perl Programming"... published by Oreilly.  (of course) There is a
+chapter in there written by Malcolm Beatie (well pieces of the
+chapter) that are pretty good..., but I'm afraid they might not go
+into enough depth on these exact issues.  Not only that, but these are
+also very kernel related too..., you have to understand how both
+pieces fit together, and frankly I couldn't answer that, and I don't
+know a person alive that could :-).  (I'm sure there are some, but
+who?)
+
+
+########################################### 
+
+Ged has written this:
+
+"=head2 URI Translation
+
+For many reasons, a server can never allow access to its entire
+directory hierarchy.  Although there is really no indication of this  
+given to the Web browser, the path given in a requested URI is   
+therefore a virtual path, and early in the processing of a request the
+virtual path given in the request must be translated to a path rooted
+at the filesystem root so that Apache can determine what resource is
+really being requested.  This path can be considered to be a physical
+path, although it may not physically exist.
+
+Especially in mod_perl systems, you may I<intend> that the translated
+path does not physically exist, because your module responds when it
+sees a request for this non-existent path by sending a virtual
+document.  It writes this document "on the fly", especially for this
+request, and the document then vanishes.  Many of the documents you   
+see on the Web, for example most documents which change their
+appearance depending on what the browser asks for, do not physically
+exist.  This is one of the most important features of the Web, and it
+is one of the great powers of mod_perl that it allows you complete
+flexibility to create virtual documents."
+
+
+He also said:
+> Anyway, I think it needs to be said somewhere, and
+> preferably so that the reader will see it before he sees things like  
+> the Alias directives.  It kinda gets assumed by all the other docs and
+> newbies flounder around without grasping the concept.  I speak from
+> personal experience!
+
+
 ###########################################
 
+> > META: Why cover IO::File when Symbol is quicker & lighter?
+> >
+> > It provides other functionality as well. Do you think that it might be
+> > better just to mention it and not delve into the details?
+> 
+> Either just mention it or alternatively, put Symbol first (with note
+> regarding 5.6.0) and then follow with IO::File with a leading remark
+> like "In some situations you may want to take a fully object oriented
+> approach to file handling." And then have the IO::File stuff.
+
+###########################################
 You must rewrite the 
 
 performance.pod
@@ -30,30 +343,13 @@ which will:
  -set PERL_DESTRUCT_LEVEL=2 (additional checks during Perl cleanup)
  -link against libperld if it exists
 
+-----------------
 
+Apache::DB/ httpd -X -D DEBUG
 
-###########################################
+> if you set OPTMIZE => '-g', in the Makefile.PL and start httpd under gdb,
+> it's easy to debug.
 
-Add a new section: 
-
-Transitioning from Apache::Registry to Apache handlers
-
-That should be pretty easy to convert, since you already have your main
-program logic off in a separate module.
-
-> Should I just use Apache::Request instead of CGI.pm? (I do use the
-> cookie & checkbox/pulldown functionality often). 
-
-Use Apache::Request and Apache::Cookie (both in the libapreq
-distribution).  I don't use the sticky forms stuff in CGI.pm, so I don't
-know if there's a handy replacement.  Check CPAN or just roll your own.
-Maybe you could make a subclass of Apache::Request that adds somemethods
-for this.
-
-> If there are any tutorials out there, I'd love some links. 
-
-It really isn't difficult enough to merit a tutorial, in my opinion.  It's
-just ordinary perl module stuff. 
 
 
 
@@ -61,21 +357,6 @@ just ordinary perl module stuff.
 
 eagle book appendix B lists all the Makefile.PL options (we better
 include them all)
-
-###########################################
-
-> > META: Does it matter where we declare Apache::Peek, i.e. before/after
-> > Apache::Status?
-> > 
-> > No, it doesn't.
-> 
-> I asked this because when you talked about Apache::Status you made it
-> very clear that it *had to be first* so I kind of felt that since you'd
-> been explicit about that you ought to have said that the order of
-> Apache::Peek didn't matter -- since both Apache::Status and Apache::DBI
-> have order dependencies I think you should say which one's don't have  
-> order dependencies.
-
 
 ###########################################
 
@@ -101,16 +382,14 @@ use you should check this issue.
 
 All the above is tentative and should be validated.
 
-###########################################
+it seems to be duplicated as well in a few places.
 
-I think that the Syg::Signal is being duplicated in two places!
+I think that the Symbol is being duplicated in two places!
 
 ###########################################
 
 From: "Joseph R. Junkin" <jjunkin@datacrawler.com>
-To: Stas Bekman <sbekman@stason.org>
 Subject: Re: [summary+rfc] When One Machine is not Enough...
-
 
 I doubt it will help, but you are free to look at a talk I gave:
 
@@ -134,486 +413,10 @@ regarding of eval {} if $@ try/catch use
 
 ###########################################
 
-===>
-
-===>
-
-===>
-
-===>
-
-===>
-
-===>
-
-===>
-
-===>
-
-===>
-
-===>
-
-===>
-
-===>
-
-===>
-
-===>
-
-===>
-
-===>
-
-
-===>
-
-===>
-
-###########################################
-
-Check whether this one is documented somewhere else too:
-
-install: What Compiler Should Be Used to Build mod_perl?
-
-I'm not sure, but Ged says it is.
-
-###########################################
-
-CREDITS! CREDITS! CREDITS! put all the credits in place, especially
-Ged!!!
-
-###########################################
-
-Mention the Apache::Watchdog::RunAway in the debug.pod where you have
-a META to fill.
-
-###########################################
-
-There are lots of META tags in the Guide, it's a time to go and fill
-in the missing details
-
-
-###########################################
-
-
-
-
-> Are you familiar with Apache::Resource and setrlimit? If so what do the
-> soft and hard limits mean? Is soft is the one that can be temperarely
-> be lower that the current usage of something? And the hard limit is the
-> one that if reached it triggers the killoff?
-
->From BSD's man page for setrlimit:
-
-     A resource limit is specified as a soft limit and a hard limit.  When a
-     soft limit is exceeded a process may receive a signal (for example, if
-     the cpu time or file size is exceeded), but it will be allowed to contin-
-     ue execution until it reaches the hard limit (or modifies its resource
-     limit).  The rlimit structure is used to specify the hard and soft limits
-     on a resource,
-     ...
-     The system refuses to extend the data or stack space when the limits
-     would be exceeded in the normal way: a brk(2) call fails if the data
-     space limit is reached.  When the stack limit is reached, the process re-
-     ceives a segmentation fault (SIGSEGV); if this signal is not caught by a
-     handler using the signal stack, this signal will kill the process.
-
-     A file I/O operation that would create a file larger that the process'
-     soft limit will cause the write to fail and a signal SIGXFSZ to be gener-
-     ated; this normally terminates the process, but may be caught.  When the
-     soft cpu time limit is exceeded, a signal SIGXCPU is sent to the offend-
-     ing process.
-
-###########################################
-
-control.pod: 
-
-> > META: Stas: I would not have renamed apachectl to httpd_perl if I had
-> > META: Stas: renamed httpd to httpd_perl.  This will be confusing for a
-> > META: Stas: beginner.  How about 'httpd_perl_ctl start' etc?
-> >
-> > Neither symbolic links nor httpd_perl/docs themselves are visiable from
-> > PATH. Do you want to change the symlink name?
->
-> I don't know if I've misunderstood you, or if I've failed to make my
-> point well.  It wasn't about PATH.  My thought was that if our reader
-> creates a binary called `/usr/whatever/httpd_perl' and also renames a
-> script from `/etc/init.d/apachectl' to `/etc/init.d/httpd_perl' he has
-> *two* files called httpd_perl and that could confuse him, at a time
-> when he's already likely to be confused about many other things.  The
-> symlinks are OK because they all have a `S87...' (or whatever) prefix.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-###########################################
-
-
-===>
-
-===>
-
-===>
-
-===>
-
-===>
-
-===>
-
-===>
-
-===>
-
-
-===>
-
-===>
-
-===>
-
-
-===>
-
-===>
-
-###########################################
-
-Jeffrey W. Baker said:
-
-How about mod_backhand?  http://www.backhand.org/.  It is capable of not
-only buffering, but also load balancing and failover.
-
-If all you want is buffering, it would be very easy to write a small
-program that accepted http requests and forwarded them to another
-daemon, then buffered the response.  Perhaps this would be a good
-weekend project for one of us.
-
-I've been tinkering with the idea of writing an httpd.  As much as I
-like Apache, there are many things I don't like about it, and a ton of
-functionality that I won't ever need.  All I really want is a web server
-that:
-
-1) Is multithreaded or otherwise highly parallel.
-2) Has a request stage interface like Apache's
-3) Uses async I/O
-
-Number 3 would releive us of this squid hack that we are all using. 
-That doesn't seem too hard.
-
-
-###########################################
-
-Server split issue:
-
-(Greg Stark)
-
-I've learned the hard way that a proxy does not completely replace the need to
-put images and other other static components on a separate server. There are
-two reasons that you really really want to be serving images from another
-server (possibly running on the same machine of course).
-
-1) Netscape/IE won't intermix slow dynamic requests with fast static requests
-   on the same keep-alive connection
-
-2) static images won't be delayed when the proxy gets bogged down waiting on
-   the backend dynamic server.
-
-Both of these result in a very slow user experience if the dynamic content
-server gets at all slow -- even out of proportion to the slowdown. 
-
-Eg, if the dynamic content generation becomes slow enough to cause a 2s
-backlog of connections for dynamic content, then a proxy will not protect the
-static images from that delay. Netscape or IE may queue those requests after
-another dynamic content request, and even if they don't the proxy server will
-eventually have every slot taken up waiting on the dynamic server. 
-
-So *every* image on the page will have another 2s latency, instead of just a
-2s latency for the entire page. This is worst in Netscape of course course
-where the page can't draw until all the images sizes are known.
-
-This doesn't mean having a proxy is a bad idea. But it doesn't replace putting
-your images on pics.mydomain.foo even if that resolves to the same address and
-run a separate apache instance for them.
-
-===>
-
-
-> > I think if you can avoid hitting a mod_perl server for the images,
-> > you've won more than half the battle, especially on a graphically
-> > intensive site.
-> 
-> I've learned the hard way that a proxy does not completely replace the need
-to
-> put images and other other static components on a separate server. There are
-> two reasons that you really really want to be serving images from another
-> server (possibly running on the same machine of course).
-
-I agree that it is correct to serve images from a lightweight server
-but I don't quite understand how these points relate.  A proxy should
-avoid the need to hit the backend server for static content if the
-cache copy is current unless the user hits the reload button and
-the browser sends the request with 'pragma: no-cache'.
-
-> 1) Netscape/IE won't intermix slow dynamic requests with fast static requests
->    on the same keep-alive connection
-
-I thought they just opened several connections in parallel without regard
-for the type of content.
-
-> 2) static images won't be delayed when the proxy gets bogged down waiting on
->    the backend dynamic server.
-
-Is this under NT where mod_perl is single threaded?  Serving a new request
-should not have any relationship to delays handling other requests on
-unix unless you have hit your child process limit.
-
-> Eg, if the dynamic content generation becomes slow enough to cause a 2s
-> backlog of connections for dynamic content, then a proxy will not protect the
-> static images from that delay. Netscape or IE may queue those requests after
-> another dynamic content request, and even if they don't the proxy server will
-> eventually have every slot taken up waiting on the dynamic server. 
-
-A proxy that already has the cached image should deliver it with no
-delay, and a request back to the same server should be serviced
-immediately anyway.
-
-> So *every* image on the page will have another 2s latency, instead of just a
-> 2s latency for the entire page. This is worst in Netscape of course course
-> where the page can't draw until all the images sizes are known.
-
-Putting the sizes in the IMG SRC tag is a good idea anyway.
-
-> This doesn't mean having a proxy is a bad idea. But it doesn't replace
-putting
-> your images on pics.mydomain.foo even if that resolves to the same address
-and
-> run a separate apache instance for them.
-
-This is a good idea because it is easy to move to a different machine
-if the load makes it necessary.  However, a simple approach is to
-use a non-mod_perl apache as a non-caching proxy front end for the
-dynamic content and let it deliver the static pages directly.  A
-short stack of RewriteRules can arrange this if you use the 
-[L] or [PT] flags on the matches you want the front end to serve
-and the [P] flag on the matches to proxy.
-
-===>
-
-> I agree that it is correct to serve images from a lightweight server
-> but I don't quite understand how these points relate.  A proxy should
-> avoid the need to hit the backend server for static content if the
-> cache copy is current unless the user hits the reload button and
-> the browser sends the request with 'pragma: no-cache'.
-
-I'll try to expand a bit on the details:
-
-> > 1) Netscape/IE won't intermix slow dynamic requests with fast static
-requests
-> >    on the same keep-alive connection
-> 
-> I thought they just opened several connections in parallel without regard
-> for the type of content.
-
-Right, that's the problem. If the two types of content are coming from the
-same proxy server (as far as NS/IE is concerned) then they will intermix the
-requests and the slow page could hold up several images queued behind it. I
-actually suspect IE5 is cleverer about this, but you still know more than it
-does.
-
-By putting them on different hostnames the browser will open a second set of
-parallel connections to that server and keep the two types of requests
-separate.
-
-> > 2) static images won't be delayed when the proxy gets bogged down waiting
-on
-> >    the backend dynamic server.
-
-Picture the following situation: The dynamic server normally generates pages
-in about 500ms or about 2/s; the mod_perl server runs 10 processes so it can
-handle 20 connections per second. The mod_proxy runs 200 processes and it
-handles static requests very quickly, so it can handle some huge number of
-static requests, but it can still only handle 20 proxied requests per second.
-
-Now something happens to your mod_perl server and it starts taking 2s to
-generate pages. The proxy server continues to get up to 20 requests per second
-for proxied pages, for each request it tries to connect to the mod_perl
-server. The mod_perl server can now only handle 5 requests per second though.
-So the proxy server processes quickly end up waiting in the backlog queue. 
-
-Now *all* the mod_proxy processes are in "R" state and handling proxied
-requests. The result is that the static images -- which under normal
-conditions are handled quicly -- become delayed until a proxy process is
-available to handle the request. Eventually the backlog queue will fill up and
-the proxy server will hand out errors.
-
-> This is a good idea because it is easy to move to a different machine
-> if the load makes it necessary.  However, a simple approach is to
-> use a non-mod_perl apache as a non-caching proxy front end for the
-> dynamic content and let it deliver the static pages directly.  A
-> short stack of RewriteRules can arrange this if you use the 
-> [L] or [PT] flags on the matches you want the front end to serve
-> and the [P] flag on the matches to proxy.
-
-That's what I thought. I'm trying to help others avoid my mistake :)
-
-Use a separate hostname for your pictures, it's a pain on the html authors but
-it's worth it in the long run.
-
-=====>
-
-> > > 1) Netscape/IE won't intermix slow dynamic requests with fast static
-requests
-> > >    on the same keep-alive connection
-> > 
-> > I thought they just opened several connections in parallel without regard
-> > for the type of content.
-> 
-> Right, that's the problem. If the two types of content are coming from the
-> same proxy server (as far as NS/IE is concerned) then they will intermix the
-> requests and the slow page could hold up several images queued behind it. I
-> actually suspect IE5 is cleverer about this, but you still know more than it
-> does.
-
-They have a maximum number of connections they will open at once
-but I don't think there is any concept of queueing involved. 
-
-> > > 2) static images won't be delayed when the proxy gets bogged down waiting
-on
-> > >    the backend dynamic server.
-> 
-> Picture the following situation: The dynamic server normally generates pages
-> in about 500ms or about 2/s; the mod_perl server runs 10 processes so it can
-> handle 20 connections per second. The mod_proxy runs 200 processes and it
-> handles static requests very quickly, so it can handle some huge number of
-> static requests, but it can still only handle 20 proxied requests per second.
-> 
-> Now something happens to your mod_perl server and it starts taking 2s to
-> generate pages.
-
-
-The 'something happens' is the part I don't understand.  On a unix
-server, nothing one httpd process does should affect another
-one's ability to serve up a static file quickly, mod_perl or
-not.  (Well, almost anyway). 
-
-> The proxy server continues to get up to 20 requests per second
-> for proxied pages, for each request it tries to connect to the mod_perl
-> server. The mod_perl server can now only handle 5 requests per second though.
-> So the proxy server processes quickly end up waiting in the backlog queue. 
-
-If you are using squid or a caching proxy, those static requests
-would not be passed to the backend most of the time anyway. 
-
-> Now *all* the mod_proxy processes are in "R" state and handling proxied
-> requests. The result is that the static images -- which under normal
-> conditions are handled quicly -- become delayed until a proxy process is
-> available to handle the request. Eventually the backlog queue will fill up
-and
-> the proxy server will hand out errors.
-
-But only if it doesn't cache or know how to serve static content itself.
-
-> Use a separate hostname for your pictures, it's a pain on the html authors
-but
-> it's worth it in the long run.
-
-That depends on what happens in the long run. If your domain name or
-vhost changes, all of those non-relative links will have to be
-fixed again.
-
-==>
-
-> Welcome to the real world however where "something" can and does happen.
-> Developers accidentally put untuned SQL code in a new page that takes too
-long
-> to run. Database backups slow down normal processing. Disks crash slowing
-down
-> the RAID array (if you're lucky). Developers include dependencies on services
-> like mail directly in the web server instead of handling mail asynchronously
-> and mail servers slow down for no reason at all. etc.
-
-Of course.  I have single httpd processes screw up all the time.  They
-don't affect the speed of other httpd processes unless they consume
-all of the machine's resources or lock something in common.  I suppose
-if you have a small limit on the number of backend programs you
-could get to a point where they are all busy doing something wrong. 
-
-> > If you are using squid or a caching proxy, those static requests
-> > would not be passed to the backend most of the time anyway. 
-> 
-> Please reread the analysis more carefully. I explained that. That is
-> precisely the scenario I'm describing faults in.
-
-I read it, but just wasn't convinced.  I'd like to understand this
-better, though.  What did you do to show that there is a difference
-when netscape accesses different hostnames for fast static content
-as opposed to the same one where a cache responds quickly but
-dynamic content is slow?  I thought Netscape would open 6 or so
-separate connections regardless and would only wait if all 6
-were used.  That is, it should not make anything wait unless you
-have dynamically-generated images (or redirects) tying up the
-other connections besides the one supplying the main html.  Do
-you have some reason to think it will open fewer connections 
-if they are all to the same host? 
-
-
-###########################################
-
-
 Makefile.PL: build.pl gets called twice when running from CPAN
 shell. Because it does 'make' and 'make install' and both call
 'manifypods'. Need to add a source change control, so if manifypods
 was called once for make, it won't be called for 'make install'
-
-
-###########################################
-
-
-###########################################
-
-When you do use locking, be very very careful if you use Apache::DBI or
-similar persistent connections. MySQL threads keep tables locked until
-the thread ends (connection is closed) or the tables are unlocked. If your
-session die()'s while tables are locked, they will stay neatly locked as
-your connection won't be closed either .... This was a nasty one I bumped
-in to ...
-
-###########################################
-
-scenario: "One Light and One Heavy Server where ALL htmls are
-Perl-Generated" introduced a lot of info duplication in its tricks
-section! remove/modify/merge it.
-
-###########################################
-
-What's needed in order to sucessfully debug segfaulting modules under gdb:
-
-Apache::DB/ httpd -X -D DEBUG
-
-> if you set OPTMIZE => '-g', in the Makefile.PL and start httpd under gdb,
-> it's easy to debug.
-###########################################
-
-
-###########################################
-
-
-###########################################
 
 
 ###########################################
@@ -623,25 +426,23 @@ I think of merging the Apache::Status and the Debug sections since
 both are very relative and Apache::Status allows you to debug the code
 in some extend.
 
- META: I think to move here the code to trap errors, to produce nice
- messages to user: when the error occurs because of the user mistake,
- or something went wrong on the server side. We user errors, add some
- code that deployes a CGI's stickiness of variables, so you display
- just the erroneous fields (give an code snippet from User Subscribe
- from singlesheaven). Notice that error handling is an art, if you are
- really concerned for users to be loyal and stay with your service.
-
-like Doug said:
-
-A virtuous Apache module must let at least two people know when a
-problem has occurred: you, the module's author, and the remote user.
-You can communicate errors and other exception conditions to yourself
-by writing out entries to the server log.  For alerting the user when
-a problem has occurred, you can take advantage of the simple but
-flexible Apache ErrorDocument system, use I<CGI::Carp>, or roll your
-own error handler.
 
 #####################################################################
+
+Stick this para at the beginning of the performance chapter.
+
+One of the most important issues in improving performance is the
+reduction of memory usage.  The less memory each server uses, the more
+server processes you can start, and thus the more performance you have
+(from the user's point of view, the speed of response).
+
+See L<Global vs Fully Qualified
+Variables|performance/Global_vs_Fully_Qualified_Variab>
+
+See L<Memory "leakages"|performance/Memory_leakage>
+
+#####################################################################
+
 
 Important for both book and guide: The strategy chapter talks about
 performance improve among other things. The performance chapter
@@ -654,8 +455,6 @@ Include very important performance improve notes from:
 
 http://www.apache.org/docs/misc/perf-tuning.html
 http://www.apache.org/docs/misc/perf.html
-
-#####################################################################
 
 #####################################################################
 
@@ -672,17 +471,6 @@ Apache::Symdump - shows
 
 Apache::Status uses it to show the process' internals
 
-
-
-#####################################################################
-
-
-#####################################################################
-
-
-#####################################################################
-
-#####################################################################
 
 #####################################################################
 
@@ -727,12 +515,6 @@ in certain situations (speaking from experience).
 * I was going to suggest that too.  %ENV controls the environment
 of the currently running Perl process, but child processes come from
 the "subprocess env", which only the call above sets.
-
-
-
-
-#####################################################################
-
 
 #######################################################################
 
@@ -811,14 +593,6 @@ Invalid command 'SiteMap', perhaps mis-spelled or defined by a module not
 included in the server configuration
 
 #######################################################################
-
-
-###################################
-
-###################################
-
-
-###################################
 
 This is a stuff to be integrated into the DB section, all mostly by jwb:
 
@@ -1020,28 +794,6 @@ John D Groenveld wrote:
 
 ###################################
 
-
-###################################
-
-
-###################################
-
-
-###################################
-
-
-###################################
-
-
-
-
-###################################
-
-###################################
-
-
-###################################
-
 Just a snippet to try...
 
 try this (in the mod_perl-x.xx directory):
@@ -1231,16 +983,6 @@ Bjørn Hansen's mod_proxy_add_forward module from
 ftp://ftp.netcetera.dk/pub/apache/ to make it insert the
 C<X-Forwarded-For> header.
   
-
-###################################
-
-###################################
-
-
-
-###################################
-
-
 ###################################
 
 config.pod:
@@ -1261,9 +1003,6 @@ the Palm lacks the memory to build statically, what should I do?
 A: you should get another Palm Pilot to act as a reverse proxy
 
 by Eric Cholet.
-
-
-#################################################
 
 #################################################
 
@@ -1468,11 +1207,6 @@ than it does to compress or uncompress 5 megs of data.
 
 #################################################
 
-
-#################################################
-
-#################################################
-
 performance.pod - extend on Apache::TimeIt package
 
 #################################################
@@ -1482,17 +1216,7 @@ guidelines of contributions (diff against pod...)
 
 #################################################
 
-
-#################################################
-
-#################################################
-
-#################################################
-
 security.pod : add Apache:Auth* modules
-
-#################################################
-
 
 #################################################
 
@@ -1542,32 +1266,5 @@ if (! defined($cookie) || $no_cookie) {
     my $session_cookie = "SESSION_ID=$session->{'_ID'}";
     $r->header_out("Set-Cookie" => $session_cookie);
 }
-
-
-#################################################
-
-
-#################################################
-
-
-##########################################################################
-                 
-
-#################################################################
-
-
-##################################################################
-
-
-########################################################################
-
-
-########################################################################
-
-
-########################################################################
-
-
-
 
 

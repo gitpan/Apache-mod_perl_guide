@@ -4,12 +4,12 @@ title: Apache::* modules
 
 This module provides the Apache/mod_perl user a mechanism for storing
 persistent user data in a global hash, which is independent of its
-real storage mechanism. Currently you can choose from these storage
+real storage mechanism.  Currently you can choose from these storage
 mechanisms C<Apache::Session::DBI>, C<Apache::Session::Win32>,
-C<Apache::Session::File>, C<Apache::Session::IPC>. Read the man page
+C<Apache::Session::File>, C<Apache::Session::IPC>.  Read the man page
 of the mechanism you want to use for a complete reference.
 
-What C<Apache::Session> does is provide persistence to a data structure. 
+C<Apache::Session> provides persistence to a data structure. 
 The data structure has an ID number, and you can retrieve it by using
 the ID number.  In the case of Apache, you would store the ID number in
 a cookie or the URL to associate it with one browser, but the method of
@@ -34,7 +34,7 @@ object, stick any data structure into the hash, and the data you put
 in automatically persists until the next invocation.  Here is a quick
 example which uses cookies to track the user's session.
 
-  #  Pull in the require packages
+  #  Pull in the required packages
   use Apache::Session::DBI;
   use Apache;
   
@@ -103,19 +103,19 @@ Databases|databases/Apache_DBI_Initiate_a_persist>
 
 =head1 Apache::Watchdog::RunAway - Hanging Processes Monitor and Terminator
 
-This module monitors hanging Apache/mod_perl processes. You define the
-time in seconds after which the process to be counted as I<hanging> or
+This module monitors hanging Apache/mod_perl processes.  You define the
+time in seconds after which the process is to be counted as I<hanging> or
 I<run away>.
 
 When the process is considered as I<hanging> it will be killed and the
 event logged into a log file.
 
-Generally you should use the C<amprapmon> program that bundled with
+Generally you should use the C<amprapmon> program that is bundled with
 this module's distribution package, but you can write your own code
-using the module as well. See the I<amprapmon> manpage for more info
-about it.
+using the module as well.  See the I<amprapmon> manpage for more 
+information about it.
 
-Note that it requires an C<Apache::Scoreboard> module to work.
+Note that it requires the C<Apache::Scoreboard> module to work.
 
 Referer to the C<Apache::Watchdog::RunAway> manpage for the
 configuration details.
@@ -137,10 +137,10 @@ Monitor|debug/Apache_VMonitor_Visual_Syste>
 
 =head1 Apache::GTopLimit - Limit Apache httpd processes
 
-This module allows you to kill off Apache httpd processes if they grow
-too large or have too little of shared memory.  You can choose to set
-up the process size limiter to check the process size on every
-request:
+This module allows you to kill off Apache processes if they grow
+too large or if they share too little of their memory.  You can 
+choose to set up the process size limiter to check the process 
+size on every request:
 
     # in your startup.pl:
     use Apache::GTopLimit;
@@ -201,7 +201,7 @@ its shared memory size goes below a specified limit
 =back
 
 Note: This module will run on platforms supported by B<GTop.pm> a Perl
-interface to libgtop (which in turn needs B<libgtop> : See
+interface to libgtop (which of course needs B<libgtop> : See
 http://home-of-linux.org/gnome/libgtop/ ).
 
 Referer to the C<Apache::GTopLimit> manpage for more information.
@@ -226,13 +226,28 @@ them a lighter and faster alternative to CGI.pm and CGI::Cookie.  See
 the C<Apache::Request> and C<Apache::Cookie> documentation for more
 details and eg/perl/ for examples.
 
-C<Apache::Request> and the libapreq are tied tight to the Apache API,
-which there is no access to in a process running under mod_cgi.
+C<Apache::Request> and libapreq are tied tightly to the Apache API,
+to which there is no access in a process running under mod_cgi.
 
 (L<Apache::Request|download/Apache_Request>)
 
 
 
+
+=head1 Apache::RequestNotes - Allow Easy, Consistent Access to Cookie and Form Data Across Each Request Phase
+
+C<Apache::RequestNotes> provides a simple interface allowing all
+phases of the request cycle access to cookie or form input parameters
+in a consistent manner.  Behind the scenes, it uses libapreq
+L<Apache::Request|modules/Apache_Request_libapreq_Gen>>) functions to
+parse request data and puts references to the data in pnotes.
+
+Once the request is past the PerlInit phase, all other phases can have
+access to form input and cookie data without parsing it themselves.
+This relieves some strain, especially when the GET or POST data is
+required by numerous handlers along the way.
+
+See the C<Apache::RequestNotes> manpage for more information.
 
 
 
@@ -251,8 +266,8 @@ look|porting/Apache_PerlRun_a_closer_look>.
 =head1 Apache::RegistryNG -- Apache::Registry New Generation
 
 C<Apache::RegistryNG> is the same as C<Apache::Registry>, aside from
-using filename instead of URI for the namespace. It also uses OO
-interface.
+using filename instead of URI for the namespace.  It also uses an Object 
+Oriented interface.
 
   PerlModule Apache::RegistryNG
   <Location /perl>
@@ -274,8 +289,6 @@ functionality of the existing I<Registry.pm>.  For example,
 C<Apache::RegistryBB> (Bare-Bones) is another subclass that skips the
 stat() call performed by C<Apache::Registry> on each request.
 
-META: is this (below) correct?
-
 One situation where C<Apache::RegistryNG> may definitely be required
 is if you are rewriting URIs (using either mod_rewrite or your own
 handler) in certain ways.
@@ -296,7 +309,7 @@ unique URL -- C<Apache::RegistryNG> should be used instead.
 It works just like C<Apache::Registry>, but does not test the x bit
 (-x) only compiles the file once (no stat() call is made per
 requsest), skips the OPT_EXECCGI checks and does not C<chdir()> into
-the script parent directory. It uses the OO interface.
+the script parent directory.  It uses the Object Oriented interface.
 
 Configuration:
 
@@ -317,18 +330,18 @@ info.
 =head1 Apache::GzipChain - compress HTML (or anything) in the OutputChain
 
 Have you ever served a huge HTML file (e.g. a file bloated with
-JavaScript code) and wandered how could you send it compressed, thus
-drammatically cutting down the download times. After all java applets
+JavaScript code) and wondered how could you send it compressed, thus
+dramatically cutting down the download times?  After all java applets
 can be compressed into a jar and benefit from a faster download
-times. Why cannot we do the same with a plain ASCII (HTML,JS and etc),
-it is a known fact that ASCII text can be compressed by a factor of 10.
+times.  Why can't we do the same with a plain ASCII (HTML, JS etc.)?
+ASCII text can often be compressed by a factor of 10. 
 
-C<Apache::GzipChain> comes to help you with this task. If a client
-(browser) understands C<gzip> encoding this module compresses the
-output and sends it downstream. A client decompresses the data upon
-receive and renders the HTML as if it was a plain HTML fetch.
+C<Apache::GzipChain> comes to help you with this task.  If a client
+(browser) understands C<gzip> encoding, this module compresses the
+output and sends it downstream.  The client decompresses the data upon
+receipt and renders the HTML as if it were fetching plain HTML.
 
-For example to compress all html files on the fly, do:
+For example to compress all html files on the fly, do this:
 
   <Files *.html>
     SetHandler perl-script
@@ -336,27 +349,27 @@ For example to compress all html files on the fly, do:
   </Files>
 
 Remember that it will work only if the browser claims to accept
-compressed input, thru C<Accept-Encoding> header. C<Apache::GzipChain>
-keeps a list of user-agents, thus it also looks at C<User-Agent>
-header, for known to accept compressed output browsers.
+compressed input, by setting the C<Accept-Encoding> header.  
+C<Apache::GzipChain> keeps a list of user-agents, thus it also 
+looks at the C<User-Agent> header to check for browsers known to 
+accept compressed output.
 
-For example if you want to return compressed files which should pass
-in addition through Embperl module, you would write:
+For example if you want to return compressed files which will in 
+addition pass through the Embperl module, you would write:
 
   <Location /test>
     SetHandler perl-script
     PerlHandler Apache::OutputChain Apache::GzipChain Apache::EmbperlChain Apache::PassFile
   </Location>
 
-Hint: Watch an C<access_log> file to see how many bytes were actually
-send, compare with a regular configuration send.
+Hint: Watch the C<access_log> file to see how many bytes were actually
+sent, and compare that with the bytes sent using a regular configuration.
 
-(See C<perldoc Apache::GzipChain>).
+(See also C<perldoc Apache::GzipChain>).
 
-Notice that the rightmost PerlHandler must be a content producer. Use
-C<Apache::PassFile> or another similar module.
-
-
+Notice that the rightmost PerlHandler must be a content producer.  Here
+we are using C<Apache::PassFile> but you can use any module which creates
+output.
 
 
 
@@ -365,32 +378,32 @@ C<Apache::PassFile> or another similar module.
 
 =head1 Apache::OutputChain -- Chain Stacked Perl Handlers
 
-Apache::OutputChain was written as a way of exploring possibilities of
-stacked handlers in mod_perl. It ties the STDOUT to object, which
+Apache::OutputChain was written as a way of exploring the possibilities 
+of stacked handlers in mod_perl.  It ties STDOUT to an object which
 catches the output and makes it easy to build a chain of modules that
-work on output stream of data.
+work on output data stream.
 
 Examples of modules that are build on this idea are
 C<Apache::SSIChain>, C<Apache::GzipChain> and C<Apache::EmbperlChain>
 -- the first processes the SSI's in the stream, the second compresses
-the output on the fly, the last adds the Embperl processing.
+the output on the fly, the last adds Embperl processing.
 
-The syntax goes like
+The syntax goes like this:
 
   <Files *.html>
     SetHandler perl-script
     PerlHandler Apache::OutputChain Apache::SSIChain Apache::PassHtml
   </Files>
 
-The modules are written in the reverse order of their execution --
-here the C<Apache::PassHtml> module simply picks the file's content
-and sends it to STDOUT ... here it's processed by C<Apache::SSIChain>
-...  and then goes to C<Apache::OutputChain> that sends the result to
-the browser.
+The modules are listed in the reverse order of their execution -- here
+the C<Apache::PassHtml> module simply picks a file's content and sends
+it to STDOUT ... then it's processed by C<Apache::SSIChain>, which
+sends its output to STDOUT again ... then it's processed by
+C<Apache::OutputChain>, which finally sends the result to the browser.
 
-Alternative to this approach is C<Apache::Filter>, which has more
-natural "forward" configuration order and it's easier to make other
-modules to be compliant with C<Apache::Filter>.
+An alternative to this approach is C<Apache::Filter>, which has a more
+natural "forward" configuration order and is easier to interface with 
+other modules.
 
 It works with C<Apache::Registry> as well, for example:
 
@@ -403,8 +416,9 @@ It works with C<Apache::Registry> as well, for example:
 
 It's really a regular C<Apache::Registry> setup, except for the added
 modules in the PerlHandler line.
-L<Apache::GzipChain|modules/Apache_GzipChain_compress_HTM> allows to
-compress the output on the fly.
+
+(L<Apache::GzipChain|modules/Apache_GzipChain_compress_HTM> allows to
+compress the output on the fly.)
 
 
 
@@ -416,10 +430,10 @@ compress the output on the fly.
 
 =head1 Apache::PerlVINC - set a different @INC perl-location 
 
-With that module, you can configure C<@INC> and have modules reloaded
-for a given C<Location>, e.g. say two versions of C<Apache::Status>
-are being hacked on in the same server, this fixup handler will simply
-C<delete $INC{ $filename }>, unshift the prefered C<PerlINC> path into
+With this module you can configure C<@INC> and have modules reloaded
+for a given C<Location>.  Suppose two versions of C<Apache::Status>
+are being hacked on the same server, this fixup handler will simply
+C<delete $INC{ $filename }>, unshift the preferred C<PerlINC> path into
 C<@INC>, and reload the file with C<require()>:
 
   PerlModule Apache::PerlVINC
@@ -444,19 +458,19 @@ C<@INC>, and reload the file with C<require()>:
     PerlRequire Apache/Status.pm
   </Location>
 
-It's important to stress that changed C<@INC> is effective only inside
-the C<<Location>> or a similar configuration directive.
+It's important to be aware that a changed C<@INC> is effective only
+inside the C<E<lt>LocationE<gt>> or a similar configuration directive.
 C<Apache::PerlVINC> subclasses the C<PerlRequire> directive, marking
 the file to be reloaded by the fixup handler, using the value of
-C<PerlINC> for C<@INC>. That's local to the fixup handler, so you
+C<PerlINC> for C<@INC>.  That's local to the fixup handler, so you
 won't actually see C<@INC> changed in your script.
 
 To address possible issues of namespace clashes during reload, the
 handler could call C<$r-E<gt>child_terminate()> so the next server to
-load the different versions will have a fresh namespace. (not a good
-idea in a high load environment, of course.)
+load the different versions will have a fresh namespace.  This is not 
+a good idea in a high load environment, of course.
 
-If it is still absent from CPAN get it at:
+If you can't find it on CPAN, get it at:
 http://perl.apache.org/~dougm/Apache-PerlVINC-0.01.tar.gz
 
 
@@ -470,10 +484,10 @@ http://perl.apache.org/~dougm/Apache-PerlVINC-0.01.tar.gz
 =head1 Apache::LogSTDERR
 
 When Apache's builtin syslog support is used, the stderr stream is
-redirected to C</dev/null>.  This means Perl warnings, any messages
-from C<die()>, C<croak()>, etc., will also end up in the black hole.
-The I<HookStderr> directive will hook the stderr stream to a file of
-your choice, the default is shown in this example:
+redirected to C</dev/null>.  This means that Perl warnings, any
+messages from C<die()>, C<croak()>, etc., will also end up in the
+black hole.  The I<HookStderr> directive will hook the stderr stream
+to a file of your choice, the default is shown in this example:
 
  PerlModule Apache::LogSTDERR
  HookStderr logs/stderr_log
@@ -486,9 +500,9 @@ your choice, the default is shown in this example:
 
 =head1 Apache::RedirectLogFix
 
-Due the nature of how mod_perl handles redirects, the status code is
-not properly logged.  C<Apache::RedirectLogFix> module works around
-that bug until mod_perl can deal with this. All you have to do is to
+Because of the way mod_perl handles redirects, the status code is
+not properly logged.  The C<Apache::RedirectLogFix> module works around
+that bug until mod_perl can deal with this.  All you have to do is to
 enable it in the I<httpd.conf> file.
 
   PerlLogHandler Apache::RedirectLogFix
@@ -497,7 +511,7 @@ For example, you will have to use it when doing:
 
   $r->status(304);
 
-and do some manual header sending, like:
+and do some manual header sending, like this:
 
   $r->status(304);
   $r->send_http_header();
@@ -516,7 +530,7 @@ One workaround is to use backticks:
   print `command here`;
 
 But a cleaner solution is provided by the C<Apache::SubProcess>
-module. It overrides the exec() and system() calls, with ones that
+module.  It overrides the exec() and system() calls with calls that
 work correctly under mod_perl.
 
 Let's see a few examples:
@@ -530,7 +544,7 @@ Let's see a few examples:
   # override built-in system() function
   system "/bin/echo hi there";
   
-  # send an output of a program
+  # send the output of a program
   my $efh = $r->spawn_child(\&env);
   $r->send_fd($efh);
   
@@ -545,7 +559,7 @@ Let's see a few examples:
   print $out $String;
   $r->send_fd($in);
   
-  # override built-in exec() function
+  # override the built-in exec() function
   exec "/usr/bin/cal"; 
   
   print "NOT REACHED\n";

@@ -1,3 +1,5 @@
+package Apache::mod_perl_guide;
+
 use ExtUtils::MakeMaker;
 use strict;
 use FindBin ();
@@ -8,8 +10,7 @@ my $target_dir = get_target_dir();
 # the contents of the Makefile that is written.
 WriteMakefile
   (
-   DISTNAME     => 'Apache-mod_perl_guide',
-   NAME	        => 'mod_perl_guide',
+   NAME         => __PACKAGE__,
    VERSION_FROM => 'src/Version.pm', # finds $VERSION
    AUTHOR       => 'Stas Bekman <stas@stason.org>',
    ABSTRACT     => 'mod_perl Guide',

@@ -992,9 +992,16 @@ sub process_item {
 
     return unless $listlevel;
 
+    # tempreparely convert E<> escape tags
+    1 while $text =~ s/E<([^<>]*)>/E-_-$1-_-/g;
+
     # remove formatting instructions from the text
-    1 while $text =~ s/[A-Z]<([^<>]*)>/$1/g;
+    1 while $text =~ s/[A-DF-Z]<([^<>]*)>/$1/g;
+
     pre_escape(\$text);
+
+      # process the escaped Etag
+    1 while $text =~ s/E-_-(.*?)-_-/process_E($1)/eg;
 
     $need_preamble = $items_seen[$listlevel]++ == 0;
 

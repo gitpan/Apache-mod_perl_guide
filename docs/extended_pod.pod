@@ -1,0 +1,113 @@
+=head1 NAME
+
+Extended Pod::Html
+
+=head1 DESCRIPTION
+
+Extended POD format used in this build package:
+
+I've taken the original Pod::Html made some fixes and extended its semantics. This
+package uses Guide::Pod2Html and Guide::Pod2HtmlPS for creating HTML and PS versions
+respectively. The two are almost identical but the generated html is different a little
+bit in Guide::Pod2HtmlPS as it's written to become a PS at the final point.
+
+=head1 Pod::Html fixes
+
+=over 
+
+=item * links handling
+
+Now 
+
+  http://foo/bar.html. 
+
+will be rendered as 
+
+  <a href="http://foo/bar.html">http://foo/bar.html</a>.
+
+and not broken:
+
+  <a href="http://foo/bar.html.">http://foo/bar.html.</a> 
+
+as before (notice the dot).
+
+The same goes for comma and other semantics
+
+=item * HTTP::Foo problem
+
+In the original Pod::Html a text such as 
+
+  this is HTTP::Foo module
+
+becomes 
+
+  this is <a href="HTTP::Foo">HTTP::Foo</a> module
+
+this was fixed to correctly detect http:// constructs
+
+=item * linking
+
+Some pod structures didn't go thru the linking code so 
+
+ http:// 
+
+and alike links weren't highlighted. It's fixed now
+
+
+=back
+
+
+
+=head1 POD extension
+
+I needed additional functionality from the POD and I didn't want to break the nice to
+read pod format with HTML, so I've extended the POD semantics as follows
+
+=over 
+
+
+=item * valid =head tags numbering
+
+Allow as many levels as wanted than just =head{1|2}
+
+=item * code examples
+
+New pod tag:
+
+  =example 1.1 This is a title
+
+becomes:
+
+ <p><i>Example 1.1: This is a title</i></p>
+
+=item * figures (images)
+ 
+New pod tag:
+
+  =figure 1.1 This is a title
+
+ becomes
+
+ <p><center><img src="fig1.1.gif"></center></p>
+ <p><center><b>Figure 1.1: This is a title</b></center></p>
+
+
+=item * linking to code snippets instead of inlining
+
+New pod tag:
+
+  =code filename This is a comment
+
+becomes
+
+  <p><a href="code/filename"><code>filename</code></a>This is a comment</p>
+
+=back 
+
+
+=cut
+
+
+=head1 AUTHOR
+
+Stas Bekman <stas@stason.org>

@@ -37,13 +37,12 @@ things to know about and we will cover them in this section.
 
 The DBI module can make use of the C<Apache::DBI> module.  When it
 loads, the DBI module tests if the environment variable
-C<$ENV{GATEWAY_INTERFACE}> starts with C<CGI-Perl>, and if the
-C<Apache::DBI> module has already been loaded. If so, the DBI module
-will forward every connect() request to the C<Apache::DBI>
-module. C<Apache::DBI> uses the ping() method to look for a database
-handle from a previous connect() request, and tests if this handle is
-still valid.  If these two conditions are fulfilled it just returns
-the database handle.
+C<$ENV{MOD_PERL}> is set, and if the C<Apache::DBI> module has already
+been loaded. If so, the DBI module will forward every connect()
+request to the C<Apache::DBI> module. C<Apache::DBI> uses the ping()
+method to look for a database handle from a previous connect()
+request, and tests if this handle is still valid.  If these two
+conditions are fulfilled it just returns the database handle.
 
 If there is no appropriate database handle or if the ping() method
 fails, C<Apache::DBI> establishes a new connection and stores the
@@ -145,6 +144,18 @@ I use C<alias> (in C<tcsh>) so I do not have to remember the path:
 
   alias err "tail -f /usr/local/apache/logs/error_log"
 
+=head2 Database Locking Risks
+
+Be very very careful when locking the database (C<LOCK TABLE ...>) or
+singular rows if you use C<Apache::DBI> or similar persistent
+connections.  MySQL threads keep tables locked until the thread ends
+(connection is closed) or the tables are unlocked.  If your session
+die()'s while tables are locked, they will stay neatly locked as your
+connection won't be closed either.
+
+See the section L<Handling the 'User pressed Stop button'
+case|debug/Handling_the_User_pressed_Stop_> for more information on
+prevention.
 
 =head2 Troubleshooting
 
@@ -452,11 +463,10 @@ selects from lists and types in match strings, we process input and
 build the C<@where> array. Then we want to get the number of matches
 and the matched rows as well.
 
-META: Add what the tables contain
-
+  my @search_keys = qw(choice1 choice2);
   my @where = ();
     # Process the checkboxes - we turn them into a regular expression
-  foreach (keys %search_keys) {
+  foreach (@search_keys) {
     next unless defined $q->param($_) and $q->param($_);
     my $regexp = "[".join("",$q->param($_))."]";
     push @where, ($_ => ['REGEXP',$regexp]);

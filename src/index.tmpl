@@ -18,29 +18,54 @@ troubleshooting help no sex speedup free open source OSS mod_perl apache guide">
      <!-- 
         @import url(style.css);
      -->
-     
+     <font color="#008B8B">
+
      </style>
-<BODY TEXT="#000000" BGCOLOR="#E0FFFF" LINK="#0000EE" VLINK="#551A8B" ALINK="#FF0000">
+<BODY BGCOLOR="white">
 
 <H1 ALIGN=CENTER>mod_perl Guide</H1>
 
-<CENTER><P><B>Deploying mod_perl technology to give a rocket speed
-to your CGI/perl scripts.</B></P></CENTER>
+<CENTER>
+<P><B>
+
+Deploying mod_perl technology to give the rocket speed to your
+CGI/Perl scripts.
+
+</B></P>
+</CENTER>
 
 <CENTER><P><B>Version [VERSION] [DATE]</B></P></CENTER>
  
-<P><HR WIDTH="100%"></P>
+<table width="70%" align=center>
+<tr><td>
+
+<HR WIDTH="100%">
 
 <B>Mirror readers</B>: Make sure you read <A
 HREF="http://perl.apache.org/guide"> the latest copy</A>.
 
 <HR WIDTH="100%">
 
-<A HREF="#download">Download the Guide Here</A>.
+</td></tr>
+<tr><td>
 
-<HR WIDTH="100%">
 
-<H3>Table of Contents:</H3>
+<CENTER>
+[TOC]
+[ <A HREF="#changes">Changes</A> ]  
+[ <A HREF="#download">Download</A> ] 
+[ <A HREF="#search">Search</A> ]  
+</CENTER>
+
+<HR WIDTH="65%">
+
+</td></tr>
+<tr><td>
+
+<A NAME="toc"></A>
+<h3><font color="#008B8B">
+Table of Contents:</font></h3>
+
 
 <UL>
 
@@ -48,21 +73,64 @@ HREF="http://perl.apache.org/guide"> the latest copy</A>.
 
 </UL>
 
-<HR>
+</td></tr>
+<tr><td>
 
-    <UL>
+<HR WIDTH="65%">
 
-      <LI><A HREF="CHANGES"><B>CHANGES</B></A></LI>
+<CENTER>
+[TOC]
+[ <A HREF="#changes">Changes</A> ]  
+[ <A HREF="#download">Download</A> ] 
+[ <A HREF="#search">Search</A> ]  
+</CENTER>
 
-      <LI><A HREF="#search"><B>Search perl.apache.org along with this guide</B></A></LI>
+<HR WIDTH="65%">
 
-      <LI><A NAME="download"><B>Download</B></A>
+</td></tr>
+<tr><td>
+
+<A NAME="changes"></A>
+<h3><font color="#008B8B">
+Changes:</font></h3>
+
+
+      The Guide <A HREF="CHANGES">Changes</A> file.</LI>
+
+</td></tr>
+<tr><td>
+
+<HR WIDTH="65%">
+
+<CENTER>
+[TOC]
+[ <A HREF="#changes">Changes</A> ]  
+[ <A HREF="#download">Download</A> ] 
+[ <A HREF="#search">Search</A> ]  
+</CENTER>
+
+<HR WIDTH="65%">
+</td></tr>
+<tr><td>
+
+
+      <A NAME="download"><h3><font color="#008B8B">
+Download:</font></h3>
+</A>
 
 	<UL>
 
 	  <LI> 
-	    All the HTML files, POD sources and build scripts are
-	    available from <A
+	    The latest CVS snapshots of the POD sources
+	    and the build script you can build the HTMLs from,
+ 	    are available from  <A
+	    HREF="http://www.stason.org/guide-snapshots/">
+	    http://www.stason.org/guide-snapshots/</A>. 
+	  </LI>
+
+	  <LI> 
+	    <B>This</B> release's HTML files, POD sources 
+            and build script are available from <A
 	    HREF="http://www.perl.com/CPAN-local/authors/id/S/ST/STAS/">
 	    my directory at CPAN or its mirrors</A>.
 	  </LI>
@@ -70,10 +138,9 @@ HREF="http://perl.apache.org/guide"> the latest copy</A>.
 	  <LI> 
 	    Here is the <A HREF="mod_perl_guide.pdf.gz"> Book-like
 	    version </A> (PDF format). Note that <CODE>gv</CODE>
-	    (<CODE>ghostview</CODE>) in addition to viewing PS
-	    files, knows to handle PDF files as well. Use
-	    <CODE>pdf2ps</CODE> utility to convert PDF to PS format if
-	    wanted to.
+	    (<CODE>ghostview</CODE>), in addition to viewing PostScript
+	    files, knows to handle PDF files as well. You can use
+	    <CODE>pdf2ps</CODE> utility to convert PDF to PostSscript format.
 	  </LI>
 
 	</UL>
@@ -82,22 +149,25 @@ HREF="http://perl.apache.org/guide"> the latest copy</A>.
 
     </UL>
 
-<HR>
-<P>
+</td></tr>
+<tr><td>
 
-	     The <a href="http://www.modperl.com/">
-	     <B>Writing Apache Modules with Perl and C</B></a>
-	     book can be purchased online from <a
-	     href="http://www.ora.com/catalog/wrapmod/">O'Reilly </a>
-	     and <a
-	     href="http://www.amazon.com/exec/obidos/ASIN/156592567X/writinapachemodu">
-	     Amazon.com</a>.
-<HR>
-<P>
+<HR WIDTH="65%">
 
-<HR>
+<CENTER>
+[TOC]
+[ <A HREF="#changes">Changes</A> ]  
+[ <A HREF="#download">Download</A> ] 
+[ <A HREF="#search">Search</A> ]  
+</CENTER>
 
-<A NAME="SEARCH"></A>
+<HR WIDTH="65%">
+</td></tr>
+<tr><td>
+
+<A NAME="search"><h3><font color="#008B8B">
+Search:</font></h3>
+</A>
 
 <!--
 <CENTER>
@@ -134,22 +204,48 @@ Search perl.apache.org along with this guide.
 </TABLE>
 </CENTER>
 
+</td></tr>
+<tr><td>
 
-<CENTER><TABLE CELLSPACING=2 CELLPADDING=2 WIDTH="100%" >
-<TR ALIGN=CENTER VALIGN=TOP>
-<TD ALIGN=CENTER VALIGN=CENTER COLSPAN="3">
-<HR></TD>
-</TR>
-<TR ALIGN=CENTER VALIGN=TOP>
-<TD ALIGN=CENTER VALIGN=CENTER COLSPAN="3">
+<HR WIDTH="65%">
+
+<CENTER>
+[TOC]
+[ <A HREF="#changes">Changes</A> ]  
+[ <A HREF="#download">Download</A> ] 
+[ <A HREF="#search">Search</A> ]  
+</CENTER>
+
+<HR WIDTH="65%">
+
+</td></tr>
+<tr><td>
+
+	     The <a href="http://www.modperl.com/">
+	     <B>Writing Apache Modules with Perl and C</B></a>
+	     book can be purchased online from <a
+	     href="http://www.ora.com/catalog/wrapmod/">O'Reilly </a>
+	     and <a
+	     href="http://www.amazon.com/exec/obidos/ASIN/156592567X/writinapachemodu">
+	     Amazon.com</a>.
+
+
+</td></tr>
+<tr><td>
+
+<HR WIDTH="100%">
+<CENTER>
 Master Copy URL: <B>http://perl.apache.org/guide</B><BR>
 Copyright &copy; 1998-2000 Stas Bekman. All rights reserved.
-</TD>
-</TR>
-<TR ALIGN=CENTER VALIGN=TOP>
-<TD ALIGN=CENTER VALIGN=CENTER COLSPAN="3">
-<HR></TD>
-</TR>
+</CENTER>
+
+</td></tr>
+</table>
+
+<HR WIDTH="100%">
+
+<CENTER>
+<TABLE CELLSPACING=2 CELLPADDING=2 WIDTH="100%" >
 
 <TR ALIGN=CENTER VALIGN=TOP>
 <TD ALIGN=CENTER VALIGN=CENTER><B><FONT SIZE=-1>Written by <A

@@ -2,16 +2,16 @@ title: Perl Reference
 
 =head1 A Must Read!
 
-This new document was born because some users are reluctant to learn
-Perl, prior to jumping into mod_perl. I will try to cover some of
-the most frequent pure perl questions being asked at the list.
+This document was born because some users are reluctant to learn
+Perl, prior to jumping into mod_perl.  I will try to cover some of
+the most frequent pure Perl questions being asked at the list.
 
 Update: I'm moving most of the pure Perl related topics from
-everywhere in the Guide to this chapter. From now on other chapters
+everywhere in the Guide to this chapter.  From now on other chapters
 will refer to sections in this chapter if required.
 
 Before you decide to skip this chapter make sure you know all the
-information provided here. The rest of the Guide assumes that you have
+information provided here.  The rest of the Guide assumes that you have
 read this chapter and understood it.
 
 
@@ -29,7 +29,7 @@ is at your fingertips and is a great time saver.
 
 While you can use online Perl documentation at the Web, the C<perldoc>
 utility provides you with access to the documentation installed on
-your system. To find out what Perl manpages are available execute:
+your system.  To find out what Perl manpages are available execute:
 
   % perldoc perl
 
@@ -42,19 +42,20 @@ would execute (e.g. for C<open()>):
 
   % perldoc -f open
 
-Note: In perl5.00503 and earlier, there is a bug in this and the C<-q>
-options of C<perldoc>. It won't call C<pod2man>, but will display the
-section in POD format instead. Despite this bug it's still readable
+Note: In perl5.005_03 and earlier, there is a bug in this and the C<-q> 
+options of C<perldoc>.  It won't call C<pod2man>, but will display the 
+section in POD format instead.  Despite this bug it's still readable 
 and very useful.
 
-To search through the Perl FAQ (I<perlfaq> manpage) sections you would
-(e.g for the C<open> keyword) execute:
+The Perl FAQ (I<perlfaq> manpage) is in several sections.  To search
+through the sections for C<open> you would execute:
 
   % perldoc -q open
 
-This will show you all the matching Q&A sections, still in POD format.
+This will show you all the matching Question and Answer sections,
+still in POD format.
 
-To read the I<perldoc> manpage you execute:
+To read the I<perldoc> manpage you would execute:
 
   % perldoc perldoc
 
@@ -67,7 +68,7 @@ To read the I<perldoc> manpage you execute:
 
 Sometimes it's very hard to understand what a warning is complaining
 about.  You see the source code, but you cannot understand why some
-specific snippet produces that warning. The mystery often results from
+specific snippet produces that warning.  The mystery often results from
 the fact that the code can be called from different places if it's
 located inside a subroutine.
 
@@ -93,9 +94,9 @@ Here is an example:
     print "My value is $var\n";
   }
 
-In the code above, print_value() prints the passed value, correct()
-passes the value to print and in incorrect() we forgot to pass
-it. When we run the script:
+In the code above, print_value() prints the passed value.  Subroutine
+correct() passes the value to print, but in subroutine incorrect() we
+forgot to pass it. When we run the script:
 
   % ./warnings.pl
 
@@ -201,11 +202,112 @@ Getting the trace helps a lot.
 
 =head1 Variables Globally, Lexically Scoped And Fully Qualified
 
-META: complete
+META: this material is new and requires polishing so read with care.
 
-META: I should say something in here first about symbol
-tables. Advanced Perl Programming/Perl Guts chapter is a good
-source for that
+You will hear a lot about namespaces, symbol tables and lexical
+scoping in Perl discussions, but little of it will make any sense
+without a few key facts:
+
+
+=head2 Symbols, Symbol Tables and Packages; Typeglobs
+
+There are two important types of symbol: global and lexical.  We will
+talk about lexical symbols later, for now we will talk only about
+global symbols.
+
+The names of pieces of your code (subroutine names) and the names of
+your global variables are symbols.  Global symbols reside in one
+symbol table or another.  The code itself and the data do not, the
+symbols are the names of pointers which point (indirectly) to the
+memory areas which contain the code and data.
+
+There is one symbol table for each package.
+
+You are always working in one package or another.
+
+Like in C, where the first function you write must be called main(),
+the first statement of your first Perl script is in package C<main::>
+which is the default package.  Unless you say otherwise by using the
+C<package> statement, your symbols are all in package C<main::>.  The
+ideas of files and scripts really have nothing at all to do with
+packages, you can have many packages in a single file but usually you
+don't.  Usually for convenience you have one file per package.  All
+package names end with the semi-colon.  This is probably starting to
+sound familiar to you.
+
+When you create a symbol (variable, subroutine etc.) Perl uses the
+name of the package in which you are currently working as a prefix to
+create the fully qualified name of the symbol.
+
+When you create a symbol, Perl gives you one each of scalar, array,
+hash, subroutine (code), filehandle and format which all have the same
+name -- although you did not ask it to do that.  This collection of
+pointers is called a `typeglob' and it is very important in Perl.  The
+items are pointers, so you see now that there are two indirections for
+a global variable: the symbol points to the typeglob and the typeglob
+points to the data.  The items in the typeglob are completely separate
+pointers which are independent of each other.  They just have the same
+name.  Most of the time, only one of them is used (yes, it's a bit
+wasteful).  You will by now know that you distinguish between them by
+using what the authors of the Camel book call a I<funny character>
+which for a hash, say, is the percent sign. 
+
+Global symbols can be referred to in one of two ways, either by the
+abbreviated name (which is usually the name you gave when you created
+the symbol, and which does not contain the package name) or the fully-
+qualified name (which begins with the package name).
+
+When you refer to a variable, if you do not give the package name then
+the current package is assumed.  This means that to refer to a
+variable in a package other than the current one you must give the
+fully-qualified name.  It also means that most of the time you do not
+need to use the fully qualified symbol name because most of the time
+you will refer to package variables from within the package.  This is
+very like C++ class variables.  You can work entirely within package
+C<main::> and never even know you are using a package, nor that the
+symbols have package names.  In a way, this is a pity because you may
+fail to learn about packages and they are extremely useful.
+
+The exception is when you I<import> the variable from another package.
+This creates an alias for the variable in the I<current> package, so  
+that you can access it without using the fully qualified name.
+
+When you create a variable, the low-level business of allocating
+memory to store the information is handled automatically by Perl.  The
+intepreter keeps track of the chunks of memory to which the pointers
+are pointing and takes care of undefying variables, but not freeing
+the memory when you cease to use it - which as far as Perl is
+concerned means when you cease to have any symbol which points to it.
+
+=head3 Lexical Variables and Symbols
+
+The symbols for lexical variables (i.e. those declared using the
+keyword C<my>) are the only symbols which do NOT live in a symbol
+table.  Because of this, they are not available from outside the
+package in which they are used.  There is no typeglob associated with
+a lexical variable and a lexical variable can refer only to a scalar,
+an array or a hash. 
+
+META: is the above right?
+
+If you need access to the data from outside the package then you can
+return it from a subroutine, or you can create a global variable
+(i.e. one which has a package prefix) which points or refers to it and
+return that.  The pointer or reference must be global so that you can
+refer to it by a fully qualified name. But just like in C try to avoid
+having global variables. Using OO methods generally solve this
+problem, by providing methods to get and set the desired value within
+the object that can be lexically scoped inside the package and passed
+by reference.
+
+The phrase "lexical variable" is a bit of a misnomer, we are really
+talking about "lexical symbols".  The data can be referenced by a
+global symbol too, and when the lexical symbol goes out of scope the
+data will still be accessible through the global symbol.  This is
+perfectly legitimate and cannot be compared to the terrible mistake of
+taking a pointer to an automatic C variable and returning it from a
+function - when the pointer is dereferenced there will be a segfault.
+
 
 Also see the clarification of C<my()> vs. C<use vars> - Ken Williams
 writes:
@@ -1660,7 +1762,7 @@ Example usage:
 
   @some_browsers = qw(Mozilla Lynx MSIE AmigaVoyager lwp libwww);
   $Known_Browser=Build_MatchMany_Function(@some_browsers);
-
+  
   while (<ACCESS_LOG>) {
     # ...
     $browser = get_browser_field($_);
@@ -1675,6 +1777,470 @@ Example usage:
 
 
 
+
+
+
+
+
+=head1 Exception Handling for mod_perl
+
+Provided here are some guidelines for S<clean(er)> exception handling
+for mod_perl usage, although the technique presented here applies to
+all of your Perl programming.
+
+The reasoning behind this document is the current broken status of
+C<$SIG{__DIE__}> in the perl core - see both the perl5-porters and
+mod_perl mailing list archives for details on this discussion. (It's
+broken in at least Perl v5.6.0 and probably in later versions as
+well.)
+
+=head2 Trapping Exceptions in Perl
+
+To trap an exception in Perl we use the C<eval{}> construct. Many
+people initially make the mistake that this is the same as the C<eval
+EXPR> construct, which compiles and executes code at run time, but
+that's not the case. C<eval{}> compiles at compile time, just like the
+rest of your code, and has next to zero run-time penalty.
+
+When in an eval block, if the code executing die()'s for some reason,
+rather than terminating your code, the exception is I<caught> and the
+program is allowed to examine that exception and make decisions based
+on it. The full construct looks like this:
+
+  eval 
+  {
+      # Some code here
+  }; # Note important semi-colon there
+  if ($@) # $@ contains the exception that was thrown
+  {
+      # Do something with the exception
+  }
+  else # optional
+  {
+      # No exception was thrown
+  }
+
+Most of the time when you see these exception handlers there is no
+else block, because it tends to be OK if the code didn't throw an
+exception.
+
+=head2 Alternative Exception Handling Techniques
+
+An often suggested method for handling global exceptions in mod_perl,
+and other perl programs in general, is a B<__DIE__> handler, which can
+be setup by either assigning a function name as a string to
+C<$SIG{__DIE__}> (not particularly recommended, because of the
+possible namespace clashes) or assigning a code reference to
+C<$SIG{__DIE__}>, the usual way of doing so is to use an anonymous
+subroutine:
+
+  $SIG{__DIE__} = sub { print "Eek - we died with:\n", $_[0]; };
+
+The current problem with this is that C<$SIG{__DIE__}> is a global
+setting in your script, so while you can potentially hide away your
+exceptions in some external module, the execution of C<$SIG{__DIE__}>
+is fairly magical, and interferes not just with your code, but with
+all code in every module you import. Beyond the magic involved,
+C<$SIG{__DIE__}> actually interferes with perl's normal exception
+handling mechanism, the C<eval{}> construct. Witness:
+
+  $SIG{__DIE__} = sub { print "handler\n"; };
+  
+  eval {
+      print "In eval\n";
+      die "Failed for some reason\n";
+  };
+  if ($@) {
+      print "Caught exception: $@";
+  }
+
+The code unfortunately prints out:
+
+  In eval
+  handler
+
+Which isn't quite what you would expect, especially if that
+C<$SIG{__DIE__}> handler is hidden away deep in some other module that
+you didn't know about. There are work arounds however. One is to
+localise C<$SIG{__DIE__}> in every exception trap you write:
+
+  eval {
+      local $SIG{__DIE__};
+      ...
+  };
+
+Obviously this just doesn't scale - you don't want to be doing that
+for every exception trap in your code, and it's a slow down. A second
+work around is to check in your handler if you are trying to catch
+this exception:
+
+  $SIG{__DIE__} = sub {
+      die $_[0] if $^S;
+      print "handler\n";
+  };
+
+However this won't work under C<Apache::Registry> - you're always in
+an eval block there!
+
+You should warn people about this danger of C<$SIG{__DIE__}> and
+inform them of better ways to code. The following material is an
+attempt to just that.
+
+
+
+=head2 Better Exception Handling
+
+The C<eval{}> construct in itself is a fairly weak way to handle
+exceptions as strings. There's no way to pass more information in your
+exception, so you have to handle your exception in more than one place
+- at the location the error occurred, in order to construct a sensible
+error message, and again in your exception handler to de-construct
+that string into something meaningful (unless of course all you want
+your exception handler to do is dump the error to the browser).
+
+A little known fact about exceptions in perl 5.005 is that you can
+call die with an object. The exception handler receives that object in
+C<$@>. This is how you are advised to handle exceptions now, as it
+provides an extremely flexible and scalable exceptions solution.
+
+=head3 A Little Housekeeping
+
+First though, before we delve into the details, a little housekeeping
+is in order. Most, if not all, mod_perl programs consist of a main
+routine that is entered, and then dispatches itself to a routine
+depending on the parameters passed and/or the form values. In a normal
+C program this is your main() function, in a mod_perl handler this is
+your handler() function/method.
+
+In order for you to be able to use exception handling to its best
+extent you need to change your script to have some sort of global
+exception handling. This is much more trivial than it sounds. If
+you're using C<Apache::Registry> to emulate CGI you might consider
+wrapping your entire script in one big eval block, but I would
+discourage that. A better method would be to modularise your script
+into discrete function calls, one of which should be a dispatch
+routine:
+
+  #!/usr/bin/perl -w
+  # Apache::Registry script
+  
+  eval {
+      dispatch();
+  };
+  catch($@);
+  
+  sub dispatch {
+      ...
+  }
+  
+  sub catch {
+      my $exception = shift;
+      ...
+  }
+
+This is easier with an ordinary mod_perl handler as it is natural to
+have separate functions, rather than a long run-on script:
+
+  MyHandler.pm
+  ------------
+  sub handler {
+      my $r = shift;
+      
+      eval {
+          dispatch($r);
+      };
+      catch ($@);
+  }
+  
+  sub dispatch {
+      my $r = shift;
+      ...
+  }
+  
+  sub catch {
+      my $exception = shift;
+      ...
+  }
+
+Now that the skeleton code is setup, let's create an exception class,
+making use of Perl 5.005's ability to throw exception objects.
+
+=head3 An Exception Class
+
+This is a really simple exception class, that does nothing but contain
+information. A better implementation would probably also handle its
+own exception conditions, but that would be more complex, requiring
+separate packages for each exception type.
+
+  My/Exception.pm
+  ---------------
+  package My::Exception;
+  
+  sub AUTOLOAD {
+      my ($package, $filename, $line) = caller;
+      no strict 'refs', 'subs';
+      if ($AUTOLOAD =~ /.*::([A-Z]\w+)$/) {
+          my $exception = $1;
+          *{$AUTOLOAD} = 
+              sub {
+                  shift; 
+                  push @_, caller => {
+                                  package => $package,
+                                  filename => $filename,
+                                  line => $line,
+                                    };
+                  bless { @_ }, "My::Exception::$exception"; 
+              };
+          goto &{$AUTOLOAD};
+      }
+      else {
+          die "No such exception class: $AUTOLOAD\n";
+      }
+  }
+  
+  1;
+
+OK, so this is all highly magical, but what does it do? It creates a
+simple package that we can import and use as follows:
+
+  use My::Exception;
+  
+  die My::Exception->SomeException( foo => "bar" );
+
+The exception class tracks exactly where we died from using the
+caller() mechanism, it also caches exception classes so that
+C<AUTOLOAD> is only called the first time (in a given process) an
+exception of a particular type is thrown (particularly relevant under
+mod_perl).
+
+=head2 Catching Uncaught Exceptions
+
+What about exceptions that are thrown outside of your control? We can
+fix this using one of two possible methods. The first is to override
+die globally using the old magical C<$SIG{__DIE__}>, and the second,
+is the cleaner non-magical method of overriding the global die()
+method to your own die() method that throws an exception that makes
+sense to your application.
+
+=head3 Using $SIG{__DIE__}
+
+Overloading using C<$SIG{__DIE__}> in this case is rather simple,
+here's some code:
+
+  $SIG{__DIE__} = sub {
+      my $err = shift;
+      if(!ref $err) {
+          $err = My::Exception->UnCaught(text => $err);
+      }
+      die $err;
+  };
+
+All this does is catch your exception and re-throw it. It's not as
+dangerous as we stated earlier that C<$SIG{__DIE__}> can be, because
+we're actually re-throwing the exception, rather than catching it and
+stopping there.
+
+There's only one slight buggette left, and that's if some external
+code die()'ing catches the exception and tries to do string
+comparisons on the exception, as in:
+
+  eval {
+      ... # some code
+      die "FATAL ERROR!\n";
+  };
+  if ($@) {
+      if ($@ =~ /^FATAL ERROR/) {
+          die $@;
+      }
+  }
+
+In order to deal with this, we can overload stringification for our
+C<My::Exception::UnCaught> class:
+
+  {
+      package My::Exception::UnCaught;
+      use overload '""' => \&str;
+  
+      sub str {
+          shift->{text};
+      }
+  }
+
+We can now let other code happily continue.
+
+=head3 Overriding the Core die() Function
+
+So what if we don't want to touch C<$SIG{__DIE__}> at all? We can
+overcome this by overriding the core die function. This is slightly
+more complex than implementing a C<$SIG{__DIE__}> handler, but is far
+less magical, and is the right thing to do, according to the
+L<perl5-porters mailing list|help/Get_help_with_Perl>.
+
+Overriding core functions has to be done from an external
+package/module. So we're going to add that to our C<My::Exception>
+module. Here's the relevant parts:
+
+  use vars qw/@ISA @EXPORT/;
+  use Exporter;
+  
+  @EXPORT = qw/die/;
+  @ISA = 'Exporter';
+  
+  sub import {
+      my $pkg = shift;
+      $pkg->export('CORE::GLOBAL', 'die');
+      Exporter::import($pkg,@_);
+  }
+  
+  sub die {
+      if (!ref($_[0])) {
+          CORE::die My::Exception->UnCaught(text => join('', @_));
+      }
+      CORE::die $_[0];
+  }
+
+That wasn't so bad, was it? We're relying on Exporter's export
+function to do the hard work for us, exporting the die() function into
+the C<CORE::GLOBAL> namespace. Along with the above overloaded
+stringification, we now have a complete exception system (well, mostly
+complete. Exception die-hards would argue that there's no "finally"
+clause, and no exception stack, but that's another topic for another
+time).
+
+=head2 Some Uses
+
+I'm going to come right out and say now: I abuse this system horribly!
+I throw exceptions all over my code, not because I've hit an
+exceptional bit of code, but because I want to get straight back out
+of the current function, without having to have every single level of
+function call check error codes. One way I use this is to return
+Apache return codes:
+
+  # paranoid security check
+  die My::Exception->RetCode(code => 204);
+
+Returns a 204 error code (C<HTTP_NO_CONTENT>), which is caught at my
+top level exception handler:
+
+  if ($@->isa('My::Exception::RetCode')) {
+      return $@->{code};
+  }
+
+That last return statement is in my handler() method, so that's the
+return code that Apache actually sends. I have other exception
+handlers in place for sending Basic Authentication headers and
+Redirect headers out. I also have a generic C<My::Exception::OK>
+class, which gives me a way to back out completely from where I am,
+but register that as an OK thing to do.
+
+Why do I go to these extents? After all, code like slashcode (the code
+behind http://slashdot.org) doesn't need this sort of thing, so why
+should my web site? Well it's just a matter of scalability and
+programmer style really. There's lots of literature out there about
+exception handling, so I suggest doing some research.
+
+=head2 Conclusions
+
+Here I've demonstrated a simple and scalable (and useful) exception
+handling mechanism, that fits perfectly with your current code, and
+provides the programmer with excellent means to determine what has
+happened in his code. Some users might be worried about the overhead
+of such code. However in use I've found accessing the database to be a
+much more significant overhead, and this is used in some code
+delivering to thousands of users.
+
+For similar exception handling techniques, see the section "L<Other
+Implementations|perl/Other_Implementations>".
+
+=head2 The My::Exception class in its entirety
+
+  package My::Exception
+  
+  use vars qw/@ISA @EXPORT $AUTOLOAD/;
+  use Exporter;
+  @ISA = 'Exporter';
+  @EXPORT = qw/die/;
+  
+  sub import {
+      my $pkg = shift;
+      $pkg->export('CORE::GLOBAL', 'die');
+      Exporter::import($pkg,@_);
+  }
+    
+  sub die {
+      if (!ref($_[0])) {
+          CORE::die My::Exception->UnCaught(text => join('', @_));
+      }
+      CORE::die $_[0];
+  }
+  
+  {
+      package My::Exception::UnCaught;
+      use overload '""' => \&str;
+  
+      sub str {
+          shift->{text};
+      }
+  }
+  
+  sub AUTOLOAD {
+      no strict 'refs', 'subs';
+      if ($AUTOLOAD =~ /.*::([A-Z]\w+)$/) {
+          my $exception = $1;
+          *{$AUTOLOAD} = 
+              sub {
+                  shift;
+                  my ($package, $filename, $line) = caller;
+                  push @_, caller => {
+                                  package => $package,
+                                  filename => $filename,
+                                  line => $line,
+                                      };
+                  bless { @_ }, "My::Exception::$exception"; 
+              };
+          goto &{$AUTOLOAD};
+      }
+      else {
+          die "No such exception class: $AUTOLOAD\n";
+      }
+  }
+  
+  1;
+
+=head2 Other Implementations
+
+Some users might find it very useful to have a more C++/Java like
+interface of try/catch functions. These are available in several forms
+that all work in slightly different ways. See the documentation for
+each module for details:
+
+=over 
+
+=item * Error.pm
+
+Graham Barr's excellent OO styled "try, throw, catch" module (from
+L<CPAN|download/Perl>).
+
+=item * Exception.pm and StackTrace.pm
+
+by Autarch (from ftp://ftp.urth.org/pub/).
+
+C<Exception> a bit cleaner than the AUTOLOAD method from the above
+examples as it can catch typos later on.  Plus it lets you create
+actual class hierarchies for your exceptions, which could be nice if
+you want to create exception classes that do more stuff and then
+inherit from them.
+
+=item * Try.pm
+
+Tony Olekshy's. Adds an unwind stack. Not on CPAN (yet?).
+
+=item * Exceptions.pm
+
+Peter Seibel's C<Exceptions> module is totally non-functional with
+modern Perl and has been superseded by Graham Barr's C<Error> module.
+
+=back
 
 =cut
 
