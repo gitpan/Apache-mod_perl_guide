@@ -561,7 +561,7 @@ to a file of your choice, the default is shown in this example:
  HookStderr logs/stderr_log
 
 [META: see
-http://forum.swarthmore.edu/epigone/modperl/vixquimwhen ]
+http://mathforum.org/epigone/modperl/vixquimwhen ]
 
 
 
@@ -698,6 +698,31 @@ C<CONTENT_LENGTH> passed to the external program via environment
 variable. Finally the external program prints the data that it read to
 STDOUT, the main program intercepts it and sends to the client's
 socket (browser in most cases).
+
+=head1 Module::Use - Log and Load used Perl modules
+
+C<Module::Use> records the modules used over the course of the Perl
+interpreter's lifetime.  If the logging module is able, the old logs
+are read and frequently used modules are automatically loaded.
+
+For example if configured as:
+
+  <Perl>
+      use Module::Use (Counting, Logger => "Debug");
+  </Perl>
+
+  PerlChildExitHandler Module::Use
+
+it will only record the used modules when the child exists, logging
+everything (debug level).
+
+=head1 Apache::ConfigFile - Parse an Apache style httpd.conf config file
+
+This module parses I<httpd.conf>, or any compatible config file, and
+provides methods for accessing the values from the parsed file.
+
+See the module manpage for more information.
+
 
 =cut
 

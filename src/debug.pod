@@ -437,6 +437,11 @@ always immediately detect this event. Unfortunately there is no way to
 tell whether the connection is still valid unless an attempt to read
 from or write to connection is made.
 
+Unfortunately the detection technique we are going to present doesn't
+work if the connection to the back-end mod_perl server is coming from
+the front-end mod_proxy, as the latter doesn't break the connection to
+the back-end when user has aborted the connection.
+
 If the reading of the request's data is completed and the code does
 processing without writing anything back to the client the broken
 connection won't be noticed. When an attempt is made to send at least

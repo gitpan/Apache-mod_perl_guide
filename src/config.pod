@@ -328,6 +328,7 @@ They are applied after first processing any sections outside the
 virtual host definition.  This allows virtual host configurations to
 override the main server configuration.
 
+Later sections override earlier ones.
 
 
 

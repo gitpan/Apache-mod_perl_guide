@@ -2,6 +2,69 @@
 		### mod_perl Guide CHANGES file ###
 		###################################
 
+Nov 15 2001 ver 1.31
+
+* intro.pod: 
+
+  o updated the long due credits section (~200 contributors! in total)
+
+* install.pod:
+
+  o add "When DSO can be Used" (Doug)
+
+* modules.pod:
+
+  o add Module::Use
+
+  o add Apache::ConfigFile
+
+* debug.pod:
+
+  o noted the fact that the technique of detecting aborted connections
+    doesn't work with mod_proxy.
+
+* performance.pod:
+
+  o removed from the last section a dead link of
+    http://members.nbci.com/Alex_Maranda/gnuintel/GNUintel.htm
+
+* snippets.pod:
+ 
+  o detecting SSL connection (Vivek Khera, Geoff Young, Issac Goldstand)
+
+  o Note the Apache::Request->instance class method in addition to the
+    POST2GET example (Robin Bjorn)
+
+* porting.pod:
+
+  o s/headers_out/header_out/ where it was incorrectly used, 
+    (Issac Goldstand)
+
+  o fix the potential bug when using -r $file followed by -M _ and 'do
+    $filename' inbetween, which may call stat() and _ won't include the
+    right stat struct. (Randy Kobes)
+
+* troubleshooting.pod:
+
+  o SegFaults During Startup
+
+* help.pod:
+
+  o add a reference to http://lists.perl.org/
+
+  o add references to the new mailing lists
+
+* code:
+
+  o the results in lwp-bench.pl are correctly based on the number of
+    @urls used (Boris Zentner)
+
+* strategy.pod:
+
+  o new section: "Closing Lingering Connections with Lingerd"
+
+
+
 09.02.2001 ver 1.30
 
 * snippets.pod

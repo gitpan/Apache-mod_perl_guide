@@ -8,8 +8,8 @@ use strict;
 # Configuration
 ###
 
-my $nof_parallel_connections = 10; 
-my $nof_requests_total = 100; 
+my $nof_parallel_connections = 10;
+my $nof_requests_total = 100;
 my $timeout = 10;
 my @urls = (
 	    'http://www.example.com:81/perl/faq_manager/faq_manager.pl',
@@ -100,7 +100,7 @@ foreach my $entry (values %$results) {
 }
 
 ###
-# Format errors if any from %errors 
+# Format errors if any from %errors
 ###
 my $errors = join(',', map "$_ ($errors{$_})", keys %errors);
 $errors = "NONE" unless $errors;
@@ -112,17 +112,17 @@ $errors = "NONE" unless $errors;
 #@urls = map {($_,".")} @urls;
 my @P = (
       "URL(s)"          => join("\n\t\t ", @urls),
-      "Total Requests"  => "$nof_requests_total",
+      "Total Requests"  => $nof_requests_total * @urls,
       "Parallel Agents" => $nof_parallel_connections,
       "Succeeded"       => sprintf("$succeeded (%.2f%%)\n",
-				   $succeeded * 100 / ($nof_requests_total * @urls) ),
+				   $succeeded * 100 / ( $nof_requests_total * @urls ) ),
       "Errors"          => $errors,
       "Total Time"      => sprintf("%.2f secs\n", $total_time),
-      "Throughput"      => sprintf("%.2f Requests/sec\n", 
-				   $nof_requests_total / $total_time),
-      "Latency"         => sprintf("%.2f secs/Request", 
-				   ($ua->get_latency_total() || 0) / 
-				   $nof_requests_total),
+      "Throughput"      => sprintf("%.2f Requests/sec\n",
+				   ( $nof_requests_total * @urls ) / $total_time),
+      "Latency"         => sprintf("%.2f secs/Request",
+				   ($ua->get_latency_total() || 0) /
+				   ( $nof_requests_total * @urls ) ),
      );
 
 my ($left, $right);

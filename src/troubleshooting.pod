@@ -38,7 +38,16 @@ This section talks about errors reported when you attempt to start the
 server.
 
 
+=head2 SegFaults During Startup
 
+You have to build mod_perl with the same compiler as Perl was built
+with. Otherwise you may see segmentation faults and other weird things
+happen.
+
+However if this is not the situation and you still experience
+segmentation faults, please refer to the I<SUPPORT> file in the
+mod_perl source distribution and post the trace from the core file as
+explained there.
 
 =head2 libexec/libperl.so: open failed: No such file or directory
 

@@ -185,7 +185,7 @@ If after reading this guide and the other documents listed in
 L<Getting Help and Further Learning|help/> you feel that your
 questions remain unanswered, you could try asking the apache/mod_perl
 mailing list to help you.  But first try to browse the mailing list
-archive (located at http://forum.swarthmore.edu/epigone/modperl
+archive (located at http://mathforum.org/epigone/modperl
 ). Often you will find the answer to your question by searching the
 mailing list archive, since most questions have already been asked and
 answered already!  If you ignore this advice, do not be surprised if
@@ -484,8 +484,11 @@ Credits of course go to ( alphabetically sorted ):
 
 =over
 
+=item * Aaron Johnson
 
 =item * Ajay Shah
+
+=item * Alexander Farber
 
 =item * Andreas J. Koenig
 
@@ -497,11 +500,15 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Anthony D. Ettinger
 
+=item * Artur Zambrzycki
+
 =item * Ask Bjoern Hansen
 
 =item * Barrie Slaymaker
 
 =item * Bill Moseley
+
+=item * Boris Zentner
 
 =item * Brian Moseley
 
@@ -520,6 +527,8 @@ Credits of course go to ( alphabetically sorted ):
 =item * Cliff Rayman
 
 =item * Craig
+
+=item * Daniel Bohling
 
 =item * Daniel Koch
 
@@ -571,8 +580,6 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Ged Haywood
 
-=item * Ged W. Haywood
-
 =item * Geoff Crawshaw
 
 =item * Geoffrey Young
@@ -580,6 +587,8 @@ Credits of course go to ( alphabetically sorted ):
 =item * Gerald Richter
 
 =item * Gerd Knops
+
+=item * Glenn
 
 =item * Greg Cope
 
@@ -599,9 +608,15 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Ilya Obshadko
 
+=item * Ime Smits
+
+=item * Issac Goldstand
+
 =item * James Furness
 
 =item * James G Smith
+
+=item * James W Walden
 
 =item * Jan Peter Hecking
 
@@ -612,6 +627,8 @@ Credits of course go to ( alphabetically sorted ):
 =item * Jauder Ho
 
 =item * Jay J
+
+=item * Jean-Louis Guenego
 
 =item * Jeff Chan
 
@@ -645,11 +662,15 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Kavitha
 
+=item * Kees Vonk
+
 =item * Ken Williams
 
 =item * Kenny Gatdula
 
 =item * Kevin Murphy
+
+=item * Kevin Swope
 
 =item * Lance Cleveland
 
@@ -659,7 +680,11 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Lincoln Stein
 
+=item * Lupe Christoph
+
 =item * Mads Toftum
+
+=item * Marc Lehmann
 
 =item * Marcel Grunauer
 
@@ -685,9 +710,13 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Michael Schout
 
+=item * Michele Beltrame
+
 =item * Mike Depot
 
 =item * Mike Fletcher
+
+=item * Mike MacKenzie
 
 =item * Mike Miller
 
@@ -703,9 +732,13 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Oleg Bartunov
 
+=item * Owen Williams
+
 =item * Pascal Eeftinck
 
 =item * Patrick
+
+=item * Paul Cotter
 
 =item * Pavel Shmidt
 
@@ -749,7 +782,7 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Robert Mathews
 
-=item * Robin Berjon
+=item * Robin Bjorn
 
 =item * Rodger Donaldson
 
@@ -771,13 +804,19 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Stephen Judd
 
+=item * Steve Fink
+
 =item * Steve Reppucci
 
 =item * Steve Willer
 
+=item * Surat Singh Bhati
+
 =item * Terry West
 
 =item * Tim Bunce
+
+=item * Todd Finney
 
 =item * Tom Brown
 
@@ -790,6 +829,8 @@ Credits of course go to ( alphabetically sorted ):
 =item * Tuomas Salo
 
 =item * Tzvetan Stoyanov
+
+=item * Ulrich Neumerkel
 
 =item * Ulrich Pfeifer
 
@@ -805,7 +846,7 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Yann Ramin
 
-
+=item * 
 
 =item * Did I miss your name? Tell me!
 

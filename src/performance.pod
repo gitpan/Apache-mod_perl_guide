@@ -6187,6 +6187,4 @@ and/or cause segmentation faults.
 See your preferred compiler's man page for detailed information about
 optimization.
 
-Also see: http://members.nbci.com/Alex_Maranda/gnuintel/GNUintel.htm
-
 =cut

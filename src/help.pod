@@ -168,13 +168,13 @@ email to modperl-unsubscribe@apache.org .
 To subscribe to the digest list send email to
 modperl-digest-subscribe@apache.org .
 
-A I<searchable> mod_perl mailing list archive is available at
-http://forum.swarthmore.edu/epigone/modperl . Thanks to Ken
-Williams for this.
-
-More archives available:
+Searchable mailing list archives are available:
 
 =over
+
+=item *
+
+http://mathforum.org/epigone/modperl
 
 =item *
 
@@ -197,6 +197,57 @@ http://marc.theaimsgroup.com/?l=apache-modperl
 http://www.egroups.com/group/modperl/
 
 =back
+
+=item * The mod_perl development mailing list
+
+This list is for discussions about the development of the core
+mod_perl.
+
+Subscription information.
+
+To subscribe to this list send an empty email to
+dev-subscribe@perl.apache.org.  To unsubscribe from the list send an
+empty email to dev-unsubscribe@perl.apache.org.  To get help with the
+list send an empty email to dev-help@perl.apache.org.
+
+List's searchable archives:
+
+=over
+
+=item *
+
+http://marc.theaimsgroup.com/?l=apache-modperl-dev&r=1&w=2#apache-modperl-dev
+
+=item *
+
+http://www.mail-archive.com/dev%40perl.apache.org/
+
+=back
+
+=item * The mod_perl documentation mailing list
+
+This mailing list is for discussing mod_perl documentation.
+
+Subscription information
+
+  Subscribe to the list: docs-dev-subscribe@perl.apache.org.
+  Unsubscribe from the list: docs-dev-unsubscribe@perl.apache.org.
+  Get help with the list: docs-dev-help@perl.apache.org.
+
+=item * The Apache test framework development mailing list
+
+The test-dev list is the list where Apache HTTP Test project is
+discussed.
+
+Subscription information:
+
+  Subscribe to the list: test-dev-subscribe@httpd.apache.org.
+  Unsubscribe from the list: test-dev-unsubscribe@httpd.apache.org.
+  Get help with the list: test-dev-help@httpd.apache.org.
+
+List's searchable archive:
+
+http://www.apachelabs.org/test-dev/
 
 
 
@@ -291,6 +342,10 @@ perl-xs mailing list on perl.org (mail perl-xs-subscribe@perl.org)
 
 Take a look also at Inline.pm (CPAN) and SWIG (http://www.swig.org/)
 
+=item * Perl mailing lists
+
+A huge number of diverse Perl mailing lists is listed at
+http://lists.perl.org/.
 
 =item * perl5-porters mailing list
 

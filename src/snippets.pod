@@ -197,10 +197,11 @@ method to print the errors and won't die() unless you want it to.
 
 =head1 Reusing Data from POST request
 
-What happens if you need to access the POSTed data more than once,
-say to reuse it on subsequent requests?  POSTed data comes directly 
-from the socket, and at the low level data can only be read from a 
-socket once.  So you have to store it to make it available for reuse.  
+What happens if you need to access the POSTed data more than once, say
+to reuse it in subsequent handlers of the same request?  POSTed data
+comes directly from the socket, and at the low level data can only be
+read from a socket once.  So you have to store it to make it available
+for reuse.
 
 There is an experimental option for C<Makefile.PL> called
 C<PERL_STASH_POST_DATA>.  If you turn it on, you can get at it again
@@ -250,9 +251,11 @@ parses the client data, it can do so more than once since
 C<$r-E<gt>args> doesn't go away (unless you make it go away by
 resetting it).
 
-
-
-
+If you are using C<Apache::Request>, it solves this problem for you
+with its instance() class method, which allows C<Apache::Request> to
+be a singleton.  This means that whenever you call
+C<Apache::Request>-E<gt>instance() within a single request you always
+get the same C<Apache::Request> object back.
 
 
 
@@ -544,7 +547,7 @@ to send cookies in the C<REDIRECT> response.
   my $r = shift;
   # prepare the cookie in $cookie
   $r->err_headers_out->add('Set-Cookie' => $cookie);
-  $r->headers_out(Location => $location);
+  $r->headers_out->set(Location => $location);
   $r->status(REDIRECT);
   $r->send_http_header;
   return OK;
@@ -667,6 +670,28 @@ Adding C<%{TICKET}e> and C<%{TICKET}n> to the C<LogFormat> for
 access_log works fine too.
 
 
+=head1 Verifying Whether A Request Was Received Over An SSL Connection
+
+Just like C<$ENV{MODPERL}> is checked to see whether the code is run
+under mod_perl, C<$ENV{HTTPS}> is set by ssl modules and therefore can
+be used to check whether a request is running over SSL connection. For
+example:
+
+  print "SSL" if $ENV{HTTPS};
+
+If C<PerlSetupEnv Off> setting is in effect, C<$ENV{HTTPS}> won't be
+available, and then:
+
+  print "SSL" if $r->subprocess_env('https');
+
+should be used instead.
+
+Note that it's also possible to check the scheme:
+
+  print "SSL" if Apache::URI->parse($r)->scheme =~ m/^https/;
+
+but it's not one hundred percent certain unless you control the server
+and you know that you run a secure server on the port 443.
 
 
 =head1 CGI::params in the mod_perl-ish Way

@@ -1179,8 +1179,8 @@ of some source (for which the token is called the "patch pumpkin").
   my $q = CGI->new;
   
   print $q->header(-type=>'text/html');
-  print $q->p(qq{$fname $lname holds the patch pumpkin
-               for this Perl release.});
+  print $q->p("$fname $lname holds the patch pumpkin" .
+               "for this Perl release.");
 
 The script has a hardcoded value for the name. It's very simple:
 initialize the CGI object, print the proper HTTP header and tell the
@@ -1225,18 +1225,19 @@ in C<@INC>.
 
   use vars qw(%MODIFIED);
   sub reread_conf{
-    my $file = shift;
-    return unless $file;
-    return unless -e $file and -r _;
-    unless ($MODIFIED{$file} and $MODIFIED{$file} == -M _){
-      my $result;
-      unless ($result = do $file) {
-        warn "couldn't parse $file: $@" if $@;
-        warn "couldn't do $file: $!"    unless defined $result;
-        warn "couldn't run $file"       unless         $result;
+      my $file = shift;
+      return unless defined $file;
+      return unless -e $file and -r _;
+      my $mod = -M _;
+      unless (exists $MODIFIED{$file} and $MODIFIED{$file} == $mod) {
+          my $result;
+          unless ($result = do $file) {
+              warn "couldn't parse $file: $@" if $@;
+              warn "couldn't do $file: $!"    unless defined $result;
+              warn "couldn't run $file"       unless         $result;
+          }
+          $MODIFIED{$file} = $mod; # Update the MODIFICATION times
       }
-      $MODIFIED{$file} =  -M _; # Update the MODIFICATION times
-    }
   } # end of reread_conf
 
 Notice that we use the C<==> comparison operator when checking file's
@@ -1308,22 +1309,23 @@ A sample script using the presented subroutine would be:
   print $q->header(-type=>'text/plain');
   my $config_file = "./config.pl";
   reread_conf($config_file);
-  print $q->p(qq{$fname $lname holds the patch pumpkin
-               for this Perl release.});
+  print $q->p("$fname $lname holds the patch pumpkin" .
+               "for this Perl release.");
   
   sub reread_conf{
-    my $file = shift;
-    return unless $file;
-    return unless -e $file and -r _;
-    unless ($MODIFIED{$file} and $MODIFIED{$file} == -M _){
-      my $result;
-      unless ($result = do $file) {
-        warn "couldn't parse $file: $@" if $@;
-        warn "couldn't do $file: $!"    unless defined $result;
-        warn "couldn't run $file"       unless $result;
+      my $file = shift;
+      return unless defined $file;
+      return unless -e $file and -r _;
+      my $mod = -M _;
+      unless ($MODIFIED{$file} and $MODIFIED{$file} == $mod) {
+          my $result;
+          unless ($result = do $file) {
+              warn "couldn't parse $file: $@" if $@;
+              warn "couldn't do $file: $!"    unless defined $result;
+              warn "couldn't run $file"       unless $result;
+          }
+          $MODIFIED{$file} = $mod; # Update the MODIFICATION times
       }
-      $MODIFIED{$file} =  -M _; # Update the MODIFICATION times
-    }
   } # end of reread_conf
 
 Remember that you should be using C<(stat $file)[9]> instead of C<-M
@@ -1462,7 +1464,8 @@ META: extend on the comments:
   
     # push to hash if was changed
     $updates{$_} = $new_val
-      if defined $q->param("prev_".$_) and $new_val ne $q->param("prev_".$_);
+      if defined $q->param("prev_".$_) 
+         and $new_val ne $q->param("prev_".$_);
   }
   
   # Note that we cannot trust the previous values of the variables
@@ -2440,10 +2443,10 @@ you can do that as well. Let's see how to do that.
 When writing your own handlers and scripts with the Perl Apache API
 the proper way to send the HTTP header is with the send_http_header()
 method. If you need to add or override methods you can use the
-headers_out() method:
+header_out() method:
 
-  $r->headers_out("Server" => "Apache Next Generation 10.0");
-  $r->headers_out("Date" => "Tue, 28 Dec 1999 18:49:41 GMT");
+  $r->header_out("Server" => "Apache Next Generation 10.0");
+  $r->header_out("Date" => "Tue, 28 Dec 1999 18:49:41 GMT");
 
 When you have prepared all the headers you send them with:
 
@@ -2455,7 +2458,7 @@ Some headers have special aliases:
 
 is the same as:
 
- headers_out("Content-type" => "text/plain");
+  $r->header_out("Content-type" => "text/plain");
 
 A typical handler looks like this:
 

@@ -782,6 +782,48 @@ mod_proxy|scenario/mod_proxy>" section in the
 implementation chapter.
 
 
+=head2 Closing Lingering Connections with Lingerd
+
+Because of some technical complications in TCP/IP, at the end of each
+client connection, it is not enough for Apache to close the socket and
+forget about it; instead, it needs to spend about one second
+I<lingering> on the client.  (More details can be found at
+http://httpd.apache.org/docs/misc/fin_wait_2.html)
+
+Lingerd is a daemon (service) designed to take over the job of
+properly closing network connections from an http server like Apache
+and immediately freeing it to handle a new connection.
+
+C<lingerd> can only do an effective job if HTTP C<Keep-Alive>s are
+turned off; since C<Keep-Alive>s are useful for images, the
+recommended setup is to have C<lingerd> serving mod_perl enabled
+Apache and plain Apache for images and other static objects.
+
+With a C<lingerd> setup, you don't have the proxy, so the buffering
+chain we have presented before for the proxy setup is much shorter
+here:
+
+FIGURE:
+
+ |   Apache     Kernel   |TCP/IP  `o'
+ | [mod_perl]=>[sendbuf] |======> /|\
+ |                       |        / \
+
+Hence in this setup it becomes more important to have a big enough
+kernel send buffer.
+
+With lingerd, a big enough kernel send buffer, and keep-alives off,
+the job of spoonfeeding the data to a slow client is done by the OS
+kernel in the background. As a result, C<lingerd> makes it possible to
+serve the same load using considerably fewer Apache processes. This
+translates into a reduced load on the server. It can be used as an
+alternative to the proxy setups we have seen so far.
+
+For more information about C<lingerd> see:
+http://www.iagora.com/about/software/lingerd/
+
+
+
 
 =head1 When One Machine is not Enough for RDBMS Database and mod_perl
 
