@@ -1,10 +1,12 @@
 =head1 Real World Scenarios
 
-We will assume for this section that you are familiar with plain (not
-mod_perl enabled) Apache, its compilation and configuration.  We also
-assume that your server is called www.example.com and if it isn't you
-should make appropriate changes when you find that name in the
-instructions of this section.
+I will assume for this section that you are familiar with plain (not
+mod_perl enabled) Apache, its compilation and configuration. In all
+configuration and code examples I will use I<localhost> or
+I<www.example.com> as a hostname. For the testing on a local machine,
+I<localhost> would be just fine. If you are using the real name of
+your machine make sure to replace I<www.example.com> with the name of
+your machine.
 
 =head1 Standalone mod_perl Enabled Apache Server
 
@@ -117,7 +119,7 @@ information very soon.  On my machine the two important paths are:
 Now the build and installation processes are complete.
 
 
-=head2  Configuration
+=head2 Configuration
 
 First, a simple configuration.  Configure Apache as you usually would
 (set C<Port>, C<User>, C<Group>, C<ErrorLog>, other file paths etc).
@@ -243,16 +245,20 @@ Apache handlers and make more use of its power.
 =head1 One Plain and One mod_perl enabled Apache Servers
 
 Since we are going to run two Apache servers we will need two complete
-(and different) sets of configuration, log and other files.  We need a
-special directory layout.  While some of the directories can be shared
-between the two servers (assuming that both are built from the same
-source distribution), others should be separated.  From now on I will
-refer to these two servers as B<httpd_docs> (plain Apache) and
-B<httpd_perl> (Apache/mod_perl).
+(and different) sets of configuration, log and other files.  In this
+scenario we'll use a dedicated root directory for each server, which
+is a personal choice. You can choose to have both servers living under
+the same roof, but it might lead to a mess, since it requires a
+slightly more complicated configuration. This decision might be nice
+since you will be able to share some directories like I<include>
+(which contains Apache headers), but in fact this can become a problem
+later, when you decide to upgrade one server but not the other. You
+will have to solve this problem then, so why not to avoid it in first
+place.
 
-For this illustration, we will use I</usr/local> as our I<root>
-directory.  The Apache installation directories will be stored under
-this root. (I</usr/local/bin>, I</usr/local/lib> and so on.)
+From now on we will refer to these two servers as B<httpd_docs> (plain
+Apache) and B<httpd_perl> (Apache/mod_perl).  We will use
+I</usr/local> as our I<root> directory.
 
 First let's prepare the sources.  We will assume that all the sources
 go into the I</usr/src> directory.  Since you will probably want to
@@ -263,7 +269,7 @@ module.
 
 Having two independent source trees will prove helpful unless you use
 dynamically shared objects (C<DSO>) which is covered later in this
-section.
+chapter.
 
 Make two subdirectories:
 
@@ -297,49 +303,12 @@ Now prepare the httpd_perl server sources:
   drwxr-xr-x  8 stas  stas 2048 Apr 29 17:38 apache_x.x.x/
   drwxr-xr-x  8 stas  stas 2048 Apr 29 17:38 modperl-x.xx/
 
-Time to decide on the desired directory structure layout (where the
-Apache files go):
+We are going to use a default Apache directory layout, and place each
+server directories under its dedicated directory. The two directories
+are as you have already guessed:
 
-  ROOT = /usr/local
-
-The two servers can share the following directories (so we will not
-duplicate data):
-
-  /usr/local/bin/
-  /usr/local/lib
-  /usr/local/include/
-  /usr/local/man/
-  /usr/local/share/
-
-B<Important:> we assume that both servers are built from the same
-Apache source version.
-
-The two servers will store their specific files in either the
-I<httpd_docs/> or the I<httpd_perl/> sub-directories:
-
-  /usr/local/etc/httpd_docs/
-                 httpd_perl/
-  
-  /usr/local/sbin/httpd_docs/
-                  httpd_perl/
-  
-  /usr/local/var/httpd_docs/logs/
-                            proxy/
-                            run/
-                 httpd_perl/logs/
-                            proxy/
-                            run/
-
-After completion of the compilation and the installation of both
-servers, you will need to configure them.
-
-To make things clear before we proceed to the details, you should for
-example configure the plain Apache server
-(I</usr/local/etc/httpd_docs/httpd.conf>) to listen to C<Port 80>.
-Configure the mod_perl Apache server
-(I</usr/local/etc/httpd_perl/httpd.conf>) with a different C<Port>
-(e.g. 8080) from the one which the plain Apache server listens to.
-The port numbers issue will be discussed later.
+  /usr/local/httpd_perl/
+  /usr/local/httpd_docs/
 
 The next step is to configure and compile the sources: Below are the
 procedures to compile both servers, using the directory layout I have
@@ -347,8 +316,11 @@ just suggested.
 
 =head2 Configuration and Compilation of the Sources.
 
-I will use x.x.x instead of real version numbers so this document will
-never become obsolete :).
+As usual we use I<x.x.x> instead of real version numbers so this
+document will never become obsolete. But the most important thing --
+it's not misleading. It's quite possible that since the moment this
+document was written a new version has come out and you will be not
+aware of this fact if you will not check for it.
 
 =head3 Building the httpd_docs Server
 
@@ -358,80 +330,60 @@ never become obsolete :).
 
   % cd /usr/src/httpd_docs/apache_x.x.x
   % make clean
-  % env CC=gcc \
-  ./configure --prefix=/usr/local \
-    --sbindir=/usr/local/sbin/httpd_docs \
-    --sysconfdir=/usr/local/etc/httpd_docs \
-    --localstatedir=/usr/local/var/httpd_docs \
-    --runtimedir=/usr/local/var/httpd_docs/run \
-    --logfiledir=/usr/local/var/httpd_docs/logs \
-    --proxycachedir=/usr/local/var/httpd_docs/proxy
+  %  ./configure --prefix=/usr/local/httpd_docs \
+     --enable-module=rewrite --enable-module=proxy
 
-Notice that you actually don't have to enlist all these options, it's
-enough to replace them all with C<--target=httpd_docs>.
+We need the I<mod_rewrite> and I<mod_proxy> modules as we will see
+later, so we tell I<./configure> to build them in.
 
-  % ./configure --prefix=/usr/local \
-    --target=httpd_docs
+You might want to add C<--layout> to see the resulting directories'
+layout without actually running the configuration process.
 
-This will use the default directory layout, but will replace I<apache>
-with I<httpd_docs> everywhere. It'll even rename I<apachectl> to be
-I<httpd_docsctl>. But we will continue with the manual directory
-tuning in the scenario below.
-
-If you need some other modules, such as mod_rewrite and mod_include
-(SSI), add them to the end of this list:
-
-    ....
-    ....
-    --proxycachedir=/usr/local/var/httpd_docs/proxy \
-    --enable-module=include --enable-module=rewrite
-
-OS specific note: The httpd executable is at least 100K smaller if
-compiled by C<gcc> than if compiled with C<cc> on AIX.  Remove the line
-C<env CC=gcc> if you want to use the default compiler.  If you want to
-use it and you are a (ba)?sh user you will not need the C<env>
-function, t?csh users will have to keep it. 
-
-
-It's very important to use the same compiler you build the perl with.
-See the section 'L<What Compiler Should Be Used to Build
-mod_perl|install/What_Compiler_Should_Be_Used_to_>' for more 
-information.
-
-Note: Add C<--layout> to see the resulting directories' layout without
-actually running the configuration process.
-
-
-=item Source Compilation:
+=item Source Compilation and Installation
 
   % make
   % make install
 
 Rename C<httpd> to C<http_docs>:
 
-  % mv /usr/local/sbin/httpd_docs/httpd \
-  /usr/local/sbin/httpd_docs/httpd_docs
+  % mv /usr/local/httpd_docs/bin/httpd \
+       /usr/local/httpd_docs/bin/httpd_docs
 
 Now modify the B<apachectl> utility to point to the renamed httpd via
 your favorite text editor or by using perl:
 
-  % perl -p -i -e 's|httpd_docs/httpd|httpd_docs/httpd_docs|' \
-  /usr/local/sbin/httpd_docs/apachectl
+  % perl -pi -e 's|bin/httpd|bin/httpd_docs|' \
+    /usr/local/httpd_docs/bin/apachectl
 
 =back
 
+Another approach would be to use the I<--target> option while
+configuring the source, which makes the last two commands unnecessary.
+
+  % ./configure --prefix=/usr/local/httpd_docs \
+     --target=httpd_docs \
+     --enable-module=rewrite --enable-module=proxy
+  % make && make install
+
+Since we told I<./configure> that we want the executable to be called
+C<httpd_docs> (via C<--target=httpd_docs>) -- it performs all the
+naming adjustment for us.
+
+The only thing that you might find unusual, is that I<apachectl> will
+be now called I<httpd_docsctl> and the configuration file
+I<httpd.conf> now will be called I<httpd_docs.conf>.
+
+We will leave the decision making about the preffered configuration
+and installation way to the reader. In the rest of the guide we will
+continue using the regular names resulted from using the standard
+configuration and the manual executable name adjustment as described
+at the beginning of this section .
+
+
 =head3 Building the httpd_perl Server
 
-Before you start to configure the mod_perl sources, you should be
-aware that there are a few Perl modules that have to be installed
-before building mod_perl.  You will be alerted if any required modules
-are missing when you run the C<perl Makefile.PL> command below.  If
-you discover that something is missing, grab it from your nearest CPAN
-repository (if you do not know what that is, pay a visit to
-http://www.perl.com/CPAN) or run the C<CPAN> interactive shell via the
-command line C<perl -MCPAN -e shell>.
-
-Make sure the sources are clean:
+Now we proceed with the sources configuration and installation of the
+I<httpd_perl> server. First make sure the sources are clean:
 
   % cd /usr/src/httpd_perl/apache_x.x.x
   % make clean
@@ -444,69 +396,64 @@ modules need to be re-compiled against the latest header files.
 
   % cd /usr/src/httpd_perl/mod_perl-x.xx
 
-  % /usr/local/bin/perl Makefile.PL \
-  APACHE_PREFIX=/usr/local \
-  APACHE_SRC=../apache_x.x.x/src \
-  DO_HTTPD=1 \
-  USE_APACI=1 \
-  PERL_STACKED_HANDLERS=1 \
-  ALL_HOOKS=1 \
-  APACI_ARGS='--sbindir=/usr/local/sbin/httpd_perl, \
-         --sysconfdir=/usr/local/etc/httpd_perl, \
-         --localstatedir=/usr/local/var/httpd_perl, \
-         --runtimedir=/usr/local/var/httpd_perl/run, \
-         --logfiledir=/usr/local/var/httpd_perl/logs, \
-         --proxycachedir=/usr/local/var/httpd_perl/proxy'
+  % /usr/bin/perl Makefile.PL \
+        APACHE_SRC=../apache_x.x.x/src \
+	DO_HTTPD=1 USE_APACI=1 EVERYTHING=1 \
+        APACHE_PREFIX=/usr/local/httpd_perl \
+	APACI_ARGS='--prefix=/usr/local/httpd_perl'
+
+If you need to pass any other configuration options to Apache's
+C<configure>, add them after the I<--prefix> option. e.g:
+
+	APACI_ARGS='--prefix=/usr/local/httpd_perl \
+                    --enable-module=status'
 
 Notice that B<all> C<APACI_ARGS> (above) must be passed as one long
 line if you work with C<t?csh>!!!  However with C<(ba)?sh> it works
 correctly the way it is shown above, breaking the long lines with
-'C<\>'.  When C<t?csh> passes the C<APACI_ARGS> arguments to
-C<./configure> it does not alter the newlines, but it strips the
-backslashes, thus breaking the configuration process.
+'C<\>'.  As of tcsh version 6.08.0, when it passes the C<APACI_ARGS>
+arguments to C<configure> it does not alter the newlines, but it
+strips the backslashes, thus breaking the configuration process.
 
 Notice that just like in httpd_docs configuration you can use
 C<--target=httpd_perl> instead of specifying each directory
 separately. Note that this option has to be the very last argument in
-C<APACI_ARGS>, otherwise 'make test' tries to run "httpd_perl," which
-fails.
+C<APACI_ARGS>, otherwise 'make test' tries to run C<'httpd_perl'>,
+which fails.
 
-This will use the default directory layout, but will replace I<apache>
-with I<httpd_perl> everywhere. It'll even rename I<apachectl> to be
-I<httpd_perlctl>. But we will continue with the manual directory
-tuning in the scenario below.
+[META:
+It's very important to use the same compiler you build the perl with.
+See the section 'L<What Compiler Should Be Used to Build
+mod_perl|install/What_Compiler_Should_Be_Used_to_>' for more
+information.
 
-
-As with httpd_docs you might need other modules such as
-C<mod_rewrite>, so add them at the end of this list:
-
-         ....
-         ....
-         --proxycachedir=/usr/local/var/httpd_perl/proxy, \
-         --enable-module=rewrite
-
-Note: C<PERL_STACKED_HANDLERS=1> is needed for C<Apache::DBI>
+[META: --- Hmm, what's the option that overrides the compiler when
+building Apache from mod_perl. Check also whether mod_perl supplies
+the right compiler (the one used for building itself) -- if it does
+there is no need for the above note.  ]
 
 Now, build, test and install the C<httpd_perl>.
 
   % make && make test && make install
 
-Note: Apache puts a stripped version of C<httpd> at
-I</usr/local/sbin/httpd_perl/httpd>.  The original version which
+Upon installation Apache puts a stripped version of C<httpd> at
+I</usr/local/httpd_perl/bin/httpd>.  The original version which
 includes debugging symbols (if you need to run a debugger on this
 executable) is located at
 I</usr/src/httpd_perl/apache_x.x.x/src/httpd>.
 
-Note: You may have noticed that we did not run C<make install> in the
-Apache source directory.  When C<USE_APACI> is enabled,
-C<APACHE_PREFIX> will specify the C<--prefix> option for Apache's
-C<configure> utility, which gives the installation path for Apache.
-When this option is used, mod_perl's C<make install> will also C<make
-install> for Apache, installing the httpd binary, the support
-tools, and the configuration, log and document trees.
+You may have noticed that we did not run C<make install> in the Apache
+source directory.  When C<USE_APACI> is enabled, C<APACHE_PREFIX> will
+specify the C<--prefix> option for Apache's C<configure> utility,
+which gives the installation path for Apache.  When this option is
+used, mod_perl's C<make install> will also C<make install> for Apache,
+installing the httpd binary, the support tools, and the configuration,
+log and document trees. If this option is not used you will have to
+explicitly run make install in the Apache source directory.
 
-If C<make test> fails, look into C<t/logs> and see what is in there.
-Also see L<make test fails|install/make_test_fails>.
+If C<make test> fails, look into
+I</usr/src/httpd_perl/mod_perl-x.xx/t/logs> and read the error.log
+file.  Also see L<make test fails|install/make_test_fails>.
 
 While doing C<perl Makefile.PL ...> mod_perl might complain by warning
 you about a missing library C<libgdbm>. This is a crucial warning. See
@@ -515,16 +462,13 @@ libgdbm.so|install/Missing_or_Misconfigured_libgdbm> for more info.
 
 Now rename C<httpd> to C<httpd_perl>:
 
-  % mv /usr/local/sbin/httpd_perl/httpd \
-  /usr/local/sbin/httpd_perl/httpd_perl
+  % mv /usr/local/httpd_perl/bin/httpd \
+    /usr/local/httpd_perl/bin/httpd_perl
 
-Update the apachectl utility to drive the renamed httpd:
+Update the I<apachectl> utility to drive the renamed httpd:
 
-  % perl -p -i -e 's|httpd_perl/httpd|httpd_perl/httpd_perl|' \
-  /usr/local/sbin/httpd_perl/apachectl
-
-
-
+  % perl -p -i -e 's|bin/httpd|bin/httpd_perl|' \
+    /usr/local/httpd_perl/bin/apachectl
 
 
 
@@ -540,20 +484,20 @@ running the servers is to configure them.
 
 Configuring of the C<httpd_docs> server is a very easy task.  Starting
 from version 1.3.4 of Apache, there is only one file to edit.  Open
-I</usr/local/etc/httpd_docs/httpd.conf> in your favorite text editor
+I</usr/local/httpd_docs/conf/httpd.conf> in your favorite text editor
 and configure it as you usually would, except make sure that you
-configure the log file directory (I</usr/local/var/httpd_docs/logs>
+configure the log file directory (I</usr/local/httpd_docs/logs>
 and so on) and the other paths according to the layout you have
 decided to use.
 
 Start the server with:
 
-  /usr/local/sbin/httpd_docs/apachectl start
+  /usr/local/httpd_docs/bin/apachectl start
 
 
 =head3 Basic httpd_perl Server Configuration
 
-Edit the I</usr/local/etc/httpd_perl/httpd.conf>.  As with the
+Edit the I</usr/local/httpd_perl/conf/httpd.conf>.  As with the
 C<httpd_docs> server configuration, make sure that C<ErrorLog> and
 other file location directives are set to point to the right places,
 according to the chosen directory layout.
@@ -585,7 +529,7 @@ mod_proxy|scenario/mod_proxy>.
 
 Now we proceed to the mod_perl specific directives.  It will be a good
 idea to add them all at the end of C<httpd.conf>, since you are going
-to fiddle about with them a lot in the early stages.
+to fiddle with them a lot in the early stages.
 
 First, you need to specify the location where all mod_perl scripts
 will be located.
@@ -593,11 +537,11 @@ will be located.
 Add the following configuration directive:
 
     # mod_perl scripts will be called from
-  Alias /perl/ /usr/local/myproject/perl/
+  Alias /perl/ /usr/local/httpd_perl/perl/
 
 From now on, all requests for URIs starting with I</perl> will be
 executed under mod_perl and will be mapped to the files in
-I</usr/local/myproject/perl/>.
+I</usr/local/httpd_perl/perl/>.
 
 Now we configure the I</perl> location.
 
@@ -617,8 +561,8 @@ prefixed with I</perl> to be executed under the C<Apache::Registry>
 module and as a CGI (hence the C<ExecCGI>--if you omit this option the
 script will be printed to the user's browser as plain text or will
 possibly trigger a 'B<Save-As>' window).  The C<Apache::Registry>
-module lets you run your (carefully written) Perl CGI scripts virtually
-unchanged under mod_perl.  The C<PerlModule> directive is
+module lets you run your (carefully written) Perl CGI scripts
+virtually unchanged under mod_perl.  The C<PerlModule> directive is
 the equivalent of Perl's require().  We load the C<Apache::Registry>
 module before we use it by giving the C<PerlHandler>
 C<Apache::Registry> directive.
@@ -632,7 +576,7 @@ Configuration|config/> section covers the rest of the details.
 
 Now start the server with:
 
-  /usr/local/sbin/httpd_perl/apachectl start
+  /usr/local/httpd_perl/bin/apachectl start
 
 
 =head1 Running Two webservers and Squid in httpd Accelerator Mode

@@ -60,6 +60,27 @@ variable C<LD_LIBRARY_PRELOAD>.  Under normal circumstances, Apache
 should have the path configured at compile time, but this way you can
 override the library path.
 
+=head2 install_driver(Oracle) failed: Can't load '.../DBD/Oracle/Oracle.so' for module DBD::Oracle
+
+  install_driver(Oracle) failed: Can't load
+  '/usr/lib/perl5/site_perl/5.005/i386-linux/auto/DBD/Oracle/Oracle.so' 
+  for module DBD::Oracle:
+  libclntsh.so.8.0: cannot open shared object file: 
+  No such file or directory at
+  /usr/lib/perl5/5.00503/i386-linux/DynaLoader.pm line 169. 
+  at (eval 27) line 3
+  Perhaps a required shared
+  library or dll isn't installed where expected at 
+  /usr/local/apache/perl/tmp.pl line 11
+
+On BSD style filesystems C<LD_LIBRARY_PATH> is not searched for setuid
+programs (a.k.a., Apache). This isn't a problem for CGIs since they
+don't do a setuid (and are forked off), but Apache does, and mod_perl
+is in Apache. Therefore a solution is to explicitly load the library
+from the system wide I<ldconfig> configuration file:
+
+  # echo $ORACLE_HOME/lib >> /etc/ld.so.conf
+  # ldconfig
 
 
 
@@ -282,7 +303,7 @@ Executed by the Webserver|config/My_CGI_Perl_Code_Gets_Returned_a>.
 =head2 Incorrect line number reporting in error/warn log messages
 
 See L<Use of uninitialized value at (eval 80) line
-12.|/Use_of_uninitialized_value_at_e>
+12.|troubleshooting/Use_of_uninitialized_value_at_e>
 
 
 
@@ -333,7 +354,7 @@ message in the following section...
   Process 2493 going to Apache::exit with status=-2
 
 You may see this message in mod_perl versions less than 1.17.  See also
-L<caught SIGPIPE in process|/caught_SIGPIPE_in_process>.
+L<caught SIGPIPE in process|troubleshooting/caught_SIGPIPE_in_process>.
 
 
 

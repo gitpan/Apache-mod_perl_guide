@@ -4,6 +4,46 @@ use ExtUtils::MakeMaker;
 use strict;
 use FindBin ();
 
+# prerequisites
+my %require =
+  (
+   "Pod::HtmlPsPdf" => "0.01",
+  );
+
+#--- Installation check
+
+#--- Check for mod_perl, Apache::ScoreBoard, GTop
+for (keys %require) {
+  chk_version($_ => $require{$_}) or
+    warn  "\n"
+        . "*** For ".__PACKAGE__." to work you require version $require{$_}, or later, of\n"
+        . "$_.pm from CPAN\n\n";
+}
+
+
+sub chk_version{
+  my ($pkg,$wanted) = @_;
+  no strict 'refs';
+  local $| = 1;
+
+  print "Checking for $pkg...";
+
+  eval { (my $p = $pkg . ".pm") =~ s#::#/#g; require $p;};
+
+  print("not ok\n$@"),return if $@;
+
+  my $vstr = ${"${pkg}::VERSION"} ? "found v" . ${"${pkg}::VERSION"}
+                                 : "not found";
+  my $vnum = ${"${pkg}::VERSION"} || 0;
+
+  print $vnum >= $wanted ? "ok\n" : " " . $vstr . "\n";
+
+  $vnum >= $wanted;
+
+}
+
+
+
 my $target_dir = get_target_dir();
 
 # See lib/ExtUtils/MakeMaker.pm for details of how to influence
@@ -14,7 +54,7 @@ WriteMakefile
    VERSION_FROM => 'src/Version.pm', # finds $VERSION
    AUTHOR       => 'Stas Bekman <stas@stason.org>',
    ABSTRACT     => 'mod_perl Guide',
-   clean        => {FILES => 'ps rel'},
+   clean        => {FILES => 'ps_html rel_html'},
    dist => {
 	    PREOP => 'pod2text mod_perl_guide.pm > README',
 	    COMPRESS => 'gzip -9f',
@@ -32,8 +72,9 @@ sub MY::manifypods{
 SRC_DIR    = $FindBin::Bin
 manifypods : 
 
-	\$(SRC_DIR)/bin/pod2hpp -m
-	\@echo "The Guide was built in \$(SRC_DIR)/rel"
+	\$(SRC_DIR)/bin/build -m
+	\@echo 
+	\@echo "The Guide was built in \$(SRC_DIR)/rel_html"
 
 END
 
@@ -41,7 +82,7 @@ END
 
 #SRC_DIR    = $FindBin::Bin
 #split : manifypods
-#	\$(SRC_DIR)/bin/pod2hpp -sf
+#	\$(SRC_DIR)/bin/build -sf
 #	\@echo "The Split Guide was built in \$(SRC_DIR)/split"
 
 
@@ -56,7 +97,7 @@ TARGET_DIR = $target_dir
 SRC_DIR    = $FindBin::Bin
 install : manifypods
 
-	\@cp -r \$(SRC_DIR)/rel/* \$(TARGET_DIR)
+	\@cp -r \$(SRC_DIR)/rel_html/* \$(TARGET_DIR)
 	\@echo "The Guide was installed in \$(TARGET_DIR)"
 
 END
@@ -104,7 +145,7 @@ sub get_target_dir{
   
   TARGET_DIR {
     print <<END;
-The guide as a collection of HTML files intended to be installed under
+The guide is a collection of HTML files intended to be installed under
 your webserver's DocRoot directory.  This will allow you to browse the
 files through you favorite Netscape browser.
 

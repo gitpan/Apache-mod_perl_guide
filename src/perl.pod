@@ -2013,7 +2013,9 @@ The reasoning behind this document is the current broken status of
 C<$SIG{__DIE__}> in the perl core - see both the perl5-porters and the
 mod_perl mailing list archives for details on this discussion. (It's
 broken in at least Perl v5.6.0 and probably in later versions as
-well.)
+well). In short summary, $SIG{__DIE__} is a little bit too global, and
+catches exceptions even when you want to catch them yourself, using
+an C<eval{}> block.
 
 =head2 Trapping Exceptions in Perl
 
@@ -2021,7 +2023,9 @@ To trap an exception in Perl we use the C<eval{}> construct. Many
 people initially make the mistake that this is the same as the C<eval
 EXPR> construct, which compiles and executes code at run time, but
 that's not the case. C<eval{}> compiles at compile time, just like the
-rest of your code, and has next to zero run-time penalty.
+rest of your code, and has next to zero run-time penalty. For the
+hardcore C programmers among you, it uses the C<setjmp/longjmp> POSIX
+routines internally, just like C++ exceptions.
 
 When in an eval block, if the code being executed die()'s for any
 reason, an exception is thrown. This exception can be caught by
@@ -2135,6 +2139,15 @@ this exception:
 However this won't work under C<Apache::Registry> - you're always in
 an eval block there!
 
+The other problem with C<$SIG{__DIE__}> also relates to its global nature.
+Because you might have more than one application running under mod_perl,
+you can't be sure which has set a C<$SIG{__DIE__}> handler when and for
+what. This can become extremely confusing when you start scaling up
+from a set of simple registry scripts that might rely on CGI::Carp for
+global exception handling (which uses C<$SIG{__DIE__}> to trap exceptions)
+to having many applications installed with a variety of exception
+handling mechanisms in place.
+
 You should warn people about this danger of C<$SIG{__DIE__}> and
 inform them of better ways to code. The following material is an
 attempt to do just that.
@@ -2149,12 +2162,21 @@ exception, so you have to handle your exception in more than one place
 - at the location the error occurred, in order to construct a sensible
 error message, and again in your exception handler to de-construct
 that string into something meaningful (unless of course all you want
-your exception handler to do is dump the error to the browser).
+your exception handler to do is dump the error to the browser). The
+other problem is that you have no way of automatically detecting where
+the exception occured using C<eval{}> construct. In a C<$SIG{__DIE__}>
+block you always have the use of the caller() function to detect where
+the error occured. But we can fix that...
 
 A little known fact about exceptions in perl 5.005 is that you can
 call die with an object. The exception handler receives that object in
 C<$@>. This is how you are advised to handle exceptions now, as it
-provides an extremely flexible and scalable exceptions solution.
+provides an extremely flexible and scalable exceptions solution, potentially
+providing almost all of the power Java exceptions.
+
+[As a footnote here, the only thing that is really missing here from
+Java exceptions is a guaranteed Finally clause, although its possible
+to get about 98.62% of the way towards providing that using C<eval{}>.]
 
 =head3 A Little Housekeeping
 
@@ -2163,7 +2185,9 @@ is in order. Most, if not all, mod_perl programs consist of a main
 routine that is entered, and then dispatches itself to a routine
 depending on the parameters passed and/or the form values. In a normal
 C program this is your main() function, in a mod_perl handler this is
-your handler() function/method.
+your handler() function/method. The exception to this rule seems to be
+Apache::Registry scripts, although the techniques described here can
+be easily adapted.
 
 In order for you to be able to use exception handling to its best
 advantage you need to change your script to have some sort of global
@@ -2178,19 +2202,16 @@ routine:
   # Apache::Registry script
   
   eval {
-      dispatch();
+     dispatch();
   };
-  catch($@);
+  if ($@) {
+     # handle exception
+  }
   
   sub dispatch {
       ...
   }
   
-  sub catch {
-      my $exception = shift;
-      ...
-  }
-
 This is easier with an ordinary mod_perl handler as it is natural to
 have separate functions, rather than a long run-on script:
 
@@ -2200,9 +2221,11 @@ have separate functions, rather than a long run-on script:
       my $r = shift;
       
       eval {
-          dispatch($r);
+         dispatch($r);
       };
-      catch ($@);
+      if ($@) {
+         # handle exception
+      }
   }
   
   sub dispatch {
@@ -2210,11 +2233,6 @@ have separate functions, rather than a long run-on script:
       ...
   }
   
-  sub catch {
-      my $exception = shift;
-      ...
-  }
-
 Now that the skeleton code is setup, let's create an exception class,
 making use of Perl 5.005's ability to throw exception objects.
 
@@ -2230,13 +2248,13 @@ separate packages for each exception type.
   package My::Exception;
   
   sub AUTOLOAD {
-      my ($package, $filename, $line) = caller;
       no strict 'refs', 'subs';
       if ($AUTOLOAD =~ /.*::([A-Z]\w+)$/) {
           my $exception = $1;
           *{$AUTOLOAD} = 
               sub {
-                  shift; 
+                  shift;
+                  my ($package, $filename, $line) = caller;
                   push @_, caller => {
                                   package => $package,
                                   filename => $filename,
@@ -2290,7 +2308,10 @@ here's some code:
 All this does is catch your exception and re-throw it. It's not as
 dangerous as we stated earlier that C<$SIG{__DIE__}> can be, because
 we're actually re-throwing the exception, rather than catching it and
-stopping there.
+stopping there. Even though $SIG{__DIE__} is a global handler, because
+we are simply re-throwing the exception we can let other applications
+outside of our control simply catch the exception and not worry about
+it.
 
 There's only one slight buggette left, and that's if some external
 code die()'ing catches the exception and tries to do string
@@ -2318,7 +2339,12 @@ C<My::Exception::UnCaught> class:
       }
   }
 
-We can now let other code happily continue.
+We can now let other code happily continue. Note that there is a bug in
+Perl 5.6 which may affect people here: Stringification does not occur
+when an object is operated on by a regular expression (via the =~ operator).
+A work around is to explicitly stringify using qq double quotes, however
+that doesn't help the poor soul who is using other applications. This bug
+has been fixed in later versions of Perl.
 
 =head3 Overriding the Core die() Function
 
@@ -2350,23 +2376,88 @@ module. Here's the relevant parts:
       if (!ref($_[0])) {
           CORE::die My::Exception->UnCaught(text => join('', @_));
       }
-      CORE::die $_[0];
+      CORE::die $_[0]; # only use first element because its an object
   }
 
-That wasn't so bad, was it? We're relying on Exporter's export
+That wasn't so bad, was it? We're relying on Exporter's export()
 function to do the hard work for us, exporting the die() function into
-the C<CORE::GLOBAL> namespace. Along with the above overloaded
-stringification, we now have a complete exception system (well, mostly
-complete. Exception die-hards would argue that there's no "finally"
-clause, and no exception stack, but that's another topic for another
-time).
+the C<CORE::GLOBAL> namespace. If we don't want to overload die() everywhere
+this can still be an extremely useful technique. By just using Exporter's
+default import() method we can export our new die() method into any package
+of our choosing. This allows us to short-cut the long calling convention
+and simply die() with a string, and let the system handle the actual 
+construction into an object for us.
+
+Along with the above overloaded stringification, we now have a complete
+exception system (well, mostly complete. Exception die-hards would argue that
+there's no "finally" clause, and no exception stack, but that's another topic
+for another time).
+
+
+=head2 A Single UnCaught Exception Class
+
+Until the Perl core gets its own base exception class (which will likely happen
+for Perl 6, but not sooner), it is vitally important that you decide upon a
+single base exception class for all of the applications that you install on
+your server, and a single exception handling technique. The problem comes when
+you have multiple applications all doing exception handling and all expecting a
+certain type of "UnCaught" exception class. Witness the following application:
+
+  package Foo;
+  
+  eval {
+     # do something
+  }
+  if ($@) {
+     if ($@->isa('Foo::Exception::Bar')) {
+        # handle "Bar" exception
+     }
+     elsif ($@->isa('Foo::Exception::UnCaught')) {
+        # handle uncaught exceptions
+     }
+  }
+
+All will work well until someone installs application "TrapMe" on the
+same machine, which installs its own UnCaught exception handler, 
+overloading CORE::GLOBAL::die or installing a $SIG{__DIE__} handler.
+This is actually a case where using $SIG{__DIE__} might actually be
+preferable, because you can change your handler() routine to look like
+this:
+
+  sub handler {
+      my $r = shift;
+      
+      local $SIG{__DIE__};
+      Foo::Exception->Init(); # sets $SIG{__DIE__}
+      
+      eval {
+         dispatch($r);
+      };
+      if ($@) {
+         # handle exception
+      }
+  }
+  
+  sub dispatch {
+      my $r = shift;
+      ...
+  }
+
+In this case the very nature of $SIG{__DIE__} being a lexical variable
+has helped us, something we couldn't fix with overloading 
+CORE::GLOBAL::die. However there is still a gotcha. If someone has
+overloaded die() in one of the applications installed on your mod_perl
+machine, you get the same problems still. So in short: Watch out, and
+check the source code of anything you install to make sure it follows
+your exception handling technique, or just uses die() with strings.
+
 
 =head2 Some Uses
 
 I'm going to come right out and say now: I abuse this system horribly!
 I throw exceptions all over my code, not because I've hit an
-exceptional bit of code, but because I want to get straight back out
-of the current function, without having to have every single level of
+"exceptional" bit of code, but because I want to get straight back out
+of the current call stack, without having to have every single level of
 function call check error codes. One way I use this is to return
 Apache return codes:
 
@@ -2392,20 +2483,6 @@ behind http://slashdot.org) doesn't need this sort of thing, so why
 should my web site? Well it's just a matter of scalability and
 programmer style really. There's a lot of literature out there about
 exception handling, so I suggest doing some research.
-
-=head2 A Warning
-
-Just a brief warning about this system. Because mod_perl can run
-several different applications at once, it becomes very important that
-you only have one exception class that either sets C<$SIG{__DIE__}>,
-or overloads C<CORE::die>. This can be quite problematic, because
-several different modules might set their own C<$SIG{__DIE__}>
-handler, or maybe even overload C<CORE::die>. For this reason I
-suggest that you very carefully consider your options for blessing
-uncaught exceptions into your own exceptions class. Also note that the
-last module to be imported that overloads C<CORE::die> will be the one
-used. In short: Make sure you have a tight policy for controlling
-exceptions not just for your application--but for your entire server.
 
 
 =head2 Conclusions
@@ -2434,7 +2511,8 @@ Implementations|perl/Other_Implementations>".
   
   sub import {
       my $pkg = shift;
-      $pkg->export('CORE::GLOBAL', 'die');
+      # allow "use My::Exception 'die';" to mean import locally only
+      $pkg->export('CORE::GLOBAL', 'die') unless @_;
       Exporter::import($pkg,@_);
   }
     
@@ -2486,7 +2564,9 @@ each module for details:
 =item * Error.pm
 
 Graham Barr's excellent OO styled "try, throw, catch" module (from
-L<CPAN|download/Perl>).
+L<CPAN|download/Perl>). This should be considered your best option
+for structured exception handling because it is well known and well
+supported and used by a lot of other applications.
 
 =item * Exception.pm and StackTrace.pm
 
@@ -2500,12 +2580,8 @@ inherit from them.
 
 =item * Try.pm
 
-Tony Olekshy's. Adds an unwind stack. Not on CPAN (yet?).
-
-=item * Exceptions.pm
-
-Peter Seibel's C<Exceptions> module doesn't work with modern Perl and
-has been superceded by Graham Barr's C<Error> module.
+Tony Olekshy's. Adds an unwind stack and some other interesting features.
+Not on the CPAN. Available at http://www.avrasoft.com/perl/rfc/try-1136.zip
 
 =back
 

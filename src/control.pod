@@ -1,4 +1,4 @@
-=head1 Controlling and Monitoring the Server
+u=head1 Controlling and Monitoring the Server
 
 =head1 Restarting Techniques
 
@@ -613,8 +613,8 @@ following setup:
 
   /etc/rc.d/init.d/httpd_docs
   /etc/rc.d/init.d/httpd_perl
-  /etc/rc.d/rc3.d/S86httpd_docs -> ../init.d/httpd_docs
-  /etc/rc.d/rc3.d/S86httpd_perl -> ../init.d/httpd_perl
+  /etc/rc.d/rc3.d/S91httpd_docs -> ../init.d/httpd_docs
+  /etc/rc.d/rc3.d/S91httpd_perl -> ../init.d/httpd_perl
   /etc/rc.d/rc6.d/K16httpd_docs -> ../init.d/httpd_docs
   /etc/rc.d/rc6.d/K16httpd_perl -> ../init.d/httpd_perl
 
@@ -626,7 +626,7 @@ order: the lower numbers are executed earlier.
 
 When the system starts (level 3) we want the Apache to be started when
 almost all of the services are running already, therefore I've used
-I<S86>. For example if the mod_perl enabled Apache issues a
+I<S91>. For example if the mod_perl enabled Apache issues a
 C<connect_on_init()> the SQL server should be started before Apache.
 
 When the system shuts down (level 6), Apache should be stopped as one
@@ -641,7 +641,7 @@ same sequence number.
 Under RedHat Linux and similar systems, when a machine is booted and
 its runlevel set to 3 (multiuser + network), Linux goes into
 I</etc/rc.d/rc3.d/> and executes the scripts the symbolic links point
-to with the C<start> argument.  When it sees I<S86httpd_perl>, it
+to with the C<start> argument.  When it sees I<S91httpd_perl>, it
 executes:
 
   /etc/rc.d/init.d/httpd_perl start
@@ -673,7 +673,7 @@ Now open the script in your favorite editor and add the following
 lines after the main header of the script:
 
   # Comments to support chkconfig on RedHat Linux
-  # chkconfig: 2345 86 16
+  # chkconfig: 2345 91 16
   # description: mod_perl enabled Apache Server
 
 So now the beginning of the script looks like:
@@ -685,7 +685,7 @@ So now the beginning of the script looks like:
   # 1997/08/23
   
   # Comments to support chkconfig on RedHat Linux
-  # chkconfig: 2345 86 16
+  # chkconfig: 2345 91 16
   # description: mod_perl enabled Apache Server
   
   #
@@ -694,11 +694,11 @@ So now the beginning of the script looks like:
 
 Adjust the line:
 
-  # chkconfig: 2345 86 16
+  # chkconfig: 2345 91 16
 
 to your needs. The above setting says to says that the script should
 be started in levels 2, 3, 4, and 5, that its start priority should be
-86, and that its stop priority should be 16.
+91, and that its stop priority should be 16.
 
 Now all you have to do is to ask C<chkconfig> to configure the startup
 scripts. Before we do that let's look at what we have:
@@ -719,16 +719,16 @@ and see what has changed:
   /etc/rc.d/init.d/httpd_perl
   /etc/rc.d/rc0.d/K16httpd_perl
   /etc/rc.d/rc1.d/K16httpd_perl
-  /etc/rc.d/rc2.d/S86httpd_perl
-  /etc/rc.d/rc3.d/S86httpd_perl
-  /etc/rc.d/rc4.d/S86httpd_perl
-  /etc/rc.d/rc5.d/S86httpd_perl
+  /etc/rc.d/rc2.d/S91httpd_perl
+  /etc/rc.d/rc3.d/S91httpd_perl
+  /etc/rc.d/rc4.d/S91httpd_perl
+  /etc/rc.d/rc5.d/S91httpd_perl
   /etc/rc.d/rc6.d/K16httpd_perl
 
 As you can see C<chkconfig> created all the symbolic links for us,
 using the startup and shutdown priorities as specified in the line:
 
-  # chkconfig: 2345 86 16
+  # chkconfig: 2345 91 16
 
 If for some reason you want to remove the service from the startup
 scripts, all you have to do is to tell C<chkconfig> to remove the

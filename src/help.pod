@@ -27,7 +27,7 @@ For more information See L<Get helped with mod_perl|help/Get_help_with_mod_perl>
 Hi, I wrote this document to help people with mod_perl.  It does not
 mean that if you have any question regarding mod_perl, perl or
 whatever you think I might know, that you should send it directly to
-me.  Please see the L<Get help with mod_perl|/Get_help_with_mod_perl>
+me.  Please see the L<Get help with mod_perl|help/Get_help_with_mod_perl>
 section and follow the guidelines described there.
 
 However, you are welcome to submit corrections and suggestions

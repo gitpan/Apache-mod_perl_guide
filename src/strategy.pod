@@ -12,10 +12,10 @@ choice for your situation.
 
 With this in mind, I will present some ways of using standalone
 mod_perl, and some combinations of mod_perl and other technologies.
-I'll describe how these things work together, offer my opinions on
-the pros and cons of each, the relative degree of difficulty in
-installing and maintaining them, and some hints on approaches that
-should be used and things to avoid.
+I'll describe how these things work together, offer my opinions on the
+pros and cons of each, the relative degree of difficulty in installing
+and maintaining them, and some hints on approaches that should be used
+and things to avoid.
 
 To be clear, I will not address all technologies and tools, but limit
 this discussion to those complementing mod_perl.
@@ -193,9 +193,9 @@ The disadvantages:
 =item *
 
 The process size of a mod_perl-enabled Apache server is huge (maybe
-4Mb at startup and growing to 10Mb and more, depending on how you use
-it) compared to typical plain Apache. Of course if memory sharing
-is in place, RAM requirements will be smaller.
+4MB at startup and growing to 10MB and more, depending on how you use
+it) compared to typical plain Apache. Of course if memory sharing is
+in place, RAM requirements will be smaller.
 
 You probably have a few tens of child processes.  The additional
 memory requirements add up in direct relation to the number of child
@@ -203,7 +203,7 @@ processes. Your memory demands are growing by an order of magnitude,
 but this is the price you pay for the additional performance boost of
 mod_perl.  With memory prices so cheap nowadays, the additional cost
 is low -- especially when you consider the dramatic performance boost
-mod_perl gives to your services with every 100Mb of RAM you add.
+mod_perl gives to your services with every 100MB of RAM you add.
 
 While you will be happy to have these monster processes serving your
 scripts with monster speed, you should be very worried about having
@@ -245,16 +245,18 @@ And of course, if your site is serving only mod_perl scripts (close to
 zero static objects, like images), this might be the perfect choice
 for you!
 
-For implementation notes, see the "L<One Plain and One mod_perl enabled
-Apache Servers|scenario/One_Plain_and_One_mod_perl_enabl>" section in
-the implementations chapter.
+For implementation notes, see the "L<One Plain and One mod_perl
+enabled Apache Servers|scenario/One_Plain_and_One_mod_perl_enabl>"
+section in the implementations chapter.
+
+
 
 =head2 One Plain Apache and One mod_perl-enabled Apache Servers
 
 As I have mentioned before, when running scripts under mod_perl you
 will notice that the httpd processes consume a huge amount of virtual
-memory -- from 5Mb to 15Mb and even more.  That is the price you pay for
-the enormous speed improvements under mod_perl. (Again -- shared
+memory -- from 5MB to 15MB and even more.  That is the price you pay
+for the enormous speed improvements under mod_perl. (Again -- shared
 memory keeps the real memory that is being used much smaller :)
 
 Using these large processes to serve static objects like images and
@@ -289,22 +291,23 @@ heavy C<httpd_perl> servers.
 
 An B<important> note: When a user browses static pages and the base
 URL in the B<Location> window points to the static server, for example
-C<http://www.nowhere.com/index.html> -- all relative URLs (e.g. C<E<lt>A
-HREF="/main/download.html"E<gt>>) are being served by the light plain
-Apache server. But this is not the case with dynamically generated
-pages. For example when the base URL in the B<Location> window points
-to the dynamic server --
-(e.g. C<http://www.nowhere.com:8080/perl/index.pl>) all relative URLs
+C<http://www.example.com/index.html> -- all relative URLs
+(e.g. C<E<lt>A HREF="/main/download.html"E<gt>>) are being served by
+the light plain Apache server. But this is not the case with
+dynamically generated pages. For example when the base URL in the
+B<Location> window points to the dynamic server --
+(e.g. C<http://www.example.com:8080/perl/index.pl>) all relative URLs
 in the dynamically generated HTML will be served by the heavy mod_perl
 processes. You must use fully qualified URLs and not relative ones!
-C<http://www.nowhere.com/icons/arrow.gif> is a full URL, while
+C<http://www.example.com/icons/arrow.gif> is a full URL, while
 C</icons/arrow.gif> is a relative one. Using C<E<lt>BASE
-HREF="http://www.nowhere.com/"E<gt>> in the generated HTML is another way
-to handle this problem. Also, the C<httpd_perl> server could rewrite
-the requests back to C<httpd_docs> (much slower) and you still need
-the attention of the heavy servers.  This is not an issue if you hide
-the internal port implementations, so the client sees only one server
-running on port C<80>. (See L<Publishing Port Numbers other than
+HREF="http://www.example.com/"E<gt>> in the generated HTML is another
+way to handle this problem. Also, the C<httpd_perl> server could
+rewrite the requests back to C<httpd_docs> (much slower) and you still
+need the attention of the heavy servers.  This is not an issue if you
+hide the internal port implementations, so the client sees only one
+server running on port C<80>. (See L<Publishing Port Numbers other
+than
 80|config/Publishing_Port_Numbers_other_th>)
 
 
@@ -320,13 +323,7 @@ An administration overhead.
 
 =item *
 
-The need for two different sets of configuration, log and other files.
-We need a special directory layout to manage these. While some
-directories can be shared between the two servers (like the C<include>
-directory, containing the Apache include files -- assuming that both
-are built from the same source distribution), most of them should be
-separated and the configuration files updated to reflect the changes.
-
+The need for two configuration files.
 
 =item *
 
@@ -392,7 +389,7 @@ run a few more mod_perl servers.
 The memory savings are significantly smaller if your OS supports
 memory sharing with Dynamically Shared Objects (DSO) and you have
 configured Apache to use it.  If you do allow memory sharing, 30 light
-Apache servers ought to use only about 3 to 4Mb, because most of it
+Apache servers ought to use only about 3 to 4MB, because most of it
 will be shared.  There is no memory sharing if Apache modules are
 statically compiled into the httpd executable.
 
@@ -415,9 +412,13 @@ redirection, customizable log file formats, and so on.
 
 =back
 
-META: It seems that khttpd, or Phhttpd should be even faster for
-static content serving, add more info about these two!
 
+Another interesting choice is a kHTTPd webserver for Linux. kHTTPd is
+different from other webservers in that it runs from within the
+Linux-kernel as a module (device-driver).  kHTTPd handles only static
+(file based) web-pages, and passes all requests for non-static
+information to a regular userspace-webserver such as Apache. For more
+information see http://www.fenrus.demon.nl/.
 
 
 
@@ -432,9 +433,9 @@ scripts.  We named them C<httpd_docs> and C<httpd_perl> respectively.
 
 The two servers coexist at the same IP address by listening to
 different ports: C<httpd_docs> listens to port 80
-(e.g. http://www.nowhere.com/images/test.gif) and C<httpd_perl>
-listens to port 8080 (e.g. http://www.nowhere.com:8080/perl/test.pl).
-Note that I did not write http://www.nowhere.com:80 for the first
+(e.g. http://www.example.com/images/test.gif) and C<httpd_perl>
+listens to port 8080 (e.g. http://www.example.com:8080/perl/test.pl).
+Note that I did not write http://www.example.com:80 for the first
 example, since port 80 is the default port for the http service. Later
 on, I will be changing the configuration of the C<httpd_docs> server
 to make it listen to port 81.
@@ -467,14 +468,14 @@ transfer is over a slow link, the mod_perl server is not waiting
 around for the data to move.
 
 Using numbers is always more convincing :) Let's take a user connected
-to your site with 28.8 kbps (bps == bits/sec) modem. It means that the
-speed of the user's link is 28.8/8 = 3.6 kbytes/sec. I assume an
-average generated HTML page to be of 40kb (kb == kilobytes) and an
-average script that generates this output in 1 second. How long will
-the server wait before the user gets the whole output response? A
-simple calculation reveals pretty scary numbers -- it will have to
-wait for another 12 secs (40kb/3.6kb), when it could serve another 11
-(12/1-1) dynamic requests in this time.
+to your site with 56 kbps (bps == bits/sec) modem. 1 byte == 8
+bits. It means that the speed of the user's link is 56/8 = 7
+kbytes/sec. I assume an average generated HTML page to be of 42KB (KB
+== kilobytes) and an average script that generates this output in 0.5
+second. How long will the server wait before the user gets the whole
+output response? A simple calculation reveals pretty scary numbers --
+it will have to wait for another 12 secs (42kb/0.5*7KB), when it could
+serve another 11 (12/1-1) dynamic requests in this time.
 
 This very simple example shows us that we need only one twelfth the
 number of children running, which means that we will need only one
@@ -488,7 +489,7 @@ left to you as an exercise :)
 
 Many users like to open many browser windows and do many things at
 once (download files and browse graphically I<heavy> sites). So the
-speed of 3.6kb/sec we were assuming before, may often be 5-10 times
+speed of 7K/sec we were assuming before, may often be 5-10 times
 slower.
 
 =item *
@@ -682,7 +683,7 @@ C<httpd.conf> file.
 =item *
 
 The C<ProxyPass> and C<ProxyPassReverse> directives allow you to hide
-the internal redirects, so if C<http://nowhere.com/modperl/> is
+the internal redirects, so if C<http://example.com/modperl/> is
 actually C<http://localhost:81/modperl/>, it will be absolutely
 transparent to the user. C<ProxyPass> redirects the request to the
 mod_perl server, and when it gets the response, C<ProxyPassReverse>
@@ -718,21 +719,6 @@ program for that.
 
 The latest (Apache 1.3.6 and later) Apache proxy accelerated mode is
 reported to be very stable.
-
-=back
-
-
-The Disadvantages:
-
-=over 4
-
-=item *
-
-
-Users have reported that it might be a bit slow, but the latest version is
-fast enough. 
-
-(META: How fast is enough? :) Any figures here? 
 
 =back
 
@@ -979,10 +965,10 @@ Let's assume that you have two different sets of scripts/code which
 have little or nothing in common; different modules, no code
 sharing. Typical numbers can be four megabytes of unshared and four
 megabytes of shared memory for each code set, plus three megabytes of
-shared basic mod_perl stuff.  Which makes each process 17Mb in size
-when the two code sets are loaded. (3Mb (server) + 4Mb (shared 1st
-code set ) + 4Mb (unshared 1st code set ) + 4Mb (shared 2nd code set )
-+ 4Mb (unshared 2nd code set ). Under this scenario, eleven megabytes 
+shared basic mod_perl stuff.  Which makes each process 17MB in size
+when the two code sets are loaded. (3MB (server) + 4MB (shared 1st
+code set ) + 4MB (unshared 1st code set ) + 4MB (shared 2nd code set )
++ 4MB (unshared 2nd code set ). Under this scenario, eleven megabytes 
 are shared and eight megabytes not.
 
 We assume that four megabytes is the size of each code sets unshared
@@ -1017,7 +1003,7 @@ move the second code set onto another mod_perl server. At this point
 we are talking about a single machine.
 
 Let's look at the figures again. After the split we will have 20
-servers of eleven megabytes (4Mb unshared + 7mb shared) and another 20
+servers of eleven megabytes (4MB unshared + 7mb shared) and another 20
 servers of eleven megabytes.
 
 How much memory do we need now? From the above equation we derive:
@@ -1029,8 +1015,8 @@ And using the numbers:
 
   Total_RAM = 2 * (20 * (11-7) + 11) = 182
 
-A total of 182 megabytes of memory required. But, hey, we have 260Mb
-of memory. We've got 78Mb of memory freed up. If we recalculate again
+A total of 182 megabytes of memory required. But, hey, we have 260MB
+of memory. We've got 78MB of memory freed up. If we recalculate again
 the C<MaxClients> we will see that we can run almost 60 servers:
 
   MaxClients = (260 - 11*2)/(11-8) = 60
@@ -1046,17 +1032,17 @@ hit rate, so we can benefit even more.
 Let's assume that based on the usage statistics we know that the first
 code set is called in 70% of requests and the other 30% are used by
 the second set. Now we assume that the first code set requires only
-5Mbytes of RAM (3Mb shared plus 2Mb unshared) over the basic mod_perl
-server size, and the second set needs 11Mbytes (7Mb shared and 4Mb
+5MB of RAM (3MB shared plus 2MB unshared) over the basic mod_perl
+server size, and the second set needs 11MBytes (7MB shared and 4MB
 unshared).
 
 Lets compare this new requirement with our original 50:50 setup.
 
 So now the first mod_perl server running the first code set will have
-all its processes using 8Mb (3Mb (server shared) + 3Mb (code shared) +
-2Mb (code unshared), and the second 14Mb (3+7+4).  Given that we have
-a 70:30 hits relation and that we have 260Mbytes of available memory,
-we have to solve these two equations:
+all its processes using 8MB (3MB (server shared) + 3MB (code shared) +
+2MB (code unshared), and the second 14MB (3+7+4).  Given that we have
+a 70:30 hits relation and that we have 260MB of available memory, we
+have to solve these two equations:
 
   X/Y = 7/3
 

@@ -3068,7 +3068,8 @@ do:
 
 =head2 PerlSetupEnv Off
 
-C<PerlSetupEnv Off> is another optimization you might consider.
+C<PerlSetupEnv Off> is another optimization you might consider. This
+directive requires mod_perl 1.25 or later.
 
 I<mod_perl> fiddles with the environment to make it appear as if the
 script were being called under the CGI protocol.  For example, the
@@ -3078,16 +3079,19 @@ I<Apache::server_hostname()> is put into C<$ENV{SERVER_NAME}>.
 
 But C<%ENV> population is expensive.  Those who have moved to the Perl
 Apache API no longer need this extra C<%ENV> population, and can gain by
-turning it B<Off>.
+turning it B<Off>. Scripts using the C<CGI.pm> module require
+C<PerlSetupEnv On> because that module relies on a properly populated
+CGI environment table.
 
 By default it is On.
 
-Note that you can still set enviroment variables.  For example when
+Note that you can still set environment variables.  For example when
 you use the following configuration:
 
+  PerlSetupEnv Off
   PerlModule Apache::RegistryNG
   <Location /perl>
-    PerlSetupEnv Off
+    PerlSetupEnv On
     PerlSetEnv TEST hi
     SetHandler perl-script
     PerlHandler Apache::RegistryNG
@@ -3108,7 +3112,7 @@ you should see something like this:
 
   $VAR1 = {
             'GATEWAY_INTERFACE' => 'CGI-Perl/1.1',
-            'MOD_PERL' => 'mod_perl/1.22',
+            'MOD_PERL' => 'mod_perl/1.25',
             'PATH' => '/usr/lib/perl5/5.00503:... snipped ...',
             'TEST' => 'hi'
           };
@@ -3150,12 +3154,84 @@ like this:
   stat("/home/httpd/docs", 
                       {st_mode=S_IFDIR|0755, st_size=1024, ...})  =  0
 
-You can blame the default installed C<TransHandler> for this
-inefficiency.  Of course you could supply your own, which will be
-smart enough not to look for this virtual path and immediately return
-C<OK>. But in cases where you have a virtual host that serves only
-dynamically generated documents, you can override the default
-C<PerlTransHandler> with this one:
+How expensive those calls are? Let's use the C<Time::HiRes> module to
+find out. 
+
+  stat_call_sample.pl
+  -------------------
+  use Time::HiRes qw(gettimeofday tv_interval);
+  my $calls = 1_000_000;
+  
+  my $start_time = [ gettimeofday ];
+  
+  stat "/foo" for 1..$calls;
+  
+  my $end_time = [ gettimeofday ];
+  
+  my $elapsed = tv_interval($start_time,$end_time) / $calls;
+  
+  print "The average execution time: $elapsed seconds\n";
+
+This script takes a time sample at the beginnig, then does 1_000_000
+C<stat()> calls to a non-existing file, samples the time at the end
+and prints the average time it took to make a single C<stat()> call.
+I'm sampling a 1M stats, so I'd get a correct average result.
+
+Before we actually run the script one should destinguish between two
+different situation. When the server is idle the time between the
+first and the last system call will be much shorter than the same time
+measured on the loaded system. That is because on the idle system, a
+process can use CPU very often, and on the loaded system lots of
+processes compete over it and each process has to wait for a longer
+time to get the same amount of CPU time.
+
+So first we run the above code on the unloaded system:
+
+  % perl stat_call_sample.pl
+  The average execution time: 4.209645e-06 seconds
+
+So it takes about 4 microseconds to execute a stat() call. Now let
+start a CPU intensive process in one console. The following code keeps
+CPU busy all the time.
+
+  % perl -e '1**1 while 1'
+
+And now run the I<stat_call_sample.pl> script in the other console.
+
+  % perl stat_call_sample.pl
+  The average execution time: 8.777301e-06 seconds
+
+You can see that the average time has doubled (about 8
+microseconds). And this is obvious, since there were two processes
+competing over CPU. Now if run 4 occurences of the above code:
+
+  % perl -e '1**1 while 1' &
+  % perl -e '1**1 while 1' &
+  % perl -e '1**1 while 1' &
+  % perl -e '1**1 while 1' &
+
+And when running our script in parallel with this processes, we get:
+
+  % perl stat_call_sample.pl
+  2.0853558e-05 seconds
+
+about 20 microseconds. So the average stat() system call is 5 times
+longer now. Now if you have 50 mod_perl processes that keep the CPU
+busy all the time, the stat() call will be 50 times slower and it'll
+take 0.2 milliseconds to complete a series of call. If you have five
+redundant calls as in the strace example above, they adds up to one
+millisecond. If you have more processes constantly consuming CPU, this
+time adds up. Now multiply this time by the number of processes that
+you have and you get a few seconds lost. As usual, for some services
+this loss is insignificant, while for others a very significant one.
+
+So why Apache does all these redundant C<stat()> calls?  You can blame
+the default installed C<TransHandler> for this inefficiency.  Of
+course you could supply your own, which will be smart enough not to
+look for this virtual path and immediately return C<OK>. But in cases
+where you have a virtual host that serves only dynamically generated
+documents, you can override the default C<PerlTransHandler> with this
+one:
 
   <VirtualHost 10.10.10.10:80>
     ...
@@ -3285,7 +3361,7 @@ Of course you can move the code in the module into an external file,
 
   PerlTransHandler My::Trans
 
-in the normal way (no C<E<lt>PerlE<gt>> section required.
+in the normal way (no C<E<lt>PerlE<gt>> section required).
 
 
 

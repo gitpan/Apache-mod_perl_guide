@@ -1079,7 +1079,7 @@ directive something like this
 
 This will have all the urls starting with I</some/url> proxied off to
 the other server at the same url.  It will append the C<REMOTE_HOST>
-header as a query string arguement.  (QSA = Query String Append, P =
+header as a query string argument.  (QSA = Query String Append, P =
 Proxy).  There is probably a way to remap it as an X-Header of some 
 sort, but if query string is good enough for you, then this should 
 work really nicely.

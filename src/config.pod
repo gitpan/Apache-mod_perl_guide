@@ -448,7 +448,7 @@ is actually the same as:
 
 where latter directive invokes mod_cgi. You shouldn't use the
 C<ScriptAlias> directive unless you want the request to be processed
-under mod_cgi. Therefore when you configure a mod_perl sections use
+under mod_cgi. Therefore when you configure mod_perl sections use
 C<Alias> instead.
 
 Under mod_perl the C<Alias> directive will be followed by two further
@@ -460,7 +460,7 @@ phase of the request.  Refer to the section
 L<Perl*Handlers|config/Perl_Handlers> for more information about
 handlers for the various request phases.
 
-When you have decided what methods to use to run your scripts and
+When you have decided which methods to use to run your scripts and
 where you will keep them, you can add the configuration directive(s)
 to I<httpd.conf>.  They will look like those below, but they will of
 course reflect the locations of your scripts in your file-system and
@@ -473,7 +473,7 @@ In the examples above all the requests issued for URIs starting with
 I</cgi-bin> will be served from the directory I</home/httpd/cgi-bin/>,
 and starting with I</perl> from the directory I</home/httpd/perl/>.
 
-=head3 Running CGI, PerlRun, and Registry Scripts located in the same Directory
+=head3 Running CGI, PerlRun, and Registry Scripts Located in the Same Directory
 
   # Typical for plain cgi scripts:
   ScriptAlias /cgi-bin/  /home/httpd/perl/
@@ -496,8 +496,8 @@ URI (I<cgi-bin|perl|cgi-perl>).
 This technique makes it easy to migrate your scripts to mod_perl.  If
 your script does not seem to be working while running under mod_perl,
 then in most cases you can easily call the script in straight mod_cgi
-mode without making any script changes.  Simply change the URL you use
-to invoke it.
+mode or under C<Apache::PerlRun> without making any script changes.
+Simply change the URL you use to invoke it.
 
 Although in the configuration above we have configured all three
 I<Aliases> to point to the same directory within our file system, you
@@ -505,7 +505,7 @@ can of course have them point to different directories if you prefer.
 
 You should remember that it is undesirable to run scripts in plain
 mod_cgi mode from a mod_perl-enabled server--the resource consumption
-is too high, it is better to run these on a plain Apache server.  See
+is too high. It is better to run these on a plain Apache server.  See
 L<Standalone mod_perl Enabled Apache
 Server|strategy/Standalone_mod_perl_Enabled_Apac>.
 
@@ -1104,7 +1104,7 @@ through C<%ENV> (e.g. C<$ENV{"key"}>).
 Regarding the setting of C<PerlPassEnv PERL5LIB> in I<httpd.conf>: if
 you turn on taint checks (C<PerlTaintCheck On>), C<$ENV{PERL5LIB}>
 will be ignored (unset).  See the 'L<Switches -w,
--T|porting/Command_line_Switches_w_T_e>' section.
+-T|porting/Command_Line_Switches_w_T_e>' section.
 
 C<PerlSetVar> is very similar to C<PerlSetEnv>, but you extract it
 with another method. 
@@ -1168,7 +1168,7 @@ See L<PerlSetupEnv Off|performance/PerlSetupEnv_Off>.
 =head2 PerlWarn and PerlTaintCheck
 
 For B<PerlWarn> and B<PerlTaintCheck> directives see the 'L<Switches
--w, -T|porting/Command_line_Switches_w_T_e>' section.
+-w, -T|porting/Command_Line_Switches_w_T_e>' section.
 
 
 

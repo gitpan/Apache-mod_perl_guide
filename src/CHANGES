@@ -2,6 +2,32 @@
 		### mod_perl Guide CHANGES file ###
 		###################################
 
+08.21.2000 ver 1.26
+
+* mod_perl guide's build process is now completely migrated into an
+  external module, distributed in package Pod::HtmlPSPdf.
+
+* install.pod: Raven SSL installation notes updated (Doug, Geoffrey
+  Young)
+
+*  troubleshooting.pod: install_driver(Oracle) failed: Can't load
+   '.../DBD/Oracle/Oracle.so' for module DBD::Oracle (Yann Ramin,
+   Richard Chen)
+
+* security.pod: a code sample in "Non authenticated access for
+  internal IPs, Authenticated for external IPs" is corrected (Will
+  Trillich)
+
+* porting.pod: "CHECK Blocks" (Doug)
+
+* scenario.pod: "The dual server installation scenario was complete
+  rewritten, to accomodate a better in my opinion directories layout
+  and simpler installation process"
+
+* perl.pod: "Exception Handling for mod_perl" was improved by Matt.
+
+* Minor corrections: 
+  o config (Ron Pero)
 
 08.05.2000 ver 1.25
 

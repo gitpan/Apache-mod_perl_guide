@@ -1,10 +1,10 @@
 =head1 mod_perl Installation
 
-=head1 Installing mod_perl in 10 Minutes and 10 Command Lines
+=head1 A Summary of a Basic mod_perl Installation
 
-Did you know that it takes about 10 minutes to build and install
-mod_perl enabled Apache on a pretty average processor with a decent
-amount of system memory?  It goes like this:
+The following 10 commands summarize the execution steps required to
+build and install a basic mod_perl enabled Apache server on almost any
+standard flavor of Unix OS.
 
   % cd /usr/src
   % lwp-download http://www.apache.org/dist/apache_x.x.x.tar.gz
@@ -18,12 +18,8 @@ amount of system memory?  It goes like this:
   % cd ../apache_x.x.x
   % make install
 
-That's all!
-
-* Of course you should replace I<x.xx> and I<x.x.x> with the real
+Of course you should replace I<x.xx> and I<x.x.x> with the real
 version numbers of mod_perl and Apache.
-
-* The GNU C<tar> utility knows how to uncompress (the C<z> flag).
 
 All that's left is to add a few configuration lines to C<httpd.conf>,
 the Apache configuration file, start the server and enjoy mod_perl.
@@ -31,8 +27,9 @@ the Apache configuration file, start the server and enjoy mod_perl.
 If you have stumbled upon a problem at any of the above steps, don't
 despair, the next sections will explain in detail each and every step.
 
-Of course there is a way of installing mod_perl in only a couple of minutes if
-you are using a Linux distrbution that uses RPM or deb files: 
+Of course there is a way of installing mod_perl in only a couple of
+minutes if you are using a Linux distribution that uses RPM or deb
+files:
 
   % rpm -i apache-xx.xx.rpm
   % rpm -i mod_perl-xx.xx.rpm
@@ -42,9 +39,10 @@ or
   % dpkg -i apache-xx.xx.deb
   % dpkg -i mod_perl-xx.xx.deb
 
-These should set up both Apache and mod_perl correctly for your system. Using
-a packaged distribution can make installing and reinstalling a lot quicker and
-easier. (Note that the filenames will vary, and I<xx.xx> will differ.)
+These should set up both Apache and mod_perl correctly for your
+system. Using a packaged distribution can make installing and
+reinstalling a lot quicker and easier. (Note that the filenames will
+vary, and I<xx.xx> will differ.)
 
 Since mod_perl can be configured in many different ways (features can
 be enabled or disabled, directories can be modified, etc.) it's
@@ -52,8 +50,9 @@ preferable to use a manual installation, as a prepackaged version
 might not suit your needs. Manual installation will allow you to make
 the fine tuning for the best performance as well.
 
-In this chapter we will talk extensively about the prepackaged versions,
-and ways to prepare your own packages for reuse on many machines.
+In this chapter we will talk extensively about the prepackaged
+versions, and ways to prepare your own packages for reuse on many
+machines.
 
 =head1 The Gory Details
 
@@ -62,12 +61,14 @@ about 10 commands.  You can copy and paste them from these pages.  The
 parameter C<EVERYTHING=1> selects a lot of options, but sometimes you
 will need different ones.  You may need to pass only specific
 parameters, to bundle other components with mod_perl etc.  You may
-want to build mod_perl as a loadable object instead of compiling it into
-Apache, so that it can be upgraded without rebuilding Apache itself.
+want to build mod_perl as a loadable object instead of compiling it
+into Apache, so that it can be upgraded without rebuilding Apache
+itself.
 
 To accomplish this you will need to understand various techniques for
 mod_perl configuration and building.  You need to know what
-configuration parameters are available to you and when and how to use them.
+configuration parameters are available to you and when and how to use
+them.
 
 As with Perl, with mod_perl simple things are simple.  But when you
 need to accomplish more complicated tasks you may have to invest some
@@ -141,7 +142,8 @@ the old C<src/Configure> script.
 Since Apache 1.3 this is the way to install mod_perl as cleanly as
 possible.  Currently this is a pure Unix-based solution because at
 present the complete Apache 1.3 source configuration mechanism is only
-available under Unix.  It doesn't work on the Win32 platform for example.
+available under Unix.  It doesn't work on the Win32 platform for
+example.
 
 =item B<Dynamic Shared Object (DSO) support>
 
@@ -164,9 +166,9 @@ when DSO is enabled for module C<mod_xxx> via C<configure
 
 This is a new support tool from Apache 1.3 which can be used to build
 an Apache module as a DSO even B<outside> the Apache source-tree.  One
-can say C<APXS> is for Apache what C<MakeMaker> and C<XS> are for Perl.
-It knows the platform dependent build parameters for making DSO files
-and provides an easy way to run the build commands with them.
+can say C<APXS> is for Apache what C<MakeMaker> and C<XS> are for
+Perl.  It knows the platform dependent build parameters for making DSO
+files and provides an easy way to run the build commands with them.
 
 =back
 
@@ -212,8 +214,8 @@ stage:
 
   "Configure mod_perl with ../apache_x.x.x/src ?"
 
-C<APACHE_SRC> should be used to define Apache's source tree
-directory.  For example:
+C<APACHE_SRC> should be used to define Apache's source tree directory.
+For example:
 
   APACHE_SRC=../apache_x.x.x/src
 
@@ -1610,14 +1612,99 @@ Install Raven SSL via
 
   % ./setup
 
+This is an example of setup scenario:
+
+=over
+
+=item *
+
+  Please select the directory where you want to 
+  install Raven SSL and related packages
+  Directory [/usr/local]  -> 
+
+Accept the default or supply a different directory.
+
+=item *
+
+  Installing the Apache binary is the easiest 
+  and quickest way to secure Apache with Raven SSL.
+  Do you want to install Apache? [Y/n]  -> n
+
+Answer C<n>, we want to install it from mod_perl sources.
+
+=item *
+
+  Please select the directory where you want to
+  install Raven SSL.
+  Directory [/usr/local/raven]  -> 
+
+Accept the default or supply a different directory.
+
+=item *
+
+  Apache will not be installed
+  Raven SSL will be installed in:
+  /usr/local/raven
+
+Sure, we know that :)
+
+=item *
+
+  Do you want to proceed with installation? [Y/n]  -> Y
+
+Yes, we want to proceeed.
+
+=item *
+
+Now Raven completes the installation of its files.
+
+=back
+
+
 =item 1
 
-  % /usr/local/raven/bin/ravenctl
-     select Option 1, 'Raven SSL Module Manager'
-     select Option 2, 'Export Raven SSL module to Apache source'
+Now it's a time to patch the Apache source with Raven.
 
-Note: Option 2 exports the required EAPI patches and the needed Raven
-SSL module files into your Apache source tree
+  % /usr/local/raven/bin/raven_admin_tls
+     select Option 1, 'Export Raven'
+
+Note: this option exports the required EAPI patches and the needed
+Raven SSL module files into your Apache source tree
+
+=over
+
+=item *
+
+  Choose Apache version to export to:
+  Available Apache versions :
+  (1) 1.3.12
+  Selection?  -> 1
+
+Choose the version you want to build Raven with.
+
+=item *
+
+  Export Raven SSL Module to Apache source root:
+  Apache source root directory []  -> 
+
+Specify the Apache source root directory, e.g.:
+
+  /usr/src/apache-1.x.x
+
+=item *
+
+Back to the main menu:
+
+  Choose an action :
+  (1) Export Raven SSL
+  (2) Upgrade Raven SSL
+  (3) Exit
+  Selection? [1]  -> 3
+
+Choose 3 to finish.
+
+=back
+
 
 =item 1
 

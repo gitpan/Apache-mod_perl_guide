@@ -2696,15 +2696,26 @@ Pressed the Stop Button'|debug/Handling_the_User_pressed_Stop_>.
 
 
 
+=head1 CHECK Blocks
+
+-- available since perl5.6.0
+
+This block runs when compilation is complete, but before the program
+starts. B<CHECK> can mean "checkpoint" or "double-check" or even jus
+"stop").
+
+Perl only calls B<CHECK> blocks during perl_parse(), which mod_perl
+calls once at startup time.  Therefore B<CHECK> blocks don't work for
+the same reason this doesn't:
+
+  % perl -e 'eval qq(CHECK { print "ok\n" })'
 
 
 
 
 
 
-
-
-=head1 Command line Switches (-w, -T, etc)
+=head1 Command Line Switches (-w, -T, etc)
 
 Normally when you run perl from the command line, you have the shell
 invoke it with C<#!/bin/perl> (sometimes referred to as the shebang
@@ -3053,7 +3064,7 @@ Under perl 5.6.0 we can do this instead:
 
 Files pulled in via B<use> or B<require> statements are not
 automatically reloaded when they change on disk. See L<Reloading Modules
-and Required Files|/Reloading_Modules_and_Required_F> for more
+and Required Files|porting/Reloading_Modules_and_Required_F> for more
 info.
 
 
@@ -3079,7 +3090,7 @@ in the same directory on the disk.
     PerlSendHeader On
   </Location>
 
-See L<Apache::PerlRun--a closer look|/Apache_PerlRun_a_closer_look>
+See L<Apache::PerlRun--a closer look|porting/Apache_PerlRun_a_closer_look>
 
 Another "bad", but workable method is to set C<MaxRequestsPerChild> to
 1, which will force each child to exit after serving only one request.

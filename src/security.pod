@@ -93,6 +93,8 @@ modify <httpd.conf>:
     AuthName realm
     AuthType Basic
     Require valid-user
+    Order deny, allow
+    Deny from all
   </Location>
 
 Now the code of My/Auth.pm:
@@ -129,26 +131,28 @@ Now the code of My/Auth.pm:
         my $user = $r->connection->user;
   
         # authenticate through DBI
-        my $reason = authen_dbi ($r, $user, $sent_pw, $level);
+        my $reason = authen_dbi($r, $user, $sent_pw);
   
         if ($reason) {
                 $r->note_basic_auth_failure;
-                $r->log_reason ($reason, $r->uri);
+                $r->log_reason($reason, $r->uri);
                 return AUTH_REQUIRED;
         }
         return OK;
     }
      
     sub authen_dbi{
-      my ($r, $user, $sent_pw, $level) = @_;
+      my ($r, $user, $sent_pw) = @_;
   
       # validate username/passwd
   
-      return 0 if (*PASSED*)
+      return 0 if (*PASSED*) # replace with real code!!!
   
       return "Failed for X reason";
   
     }
+    # don't forget 1;
+    1;
 
 You can implement your own C<authen_dbi()> routine, or you can replace
 C<authen_handler()> with an existing authentication handler such as
