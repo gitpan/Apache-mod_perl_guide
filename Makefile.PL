@@ -54,13 +54,14 @@ WriteMakefile
    VERSION_FROM => 'src/Version.pm', # finds $VERSION
    AUTHOR       => 'Stas Bekman <stas@stason.org>',
    ABSTRACT     => 'mod_perl Guide',
-   clean        => {FILES => 'ps_html rel_html'},
+   clean        => {FILES => 'ps_html rel_html bin/toc_file'},
    dist => {
 	    PREOP => 'pod2text mod_perl_guide.pm > README',
 	    COMPRESS => 'gzip -9f',
 	    SUFFIX   => '.gz', 
 	    DIST_DEFAULT => 'tardist',
 	   },
+   PREREQ_PM => \%require,
 );
 
 

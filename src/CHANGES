@@ -2,6 +2,42 @@
 		### mod_perl Guide CHANGES file ###
 		###################################
 
+09.21.2000 ver 1.27
+
+*
+
+*
+
+*
+
+*
+
+*
+
+*
+
+*
+
+*
+
+*
+
+*
+
+*
+
+*
+
+* build: fixed the Makefile.PL to detect the prerequisites. MANIFEST
+  file is OK now (didn't accept files starting with './') (Marcel
+  Grunauer)
+
+* troubleshooting.pod: install_driver(Oracle) failed: Can't load
+   '.../DBD/Oracle/Oracle.so' for module DBD::Oracle (Ed Park)
+
+
+
+
 08.21.2000 ver 1.26
 
 * mod_perl guide's build process is now completely migrated into an
@@ -24,7 +60,8 @@
   rewritten, to accomodate a better in my opinion directories layout
   and simpler installation process"
 
-* perl.pod: "Exception Handling for mod_perl" was improved by Matt.
+* perl.pod: "Exception Handling for mod_perl" was improved by Matt
+  Sergeant.
 
 * Minor corrections: 
   o config (Ron Pero)

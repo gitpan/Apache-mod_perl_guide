@@ -76,12 +76,35 @@ override the library path.
 On BSD style filesystems C<LD_LIBRARY_PATH> is not searched for setuid
 programs (a.k.a., Apache). This isn't a problem for CGIs since they
 don't do a setuid (and are forked off), but Apache does, and mod_perl
-is in Apache. Therefore a solution is to explicitly load the library
-from the system wide I<ldconfig> configuration file:
+is in Apache. Therefore the first solution is to explicitly load the
+library from the system wide I<ldconfig> configuration file:
 
   # echo $ORACLE_HOME/lib >> /etc/ld.so.conf
   # ldconfig
 
+Another solution to this problem is to modify the resulting
+I<Makefile> ( after running C<perl Makefile.PL>) as follows:
+
+1. search for the line C<LD_RUN_PATH=>
+
+2. replace it with C<LD_RUN_PATH=(my_oracle_home)/lib>
+
+(my_oracle_home) is, of course, the home path to your oracle
+installation.  In particular, the file libclntsh.so.8.0 should exist
+in that directory.  (If you use cpan, the build directory for
+DBD::Oracle should be in ~/.cpan/build/DBD-Oracle-1.06/ if you're
+logged in as root.)
+
+Then, just type C<make install>, and all should go well.
+
+FYI, setting C<LD_RUN_PATH> has the effect of hard-coding the path to
+I<(my_oracle_home)/lib> in the resulting C<Oracle.so> file generated
+by the C<DBD::Oracle> so that at run-time, it doesn't have to go
+searching through C<LD_LIBRARY_PATH> or the default directories used
+by C<ld>.
+
+For more information see the I<ld> manpage and an essay on
+C<LD_LIBRARY_PATH>: http://www.visi.com/~barr/ldpath.html
 
 
 
