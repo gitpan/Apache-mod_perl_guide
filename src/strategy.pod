@@ -113,7 +113,7 @@ Your mileage may vary.
 The DSO module (C<mod_so>) adds size and complexity to your binaries.
 
 Refer to the section L<"Pros and Cons of Building mod_perl as
-DSO|strategy/Pros_and_Cons_of_Building_mod_pe"> for more information.
+DSO|install/Pros_and_Cons_of_Building_mod_pe"> for more information.
 
 Build details: L<Build mod_perl as DSO inside Apache source tree via
 APACI|install/Build_mod_perl_as_a_DSO_inside_t>
@@ -426,56 +426,77 @@ information see http://www.fenrus.demon.nl/.
 
 =head1 Adding a Proxy Server in http Accelerator Mode
 
-At the beginning there were two servers: one plain Apache server, which
-was I<very light>, and configured to serve static objects, the other
-mod_perl enabled (I<very heavy>) and configured to serve mod_perl
-scripts.  We named them C<httpd_docs> and C<httpd_perl> respectively.
+At the beginning there were two servers: one plain Apache server,
+which was I<very light>, and configured to serve static objects, the
+other mod_perl enabled (I<very heavy>) and configured to serve
+mod_perl scripts and handlers.  As you remember we named them
+C<httpd_docs> and C<httpd_perl> respectively.
 
-The two servers coexist at the same IP address by listening to
-different ports: C<httpd_docs> listens to port 80
-(e.g. http://www.example.com/images/test.gif) and C<httpd_perl>
-listens to port 8080 (e.g. http://www.example.com:8080/perl/test.pl).
-Note that I did not write http://www.example.com:80 for the first
-example, since port 80 is the default port for the http service. Later
-on, I will be changing the configuration of the C<httpd_docs> server
-to make it listen to port 81.
+In the dual-server setup presented earlier the two servers coexist at
+the same IP address by listening to different ports: C<httpd_docs>
+listens to port 80 (e.g. http://www.example.com/images/test.gif) and
+C<httpd_perl> listens to port 8080 (e.g.
+http://www.example.com:8080/perl/test.pl).  Note that we did not write
+http://www.example.com:80 for the first example, since port 80 is the
+default port for the http service. Later on, we will be changing the
+configuration of the C<httpd_docs> server to make it listen to port
+81.
 
-Now I am going to convince you that you B<want> to use a proxy server
-(in the http accelerator mode). The advantages are:
+This section will attempt to convince you that you really B<want> to
+deploy a proxy server in the http accelerator mode. This is a special
+mode that in addition to providing the normal caching mechanism,
+accelerates your CGI and mod_perl scripts.
+
+The advantages of using the proxy server in conjunction with mod_perl
+are:
 
 =over 8
 
 =item *
 
-Allow serving of static objects from the proxy's cache (objects that
-previously were entirely served by the C<httpd_docs> server).
+Certainly the benefits of the usual use of the proxy server which
+allows serving of static objects from the proxy's cache. You get less
+I/O activity reading static objects from the disk (proxy serves the
+most "popular" objects from RAM -- of course you benefit more if you
+allow the proxy server to consume more RAM). Since you do not wait for
+the I/O to be completed, you are able to serve static objects much
+faster.
 
 =item *
 
-You get less I/O activity reading static objects from the disk (proxy
-serves the most "popular" objects from RAM - of course you benefit
-more if you allow the proxy server to consume more RAM). Since you do
-not wait for the I/O to be completed, you are able to serve static
-objects much faster.
-
-=item *
-
-The proxy server acts as a sort of output buffer for the dynamic
-content.  The mod_perl server sends the entire response to the proxy
-and is then free to deal with other requests.  The proxy server is
-responsible for sending the response to the browser.  So if the
+And the extra functionality provided by the http-acceleration mode,
+which make the proxy server act as a sort of output buffer for the
+dynamic content.  The mod_perl server sends the entire response to the
+proxy and is then free to deal with other requests.  The proxy server
+is responsible for sending the response to the browser.  So if the
 transfer is over a slow link, the mod_perl server is not waiting
 around for the data to move.
 
-Using numbers is always more convincing :) Let's take a user connected
-to your site with 56 kbps (bps == bits/sec) modem. 1 byte == 8
-bits. It means that the speed of the user's link is 56/8 = 7
-kbytes/sec. I assume an average generated HTML page to be of 42KB (KB
-== kilobytes) and an average script that generates this output in 0.5
-second. How long will the server wait before the user gets the whole
-output response? A simple calculation reveals pretty scary numbers --
-it will have to wait for another 12 secs (42kb/0.5*7KB), when it could
-serve another 11 (12/1-1) dynamic requests in this time.
+Using numbers is always more convincing than just words. So we are
+going to show a simple example from the real world.
+
+First let's explain the abbreviation used in the networking world, so
+you won't get confused. If you someone writes 56 kbps -- it means 56
+killo-bits per second. It's not 56 killo-bytes per second, but 7
+killo-bytes per second, because 1 byte == 8 bits. So don't let the
+merchants fool you -- your modem gives your 7 killo-bytes per second
+connection at most and not 56 killo-bytes per second. Another
+convention used in computer literature is that if you see 10Kb it
+usually means 10 killo-bits and 10KB is 10 killo-bytes. So if you see
+upper case C<B> it generally refers to bytes, and lower case C<b> to
+bits (and B<K> of course means killo or 1024). Remember that the
+latter convention is not followed everywhere, so use this knowledge
+with care. This document is following this convention.
+
+So here is the real world example. Let's look at the typical scenario
+with a user connected to your site with 56Kbps modem. It means that
+the speed of the user's link is 56/8 = 7KBytes per sec. Let's assume
+an average generated HTML page to be of 42KB and an average mod_perl
+script that generates this response in 0.5 second. How long will the
+server wait before the user gets the whole output response? A simple
+calculation reveals pretty scary numbers -- it will have to wait for
+another 12 secs (42KB/0.5*7KB), when it could serve another 11
+(12/1-1) dynamic requests in this time.
 
 This very simple example shows us that we need only one twelfth the
 number of children running, which means that we will need only one
@@ -487,22 +508,24 @@ up with javascript code and similar, which can make them 100kb size
 and the download time will be of the order of... (This calculation is
 left to you as an exercise :)
 
-Many users like to open many browser windows and do many things at
-once (download files and browse graphically I<heavy> sites). So the
-speed of 7K/sec we were assuming before, may often be 5-10 times
-slower.
+Moreover many users like to open many browser windows and do many
+things at once (download files and browse graphically I<heavy>
+sites). So in the speed of 7KB/sec we have assumed before, may in
+reality be 5-10 times slower.
 
 =item *
 
-We are going to hide the details of the server's implementation. Users
-will never see ports in the URLs (more on that topic later). You can
-have a few boxes serving the requests, and only one serving as a front
-end, which spreads the jobs between the servers in a way that you can
-control.  You can actually shut down a server, without the user even
-noticing, because the front end server will dispatch the jobs to other
-servers. (This is called Load Balancing and it's a pretty big
-issue, which will not be discussed in this document. For more
-information see L<'High-Availability Linux
+This technique allows us to hide the details of the server's
+implementation. Users will never see ports in the URLs (more on that
+topic later). You can have a few boxes serving the requests, and only
+one serving as a front end, which spreads the jobs between the servers
+in a way that you can control.  You can actually shut down a server,
+without the user even noticing, because the front end server will
+dispatch the jobs to other servers. (This is called I<Load Balancing>
+and it's a pretty big issue which will take a book on its own to cover
+and therefore will not be discussed here. There is a plenty of
+information available at the Internet though. For more information see
+L<'High-Availability Linux
 Project'|download/High_Availability_Linux_Project>)
 
 =item *
@@ -514,6 +537,12 @@ httpd accelerator and internal server communicate in expected HTTP
 requests. This allows for only your public "bastion" accelerating www
 server to get hosed in a successful attack, while leaving your
 internal data safe.
+
+This is true if your server runs on your localhost (127.0.0.1) which
+makes it impossible to connect to you back end machine from the
+outside. But you don't need to connect from the outside anymore. You
+will see why when you proceed to this techniques' implementation
+notes.
 
 =back
 
@@ -527,25 +556,56 @@ Of course there are drawbacks. Luckily, these are not functionality
 drawbacks, but they are more administration hassle. You have another
 daemon to worry about, and while proxies are generally stable, you
 have to make sure to prepare proper startup and shutdown scripts,
-which are run at boot and reboot as appropriate. Also, you might want
-to set up the crontab to run a watchdog script.
+which are run at boot and reboot as appropriate. This is something
+that you do once and never come back to this issue again. Also, you
+might want to set up the crontab to run a watchdog script that will
+make sure that the proxying server is running and restart it if it
+detects a problem, reporting the problem to the administrator on the
+way.
 
 =item *
 
 Proxy servers can be configured to be light or heavy. The
 administrator must decide what gives the highest performance for his
-application. A proxy server like squid is light in the sense of having
-only one process serving all requests. But it can appear pretty heavy
-when it loads objects into memory for faster service.
+application. A proxy server like I<squid> is light in the sense of
+having only one process serving all requests. But it can consume a lot
+of memory when it loads objects into memory for faster service.
+
+=item *
+
+If you use the default logging mechanism for all requests on the
+front- and back-end servers the requests that will be forwarded to the
+back-end server will be logged twice, which makes it tricky to merge
+the two logfiles, should you want to.
+
+One solution is to tell the heavy Apache not to bother logging
+requests that seem to come from the light Apache's machine.  You might
+do this by installing a custom C<PerlLogHandler> or just piping to
+I<access_log> via C<grep -v> (match all but this pattern) for the
+requests coming from the light Apache server.  In this scenario, the
+I<access_log> written by the light Apache is the file you should work
+with.  But you need to look for any direct accesses to the heavy
+server in case the proxy server is sometimes bypassed, which can be
+eliminated if the server is listening only to the localhost
+(127.0.0.1).
+
+If you still decide to log proxied requests at the back-end server
+they will be useless since instead of real remote IP of the user, you
+will get always the same IP of the front-end server. Later in this
+Chapter on page XXX (mod_proxy_add_forward) we present a solution for
+this problem.
+
 
 =back
 
 Have I succeeded in convincing you that you want a proxy server?
 
-If you are on a local area network (LAN), then the big benefit of the
-proxy buffering the output and feeding a slow client is gone.  You are
-probably better off sticking with a straight mod_perl server in this
-case.
+Of course if you are on a very fast local area network (LAN) (which
+means that all your users are connected from this LAN and not from the
+outside), then the big benefit of the proxy buffering the output and
+feeding a slow client is gone.  You are probably better off sticking
+with a straight mod_perl server in this case.
+
 
 =head1 Implementations of Proxy Servers
 
@@ -652,21 +712,11 @@ more than one back end, but there is a problem in fixing redirects in
 a way that keeps the client's view of both server names and port
 numbers in all cases.
 
-The difficult case is where:
-
-=over
-
-=item * You have DNS aliases that map to the same IP address and 
-
-=item * You want the redirect to port 80 and
-
-=item * The server is on a different port and
-
-=item * You want to keep the specific name the browser has already
-sent, so that it does not change in the client's B<Location> window.
-
-=back
-
+The difficult case is where you have DNS aliases that map to the same
+IP address and you want the redirect to port 80 and the server is on a
+different port and you want to keep the specific name the browser has
+already sent, so that it does not change in the client's B<Location>
+window.
 
 
 The Advantages:
@@ -702,7 +752,7 @@ mod_proxy|scenario/mod_proxy> notes for more details.
 It even does caching. You have to produce correct C<Content-Length>,
 C<Last-Modified> and C<Expires> http headers for it to work. If some
 of your dynamic content does not change frequently, you can
-dramatically increase performance by caching it with C<ProxyPass>.
+dramatically increase performance by caching it with mod_proxy.
 
 =item *
 
@@ -717,7 +767,7 @@ program for that.
 
 =item *
 
-The latest (Apache 1.3.6 and later) Apache proxy accelerated mode is
+The latest (Apache 1.3.6 and later) Apache proxy accelerated module is
 reported to be very stable.
 
 =back
@@ -728,61 +778,72 @@ implementation chapter.
 
 
 
-=head1 When One Machine is not Enough for SQL DB and mod_perl
+=head1 When One Machine is not Enough for RDBMS DataBase and mod_perl
 
-You have started your business as a small service providing web-site.
-After a while your business becomes very popular and at some point you
-understand that it has outgrown the capacity of your machine and you
-have moved everything onto a stronger machine with more memory, a
-faster CPU and a faster hard disk.
-
-The situation goes back to normal but not for a long, as the demand
-for your services keeps on growing and just a little time after you've
-upgraded your machine, once again it cannot cope the load. Should you
-buy an even stronger and very expensive machine or start looking for
-another solution?
+Imagine a scenario where you start your business as a small service
+providing web-site.  After a while your business becomes very popular
+and at some point you understand that it has outgrown the capacity of
+your machine. Therefore you decide to upgrade your current machine
+with lots of memory, the cutting edge super expensive CPU and an
+ultra-fast hard disk. As a result the load goes back to normal but not
+for a long, as the demand for your services keeps on growing and just
+a little time after you've upgraded your machine, once again it cannot
+cope the load. Should you buy an even stronger and very expensive
+machine or start looking for another solution? Let's explore the
+possible solution for this problem.
 
 A typical web service consists of two main software components, the
 database server and the web server.
 
 A typical user-server interaction consists of accepting the query
-parameters entered into an HTML form and submitted to the web server by
-a user, converting these parameters into a database query, sending it
-to the database server, accepting the results of the executed query,
-formatting them into a nice HTML page, and sending it to a user's
-Internet browser or another application that created the request.
+parameters entered into an HTML form and submitted to the web server
+by a user, converting these parameters into a database query, sending
+it to the database server, accepting the results of the executed
+query, formatting them into a nice HTML page, and sending it to a
+user's Internet browser or another application that created the
+request (e.g. WAP).
 
 This figure depicts the above description:
 
-             1                      2
-  [      ] ====> [               ] ====> [                 ]
-  [ User ]       [ Apache Server ]       [ Database Server ]
-  [      ] <==== [               ] <==== [                 ]
-             4                       3
+               1                      2
+  [        ] ====> [               ] ====> [                 ]
+  [ Client ]       [ Apache Server ]       [ Database Server ]
+  [        ] <==== [               ] <==== [                 ]
+               4                       3
 
 This schema is known as a 3-tier architecture in the computing world.
 
 A 3-tier architecture means splitting up several processes of your
 computing solution between different machines.
 
-1st you have the client, who will see the data on its screen and can
-give instructions to modify or process the data.  In our case, an
-Internet browser.
+=over
 
-2nd you have the application server, which does the actual processing
-of the data and sends it back to the client.  In our case, a mod_perl
-enabled Apache server.
+=item * Tier 1
 
-3rd you have the database server, which stores and retrieves all the
-data for the application server.
+The client, who will see the data on its screen and can give
+instructions to modify or process the data.  In our case, an Internet
+browser.
 
-We are interested only in the 2nd and the 3rd tiers; we don't specify
-user machine requirements, since mod_perl is all about server side
-programming. The only thing the user should be able to do is to render
-the generated HTML from the response, which any simple browser will
-do. Of course I'm not talking about the case where you return some
-heavy Java applets, but that movie is screened in another theater.
+=item * Tier 1
 
+The application server, which does the actual processing of the data
+and sends it back to the client.  In our case, a mod_perl enabled
+Apache server.
+
+=item * Tier 1
+
+The database server, which stores and retrieves all the data for the
+application server.
+
+=back
+
+We are interested only in the second and the third tiers; we don't
+specify user machine requirements, since mod_perl is all about server
+side programming. The only thing the client should be able to do is to
+render the generated HTML from the response, which any simple browser
+will do. Of course I'm not talking about the case where you return
+some heavy Java applets, but that movie is screened in another
+theater.
 
 
 =head2 Servers' Requirements
@@ -959,7 +1020,7 @@ have to serve and the rate at which they are requested.
 
 
 
-=head1 Do Not Run Everything on One mod_perl Server
+=head1 Running More than One mod_perl Server on the Same Machine.
 
 Let's assume that you have two different sets of scripts/code which
 have little or nothing in common; different modules, no code
@@ -1089,7 +1150,7 @@ relying on.
 
 
 
-=head1 Do Not Put mod_ssl into a mod_perl Server
+=head1 SSL functionality and a mod_perl Server
 
 If you need SSL functionality, you can get it by adding the mod_ssl or
 equivalent Apache_ssl to the light front-end server (httpd_docs) or
@@ -1156,106 +1217,6 @@ and more control of things. So the choice is in your hand.
 
 
 
-
-
-=head1 Pros and Cons of Building mod_perl as DSO
-
-On modern Unix derivatives there is a nifty mechanism usually called
-dynamic linking/loading of Dynamic Shared Objects (DSO), which
-provides a way to build a piece of program code in a special format
-for loading in at run-time into the address space of an executable
-program.
-
-As of Apache 1.3, the configuration system supports two optional
-features for taking advantage of the modular DSO approach: compilation
-of the Apache core program into a DSO library for shared usage and
-compilation of the Apache modules into DSO files for explicit loading
-at run-time.
-
-Should you use this method? Read the pros and cons and decide for
-yourself.
-
-Pros:
-
-=over 
-
-=item *
-
-The server package is more flexible at run-time because the actual
-server process can be assembled at run-time via C<LoadModule>
-I<httpd.conf> configuration commands instead of I<Configuration>
-C<AddModule> commands at build-time.  For instance this way one is
-able to run different server instances (standard & SSL version, with
-and without mod_perl) with only one Apache installation.
-
-=item *
-
-The server package can be easily extended with third-party modules
-even after installation.  This is at least a great benefit for vendor
-package maintainers who can create an Apache core package and
-additional packages containing extensions like PHP3, mod_perl,
-mod_fastcgi, etc.
-
-=item *
-
-Easier Apache module prototyping because with the DSO/apxs pair you
-can both work outside the Apache source tree and only need an S<apxs
--i> command followed by an S<apachectl restart> to bring a new version
-of your currently developed module into the running Apache server.
-
-
-=back
-
-Cons:
-
-=over 
-
-=item *
-
-The DSO mechanism cannot be used on every platform because not all
-operating systems support dynamic loading of code into the address
-space of a program.
-
-=item *
-
-The server starts up approximately 20% slower because of the
-symbol resolving overhead the Unix loader now has to do.
-
-=item *
-
-The server runs approximately 5% slower on some platforms because
-position independent code (PIC) sometimes needs complicated assembler
-tricks for relative addressing which are not necessarily as fast as
-absolute addressing.
-
-=item *
-
-Because DSO modules cannot be linked against other DSO-based libraries
-(ld -lfoo) on all platforms (for instance a.out-based platforms
-usually don't provide this functionality while ELF-based platforms do)
-you cannot use the DSO mechanism for all types of modules. Or in other
-words, modules compiled as DSO files are restricted to only use
-symbols from the Apache core, from the C library (libc) and all other
-dynamic or static libraries used by the Apache core, or from static
-library archives (libfoo.a) containing position independent code. The
-only way you can use other code is to either make sure the Apache core
-itself already contains a reference to it, loading the code yourself
-via dlopen() or enabling the SHARED_CHAIN rule while building Apache
-when your platform supports linking DSO files against DSO libraries.
-
-=item *
-
-Under some platforms (many SVR4 systems) there is no way to force the
-linker to export all global symbols for use in DSO's when linking the
-Apache httpd executable program. But without the visibility of the
-Apache core symbols no standard Apache module could be used as a
-DSO. The only workaround here is to use the SHARED_CORE feature
-because this way the global symbols are forced to be exported. As a
-consequence the Apache src/Configure script automatically enforces
-SHARED_CORE on these platforms when DSO features are used in the
-Configuration file or on the configure command line.
-
-=back
 
 
 

@@ -7,6 +7,7 @@ Makefile.PL
 README
 mod_perl_guide.pm
 src/code/DB_File-Lock2.pm
+src/code/lwp-bench.pl
 src/code/My-DB.pm
 src/code/mysql-3.22.29_backup.pl
 src/code/mysql-3.22.29_restore.pl

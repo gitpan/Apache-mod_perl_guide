@@ -481,8 +481,8 @@ And you will get the data compressed if configured correctly.
 With this module you can configure C<@INC> and have modules reloaded
 for a given C<Location>.  Suppose two versions of C<Apache::Status>
 are being hacked on the same server, this fixup handler will simply
-C<delete $INC{ $filename }>, unshift the preferred C<PerlINC> path into
-C<@INC>, and reload the file with C<require()>:
+C<delete $INC{ $filename }>, unshift the preferred C<PerlINC> path
+into C<@INC>, and reload the file with C<require()>:
 
   PerlModule Apache::PerlVINC
 
@@ -507,8 +507,8 @@ C<@INC>, and reload the file with C<require()>:
   </Location>
 
 C<PerlVersionINC On> must come before the C<PerlINC>
-statement. C<PerlINC> wont store that path unless C<PerlVersionINC> is
-On.
+statement. C<PerlINC> won't store that path unless C<PerlVersionINC>
+is On.
 
 It's important to be aware that a changed C<@INC> is effective only
 inside the C<E<lt>LocationE<gt>> or a similar configuration directive.

@@ -1,5 +1,7 @@
 =head1 Real World Scenarios
 
+=head1 Assumptions 
+
 I will assume for this section that you are familiar with plain (not
 mod_perl enabled) Apache, its compilation and configuration. In all
 configuration and code examples I will use I<localhost> or
@@ -594,22 +596,28 @@ run it.
 First, let's take a look at what we have already running and what we
 want from squid.
 
-We have the C<httpd_docs> and C<httpd_perl> servers listening on ports
-80 and 8080.  We want squid to listen on port 80, to forward requests
-for static objects (plain HTML pages, images and so on) to the port
-which the httpd_docs server listens to, and dynamic requests to
-httpd_perl's port.  This is known as C<httpd accelerator mode> in
-proxy dialect.
+Previously we have had the C<httpd_docs> and C<httpd_perl> servers
+listening on ports 80 and 8080.  Now we want squid to listen on port
+80, to forward requests for static objects (plain HTML pages, images
+and so on) to the port which the httpd_docs server listens to, and
+dynamic requests to httpd_perl's port.  And of course collecting the
+generated responses, which will be delivered to the client by
+Squid. As mentioned before this mode is known as I<httpd-accelerator>
+mode in proxy dialect.
 
-Our httpd_docs is listening to port 80, so we will have to reconfigure
-it to listen to port 81, since port 80 will be taken by Squid.  Both
-copies of Apache will reside on the same machine as Squid.  A proxy
-server makes all the magic behind it transparent to users.  Both Apache
-servers return the data to Squid (unless it was already cached by
-Squid).  The client never sees the other ports and never knows that
-there might be more than one server running.  Do not confuse this
-scenario with B<mod_rewrite>, where a server redirects the request
-somewhere according to the rewrite rules and forgets all about it.
+Therefore we have to reconfigure the httpd_docs server to listen to
+port 81 instead, since port 80 will be taken by Squid.  Remember that
+in our scenario both copies of Apache will reside on the same machine
+as Squid.
+
+A proxy server makes all the magic behind it transparent to users.
+Both Apache servers return the data to Squid (unless it was already
+cached by Squid).  The client never sees the other ports and never
+knows that there might be more than one server running.  Do not
+confuse this scenario with C<mod_rewrite>, where a server redirects
+the request somewhere according to the rewrite rules and forgets all
+about it.  (i.e. works as a one way dispatcher, which dispatches the
+jobs but is not responsible fo
 
 Squid can be used as a straightforward proxy server.  ISPs and other
 companies generally use it to cut down the incoming traffic by caching
@@ -624,17 +632,11 @@ accomplish this, you can extend the existing Squid configuration with
 B<httpd accelerator mode>'s related directives or you can just create
 one from scratch.
 
-Now that you have Squid listening to port 80, you have to move the
-httpd_docs server to listen for example to port 81 (your mileage may
-vary :).  So you have to modify httpd_docs/conf/httpd.conf and restart
-the httpd_docs server.  But if you are working on a production server,
-do not do this before we get Squid running!
-
 Let's go through the changes we should make to the default
-configuration file.  Since this file (I</etc/squid/squid.conf>) is
-huge (about 60k+) and we will not alter 95% of its default settings,
-my suggestion is to write a new one including only the modified
-directives.
+configuration file.  Since the file with default settings
+(I</etc/squid/squid.conf>) is huge (about 60KB) and we will not alter
+95% of its default settings, my suggestion is to write a new one
+including only the modified directives.
 
 We want to enable the redirect feature, to be able to serve requests
 by more than one server (in our case we have two: the httpd_docs and
@@ -661,58 +663,72 @@ neighboring machines, which is more relevant in the proxy mode).
 
   icp_port 0
 
+
 C<hierarchy_stoplist> defines a list of words which, if found in a
-URL, causes the object to be handled directly by the cache.  In other
-words, use this cache and do not query neighboring caches for certain
-objects.  Note that I have configured the I</cgi-bin> and I</perl>
-aliases for my dynamic documents, if you named them in a different
-way, make sure you use the correct aliases here.
+URL, causes the object to be handled directly by the cache. Since we
+told Squid in the previous directive that we aren't going to share the
+cache between neighboring machines this directive is irrelevant. In
+case that you do use this feature, make sure to set this directive to
+something like:
 
   hierarchy_stoplist /cgi-bin /perl
 
-Now we tell squid not to cache dynamic pages.
+where the I</cgi-bin> and I</perl> are aliases for the locations which
+handle the dynamic requests.
+
+Now we tell Squid not to cache dynamically generated pages.
 
   acl QUERY urlpath_regex /cgi-bin /perl
   no_cache deny QUERY
 
 Please note that the last two directives are controversial ones.  If
 you want your scripts to be more compliant with the HTTP standards,
-according to the HTTP specs the headers of your scripts should carry
-the I<Caching Directives>: C<Last-Modified> and C<Expires>.  What are
-they for? (*) If you set the headers correctly, there is no need to
-tell the Squid accelerator B<NOT> to try to cache anything.  Squid
+according to the HTTP specification the headers of your scripts should
+carry the I<Caching Directives>: C<Last-Modified> and C<Expires>.
+
+What are they for? If you set the headers correctly, there is no need
+to tell the Squid accelerator B<NOT> to try to cache anything.  Squid
 will not bother your mod_perl servers a second time if a request is
 (a) cachable and (b) still in the cache.  Many mod_perl applications
 will produce identical results on identical requests if not much time
 has elapsed between the requests.  So your Squid might have a hit
 ratio of 50%, which means that the mod_perl servers will have only
 half as much work to do as they did before you installed Squid (or
-mod_proxy).  But this is only possible if you set the headers
-correctly.
-
-For more information, refere to the chapter L<Correct Headers - A
-quick guide for mod_perl users|correct_headers/>.
+mod_proxy).
 
 Even if you insert a user-ID and date in your page, caching can save
 resources when you set the expiration time to 1 second.  A user might
 double click where a single click would do, thus sending two requests
 in parallel.  Squid could serve the second request.
 
+But this is only possible if you set the headers correctly. Refer to
+the chapter L<Correct Headers - A quick guide for mod_perl
+users|correct_headers/> to learn more about generating the proper
+caching headers under mod_perl. In case where only the scripts under
+I</perl/caching-unfriendly> are not I<caching friendly> fix the above
+setting to be:
+
+  acl QUERY urlpath_regex /cgi-bin /perl/caching-unfriendly
+  no_cache deny QUERY
+
 But if you are lazy, or just have too many things to deal with, you
-can leave the above directives the way I described.  Just keep in mind
-that one day you will want to reread this snippet and L<the headers
-generation tutorial|correct_headers/> to squeeze even more power from
-your servers without investing money in more memory and better
-hardware.
+can leave the above directives the way we described.  Just keep in
+mind that one day you will want to reread this section and L<the
+headers generation tutorial|correct_headers/> to squeeze even more
+power from your servers without investing money in more memory and
+better hardware.
 
 While testing you might want to enable the debugging options and watch
-the log files in I</var/log/squid/>.  But turn debugging off in your
-production server.  Below I show it commented out.  The parameter 28
-means access control routes.
+the log files in the directory I</var/log/squid/>.  But make sure to
+turn debugging off in your production server.  Below we show it
+commented out, which makes it disabled, since it's disabled by
+default.  Debug option 28 enables the debugging of the access control
+routes, for other debug codes see the documentation embedded in the
+default configuration file that comes with squid.
 
-  # debug_options ALL, 1, 28, 9
+  # debug_options 28
 
-We need to provide a way for squid to dispatch requests to the correct
+We need to provide a way for Squid to dispatch requests to the correct
 servers.  Static object requests should be redirected to httpd_docs
 unless they are already cached, while requests for dynamic documents
 should go to the httpd_perl server.  The configuration below tells
@@ -731,7 +747,7 @@ the largest file's size plus a few extra kbytes.
 
   request_size 1000 KB
 
-Then we have access permissions, which I will not explain.  You might
+Then we have access permissions, which we will not explain.  You might
 want to read the documentation, so as to avoid any security problems.
 
   acl all src 0.0.0.0/0.0.0.0
@@ -750,7 +766,8 @@ want to read the documentation, so as to avoid any security problems.
   # http_access allow all
 
 Since Squid should be run as a non-root user, you need these if you
-are invoking the Squid as root.
+are invoking the Squid as root. The user I<squid> is created when the
+Squid server is installed.
 
   cache_effective_user squid
   cache_effective_group squid
@@ -761,8 +778,9 @@ times larger than the value you set.
 
   cache_mem 20 MB
 
-Keep pools of allocated (but unused) memory available for future
-use.  Read more about it in the Squid documents.
+We want to keep pools of allocated (but unused) memory available for
+future use if we have the memory available of course. Otherwise turn
+it off.
 
   memory_pools on
 
@@ -771,7 +789,11 @@ Now tighten the runtime permissions of the cache manager CGI script
 server.
 
   cachemgr_passwd disable shutdown
-  #cachemgr_passwd none all
+
+If you are not using this script to manage the Squid server from
+remote, you should disable it:
+
+  cachemgr_passwd disable all
 
 Now the redirection daemon script (you should put it at the location
 you have specified in the C<redirect_program> parameter in the config
@@ -817,20 +839,20 @@ reach the server.  Your users will not wait that long, unless you have
 hundreds requests per second and then the buffer will be flushed very
 frequently because it'll get full very fast.
 
-If you think that this is a very ineffective way to redirect, I'll try
-to prove otherwise.  The redirector runs as a daemon, it fires up N
-redirect daemons, so there is no problem with Perl interpreter
-loading.  Exactly as with mod_perl, perl is loaded all the time and
-the code has already been compiled, so the redirect is very fast (not
-much slower than if the redirector was written in C).  Squid keeps an
-open pipe to each redirect daemon, thus there is not even the overhead
-of the system calls.
+If you think that this is a very ineffective way to redirect, you
+should consider the following explanation.  The redirector runs as a
+daemon, it fires up N redirect daemons, so there is no problem with
+Perl interpreter loading.  Exactly as with mod_perl, the perl
+interpreter is loaded all the time in memory and the code has already
+been compiled, so the redirect is very fast (not much slower than if
+the redirector was written in C).  Squid keeps an open pipe to each
+redirect daemon, thus there is no overhead of the system calls.
 
 Now it is time to restart the server, at linux I do it with:
 
   /etc/rc.d/init.d/squid restart
 
-Now the setup is complete ...
+Now the Squid server setup is complete.
 
 Almost... When you try the new setup, you will be surprised and upset
 to discover port 81 showing up in the URLs of the static objects (like
@@ -841,26 +863,32 @@ work we went through was just a waste of time!
 The solution is to make both squid and httpd_docs listen to the same
 port.  This can be accomplished by binding each one to a specific
 interface (so they are listening to different B<sockets>).  Modify
-C<httpd.conf> in the C<httpd_docs> configuration directory:
+I<httpd_docs/conf/httpd.conf>:
 
   Port 80
   BindAddress 127.0.0.1
   Listen 127.0.0.1:80
 
+Now the httpd_docs server is listening only to requests coming from
+the local server. You cannot access it directly from the
+outside. Squid becomes a gateway that all the packets go through on
+the way to the httpd_docs server.
+
 Modify I<squid.conf>:
 
   http_port 80
-  tcp_incoming_address 123.123.123.3
+  tcp_incoming_address 123.123.123.123
   tcp_outgoing_address 127.0.0.1
   httpd_accel_host 127.0.0.1
   httpd_accel_port 80
 
-Where C<123.123.123.3> should be replaced with the IP address of your
-main server.  Now restart squid and httpd_docs (it doesn't matter
-which one you start first), and voila--the port number has gone.
+Where C<123.123.123.123> should be replaced with the IP address of
+your main server.  Now restart the Squid and httpd_docs servers (it
+doesn't matter which one you start first), and voila--the port number
+has gone.
 
-You must also have in the I</etc/hosts> an entry (chances are that
-it's already there):
+You must also have in the file I</etc/hosts> the following entry
+(chances are that it's already there):
 
   127.0.0.1 localhost.localdomain localhost
 
@@ -868,47 +896,26 @@ Now if your scripts are generating HTML including fully qualified self
 references, using 8080 or the other port, you should fix them to
 generate links to point to port 80 (which means not using the port at
 all in the URI).  If you do not do this, users will bypass Squid and
-will make direct requests to the mod_perl server's port.
-
-The only question left is what to do with users who bookmarked your
-services and who still have port 8080 inside their bookmark URLs.  Do
-not worry about it.  The most important thing is for your scripts to
-return full URLs, so if the user comes from the link with 8080 port
-inside, let it be.  Just make sure that all the subsequent calls to
-your server will be rewritten correctly.  After a time users will
-change their bookmarks.  You can send them an email if you know the
-address, or you could leave a note on your pages asking users to
-update their bookmarks.  You will avoid this problem if you do not
-publish non-80 ports in the first place.  See L<Publishing Port
-Numbers other than 80|config/Publishing_Port_Numbers_other_th>.
-
-<META> Need to write up a section about server logging with squid. One
-thing I sure would like to know is how requests are logged with this
-setup. I have, as most everyone I imagine, log rotation, analysis,
-archiving scripts and they all assume a single log.  <METAMETA> So
-what now with Apache TransferLog/ErrorLog/Refererlog? </METAMETA> Does
-one have different logs that have to be merged (up to 3 for each
-server + squid) ? Even when squid responds to a request out of its
-cache I'd still want the thing to be logged.  </META>
-
-See L<Using mod_proxy|scenario/mod_proxy> for
-information about C<X-Forwarded-For>.
+will make direct requests to the mod_perl server's port. As we will
+see later just like with httpd_docs, the httpd_perl server can be
+configured to listen only to requests coming from the localhost (with
+Squid forwarding these requests from the outside) and therefore users
+will not be able to bypass Squid.
 
 To save you some keystrokes, here is the whole modified C<squid.conf>:
 
   http_port 80
-  tcp_incoming_address 123.123.123.3
+  tcp_incoming_address 123.123.123.123
   tcp_outgoing_address 127.0.0.1
   httpd_accel_host 127.0.0.1
   httpd_accel_port 80
   
   icp_port 0
   
-  hierarchy_stoplist /cgi-bin /perl
   acl QUERY urlpath_regex /cgi-bin /perl
   no_cache deny QUERY
   
-  # debug_options ALL,1 28,9
+  # debug_options 28
   
   redirect_program /usr/lib/squid/redirect.pl
   redirect_children 10
@@ -965,39 +972,33 @@ additional servers you need for serving the static objects.  This will
 allow you to calculate the additional memory requirements.  I imagine
 that this amount could be significant in some installations.
 
-So I have decided to have even more administration overhead and to
-stick with the squid, httpd_docs and httpd_perl scenario, where I can
-optimize and fine tune everything.  Of course this may not be your
-situation.  If you feel that the scenario from the previous section is
-too complicated for you, make it simpler.  Have only one server with
-mod_perl built in and let Squid to do most of the job that plain light
-apache used to do.  As I have explained in the previous paragraph, you
-should pick this lighter setup only if you can make Squid cache most
-of your static objects.  If it cannot, your mod_perl server will have
-to do work we do not want it to do.
+So on for production servers I have decided to to stick with the
+Squid, httpd_docs and httpd_perl scenario, where I can optimize and
+fine tune everything. But if in your case there is almost no static
+objects to serve, the httpd_docs server is definitely redundant. And
+all you need are the mod_perl server and Squid to buffer the output
+from it.
 
-If you are still with me, install Apache with mod_perl and Squid.
-Then use a configuration similar to the previous section, but now
-httpd_docs is not there anymore.  Also we do not need the redirector
-anymore and we specify C<httpd_accel_host> as a name of the server and
-not C<virtual>.  Because we do not redirect there is no need to bind
-two servers on the same port so there are neither C<Bind> nor
-C<Listen> directives in C<httpd.conf>.
+If you want to proceed with this setup, install mod_perl enabled
+Apache and Squid.  Then use a configuration similar to the previous
+section, but now httpd_docs is not there anymore.  Also we do not need
+the redirector anymore and we specify C<httpd_accel_host> as a name of
+the server and not C<virtual>.  Because we do not redirect there is no
+need to bind two servers on the same port so there are neither C<Bind>
+nor C<Listen> directives in I<httpd.conf>.
 
-
-The modified configuration (see the explanations in the previous
-section):
+The modified configuration for this simlified setup (see the
+explanations in the previous section):
 
   httpd_accel_host put.your.hostname.here
   httpd_accel_port 8080
   http_port 80
   icp_port 0
   
-  hierarchy_stoplist /cgi-bin /perl
   acl QUERY urlpath_regex /cgi-bin /perl
   no_cache deny QUERY
   
-  # debug_options ALL, 1, 28, 9
+  # debug_options 28
   
   # redirect_program /usr/lib/squid/redirect.pl
   # redirect_children 10
@@ -1030,253 +1031,6 @@ section):
   cachemgr_passwd disable shutdown
 
 
-=head1 One Light and One Heavy Server where All HTML is Perl-generated
-
-META: a lot of info duplication in tricks section! remove/modify/merge
-it.
-
-Instead of keeping all your Perl scripts in I</perl> and your static
-content everywhere else, you could keep your static content in special
-directories and keep your Perl scripts everywhere else.  You can still
-use the light/heavy apache separation approach described above, with
-a few minor modifications.
-
-=head2 Installation and Configuration
-
-First you need to compile your light Apache with mod_proxy and
-mod_rewrite:
-
-  % ./configure --prefix=[snip...] --enable-module=rewrite \
-                                   --enable-module=proxy
-
-In the I<light> Apache's C<httpd.conf> file, turn rewriting on:
-
-  RewriteEngine on
-
-and list the static directories something like this:
-
-  RewriteRule ^/img - [L]
-  RewriteRule ^/style - [L]
-
-The C<[L]> means that the rewrite engine should stop if it has a
-match.  This is necessary because the very last rewrite rule proxies
-everything to the I<heavy> server:
-
-  RewriteRule ^/(.*) http://www.example.com:8080/$1 [P]
-
-This line (B<which must be the last C<RewriteRule>>) is the difference
-between a server for which static content is the default and one for
-which dynamic (perlish) content is the default.
-
-The above C<RewriteRule> assumes that the heavy server runs on the
-same machine as the light server.  You can just insert a different URL
-if the heavy Apache is elsewhere, but keeping the two servers on the
-one machine and treating them as one has some advantages, as you will
-see later.
-
-You should also add the I<reverse rewrite rule>:
-
-  ProxyPassReverse / http://www.example.com/
-
-so that the user doesn't see the port number C<:8080> in her browser's
-location window.
-
-Of course C<www.example.com> should be replaced with your own
-domain name.
-
-It is possible to use C<localhost> in the C<RewriteRule> above if the
-heavy and light servers are on the same machine, but your heavy server
-might accidentally say C<localhost> in a client redirect (see below)
-which would not be good.  Also, if your heavy server understands
-virtual hosts, you probably don't want to use the name C<localhost>.
-
-=head2 Tricks, Traps and Gotchas
-
-=over
-
-=item * 'Closing your shutters' temporarily
-
-Very occasionally, your mod_perl server will suffer glitches.  Perhaps
-you changed a module and restarted your mod_perl httpd when a C<perl
--cw> would have given you some very interesting information!  Since
-all your html is dynamically generated, suddenly nobody can view any
-pages on your site.  Disaster!!  Worse, your users are getting cryptic
-B<Unable to contact upstream server> error messages on a grey
-background, not the nice customised error messages you generate with
-Perl.
-
-If you insert a line into the light Apache's C<httpd.conf> file:
-
-  RewriteRule ^/(.*) /sorry.html [L]
-
-I<after> the list of static directories but I<before> the rule that
-proxies everything else to the heavy apache, your users now get a
-(relatively) nice `Sorry for the inconvenience' message instead of the
-cryptic message described above.  What's more, because this
-I<sorry.html> C<RewriteRule> is listed I<after> the image directory,
-you can refer to your images in it.  Now all you have to do is figure
-out how to fix the module you broke.
-
-Of course you need to prepare the file I<sorry.html> in advance of all
-this.  When you alter the configuration you will have to restart the
-light server for the changes to take effect, and when you have fixed
-all the errors in the mod_perl server you must remove the change and
-restart the light server again too.
-
-This situation is easy to prevent. See L<Safe Code Updates on a Live
-Production Server|control/Safe_Code_Updates_on_a_Live_Prod> for more
-info.
-
-=item * Logging
-
-There are a number of different ways to maintain logs of your hits.
-The easiest way is to let both Apaches log to their own I<access_log>
-files.  Unfortunately, this means that many requests will be logged
-twice, which makes it tricky to merge the two logfiles, should you
-want to.  Also, as far as the heavy Apache is concerned, all requests
-will appear to come from the IP address of the machine on which the
-light apache is running.  If you are logging IP addresses as part of
-your C<access_log> the logs written by the heavy Apache will be fairly
-meaningless.
-
-One solution is to tell the heavy Apache not to bother logging
-requests that seem to come from the light Apache's machine.  You might
-do this by installing a custom C<PerlLogHandler> or just piping to
-C<access_log> via C<grep -v> (match all but this pattern) for the
-light Apache machine's IP address.  In this scenario, the
-C<access_log> written by the light Apache is I<the more important>
-C<access_log>, but you need to look for any direct accesses to the
-heavy server in case the proxy server is sometimes bypassed.
-
-Note that you don't want to pipe the C<access_log> from the heavy
-Apache to I</dev/null>.  If you do this, you won't be able to see any
-requests that bypass the lightweight Apache and come straight in on
-the port to which the heavy server is listening.  Every time you see
-one of these requests you should ask yourself I<Why?> and take steps
-to eliminate it.
-
-It's easy to get the logger to log the original client's IP address
-and not the one that comes from the proxy server.  Look for
-C<mod_proxy_add_forward> at L<Building and Using
-mod_proxy|scenario/mod_proxy> for hints.
-
-=item * Eliminating C<:8080>'s
-
-By 8080 we mean the port your mod_perl enabled Apache is listening to.
-Substitute whatever port you have chosen.
-
-There are a number of ways in which the user can somehow be directed
-to URLs which have C<:8080> in them.  If you are running the heavy
-Apache on a different machine from that of the light Apache, then
-provided that the heavy Apache has the same C<ServerName> as the light
-Apache this will be less of a problem, but this section may still
-apply to you.
-
-If the user requests a URL that maps to a directory without a trailing
-slash (I</>), apache will issue a client redirect (301?) to the
-I<correct> URL. Unfortunately the Apache that will issue this redirect
-will most likely be the heavy Apache, since most distinct requests are
-answered by it.  It will issue the redirect to its own port on its own
-C<ServerName>, and because the redirect is a so-called B<client>
-redirect the URL (with the :8080 on the end) will be in the body, not
-the header, of the data returned to the user's browser.  This means
-that the C<ProxyPassReverse> in the light Apache's configuration file
-which is supposed to catch such things will be unable to catch
-this. :-(
-
-Since this will tend only to be a problem when the heavy and light
-Apaches are running on different ports on the same machine, if the
-light and heavy Apaches have the same C<DocumentRoot> we can have the
-I<light> Apache figure out that a request is for a directory without a
-trailing slash.  Then it can do the redirect itself, before the heavy
-Apache finds out about it:
-
-    RewriteCond /www/shop%{SCRIPT_FILENAME} -d
-    RewriteRule ^(.+[^/])$ $1/ [R]   
-
-Note that these two lines should be I<after> the C<RewriteRule>s for
-the static directories but I<before> the final all-encompassing
-C<RewriteRule> that proxies everything else to the heavy Apache.
-
-Beware: if you put these two lines in the light I<httpd.conf> before
-the static directories are mentioned, then in this setup the light
-httpd may find itself in an infinite loop if somebody were to request
-for example I<E<lt>/imgE<gt>>.
-
-Another way in which C<:8080>'s can creep into URLs is if you have
-Perl code which issues a redirect to C<http://$ENV{HTTP_HOST}/...>.
-If you are migrating from one heavy server to one heavy and one light,
-you may find a few of these.  If you replace C<HTTP_HOST> with
-C<SERVER_NAME>, all should be well.  Note that you may need to do this
-whether or not the light and heavy servers are on the same machine.
-
-The C<:8080> effect can be insidious.  Once a user gets a URL with
-C<:8080> in it, odd things will happen.  If the heavy and light
-Apaches have the same C<DocumentRoot> (normal if they are on the same
-machine) and/or the heavy Apache is able to deliver the same static
-content as the light Apache, the user's browser will display C<:8080>
-in the location box for every subsequent URL on your site until they
-follow an absolute link (e.g. http://www.example.com/file/stuff as
-opposed to just I</file/stuff>).  At least if the heavy Apache can
-serve images, your site will still look normal.  If the request is in
-a password-protected area, then the user may have to log in twice.
-
-If the heavy and light Apaches do not share the same C<DocumentRoot>
-(normal if they are on different servers) and/or the heavy Apache
-cannot serve images, then all your pages will be imageless.  This is a
-fairly compelling reason to run your light and heavy servers on the
-same machine and to have them share the same C<DocumentRoot>.
-
-Regardless of how hard you try to eliminate C<:8080>s, they will crop
-up from time to time.  You should occasionally examine the access_log
-of the heavy Apache.  Assuming you aren't bothering to log requests
-that come via the light Apache, any requests that appear should be
-investigated.
-
-Interestingly, if the final catch-all C<RedirectRule> is to
-C<localhost:8080>, it is possible that C<localhost> will leak into
-stray client redirects.  Moral: use your server's name in redirects,
-unless you have a very good reason not to.
-
-=item * Security
-
-Because all http requests will appear to your Perl scripts to be
-coming from the light httpd, you must be careful not to authenticate
-based on the IP address from which a request came.  This can be easy
-to overlook if you are moving from a single-server to a dual-server
-configuration.
-
-The URLs that return the I</server-status> and I</perl-status> of your
-Apache servers are often protected based on IP address.  The
-I</server-status> URL for the heavy server is probably safe if the
-light Apache also defines an identical I</server-status> URL, but the
-I</perl-status> URL should be protected.
-
-If you must authenticate based on IP address, you should either make
-sure that the light Apache's IP address is not in any way privileged
-or you should block access to port C<8080> from anywhere except the
-light Apache's IP address.
-
-If your heavy and light httpds can both serve static content (where
-C<:8080>s only affect URLs - not content), then blocking port C<8080>
-is not recommended.  After all, if a user gets onto port C<8080> in
-this scenario, the worst that will happen is that URLs will look odd.
-
-Note that if you are using the
-L<C<X-Forwarded-For>|scenario/mod_proxy> HTTP header, then this
-subsection is of limited relevance to you.
-
-=back
-
-
-
-
-
-
-
-
-
-
 
 
 =head1 mod_proxy
@@ -1294,9 +1048,11 @@ and I<backend.example.com> as a machine that does the heavy work.  The
 main and the back-end are different servers, they may or may not
 coexist on the same machine.
 
-The mod_proxy module is built into the server that answers requests
-to the I<www.example.com> hostname.  It doesn't matter what
-functionality is built into the I<backend.example.com> server.
+The mod_proxy module is built into the server that answers requests to
+the I<www.example.com> hostname.  For the matter of this discussion
+it doesn't matter what functionality is built into the
+I<backend.example.com> server, obviously it'll be mod_perl for most
+of us.
 
 =head3 ProxyPass
 
@@ -1420,24 +1176,24 @@ the size of the socket buffer. Configuring:
 
   ProxyReceiveBufferSize 16384
 
-will create a buffer of 16k in size. If mod_perl generates output
-which is less than 16k, the process will be immediately untied and
-allowed to serve new requests, if the output is bigger than 16k, the
+will create a buffer of 16KB in size. If mod_perl generates output
+which is less than 16KB, the process will be immediately untied and
+allowed to serve new requests, if the output is bigger than 16KB, the
 following process will take place:
 
 =over
 
 =item 1
 
-The first 16k will enter the system buffer.
+The first 16KB will enter the system buffer.
 
 =item 2
 
-mod_proxy picks the first 8k and sends it down the wire.
+mod_proxy picks the first 8KB and sends it down the wire.
 
 =item 3
 
-mod_perl writes the next 8k into the place of the 8k of data that was
+mod_perl writes the next 8KB into the place of the 8KB of data that was
 just sent off by mod_proxy.
 
 =back
@@ -1482,15 +1238,16 @@ data transfer.
 yes, too (but receive and transmit buffer may be of different size,
 depending on the OS)
 
-The problem I don't know is, does the call to close the socket wait, until
-all data is actually send successfully or not. If it doesn't wait, you may
-not be noticed of any failure, but because the proxing Apache can write as
-fast to the socket transmission buffer as he can read, it should be possible
-that the proxing Apache copies all the data from the receive to the
-transmission buffer and after that releasing the receive buffer, so the
-mod_perl Apache is free to do other things, while the proxing Apache still
-wait until the client returns the success of data transmission. (The last,
-is the part I am not sure on)
+The problem I don't know is, does the call to close the socket wait,
+until all data is actually send successfully or not. If it doesn't
+wait, you may not be noticed of any failure, but because the proxing
+Apache can write as fast to the socket transmission buffer as it can
+read, it should be possible that the proxing Apache copies all the
+data from the receive to the transmission buffer and after that
+releasing the receive buffer, so the mod_perl Apache is free to do
+other things, while the proxing Apache still wait until the client
+returns the success of data transmission. (The last, is the part I am
+not sure on)
 
 
 </META>
@@ -1506,15 +1263,15 @@ socket buffer sizes.
 
 To increase the physical memory limits you just have to add more memory.
 
-=head3 Setting the Buffering Limits on Various OSs
+=head2 Setting the Buffering Limits on Various OSs
 
 As we just saw there are a few kinds of parameters we might want to
 adjust for our needs.
 
-=head4 IOBUFSIZE Source Code Definition
+=head3 IOBUFSIZE Source Code Definition
 
 The first parameter is used by I<proxy_util.c:ap_proxy_send_fb()> to
-loop over content being proxy passed in 8K chunks (as of this
+loop over content being proxy passed in 8KB chunks (as of this
 writing), passing that on to the client. In other words it specifies
 the size of the data that is sent down the wire.
 
@@ -1526,14 +1283,14 @@ You have no control over this setting in the server configuration
 file, therefore you might want to change it in the source files,
 before you compile the server.
 
-=head4 ProxyReceiveBufferSize Configuration Directive
+=head3 ProxyReceiveBufferSize Configuration Directive
 
 You can control the socket buffer size with the
 C<ProxyReceiveBufferSize> directive:
 
   ProxyReceiveBufferSize 16384
 
-The above setting will set a buffer size of 16Kb.  If it is not set
+The above setting will set a buffer size of 16KB.  If it is not set
 explicitly, or if it is set to 0, then the default buffer size is
 used.  The number should be an integral multiple of 512.
 
@@ -1552,7 +1309,7 @@ and the default value is in I</proc/sys/net/core/rmem_default>.  If
 you want to increase C<RCVBUF> size above 65535, the default maximum
 value, you have to raise first the absolute limit in
 I</proc/sys/net/core/rmem_max>. To do that at the run time, execute
-this command to raise it to 128k:
+this command to raise it to 128KB:
 
   % echo 131072 > /proc/sys/net/core/rmem_max
 
@@ -1560,11 +1317,11 @@ You probably want to put this command into I</etc/rc.d/rc.local> so
 the change will take effect at system reboot.
 
 On Linux OS with kernel 2.2.5 the maximum and default values are
-either 32k or 64k. You can also change the default and maximum values
-during kernel compilation; for that you should alter the
+either 32KB or 64KB. You can also change the default and maximum
+values during kernel compilation; for that you should alter the
 C<SK_RMEM_DEFAULT> and C<SK_RMEM_MAX> definitions respectively.
-(Since sources tend to change use grep(1) utility to find the files,
-these defined at)
+(Since kernel source files tend to change, use grep(1) utility to find
+the files.)
 
 =item * FreeBSD
 
@@ -1576,7 +1333,7 @@ socket buffers:
 =item * Solaris
 
 Under Solaris this upper limit is specified by I<tcp_max_buf>
-parameter and is 256k as reported.
+parameter and is 256KB.
 
 =item * Other OSs
 
@@ -1586,13 +1343,13 @@ increase the socket buffer size please let me know.
 =back
 
 When you tell the kernel to use bigger sockets you can set bigger
-values for I<ProxyReceiveBufferSize>. e.g. 1Mb (1048576).
+values for I<ProxyReceiveBufferSize>. e.g. 1048576 (1MB).
 
 
-=head4 Hacking the Code
+=head3 Hacking the Code
 
-Some folks have patched the Apache source code to make the application
-buffer configurable as well. After the patch there are two
+Some folks have patched the Apache's 1.3.x source code to make the
+application buffer configurable as well. After the patch there are two
 configuration directives available:
 
 =over
@@ -1622,7 +1379,7 @@ confusion about what it actually does.
 
 
 
-=head2 Caching
+=head2 Caching Feature
 
 META: complete the conf details
 
@@ -1633,12 +1390,12 @@ capability.
 
 
 
-=head2 Build process
+=head2 Build Process
 
-To build mod_proxy into Apache just add B<--enable-module=proxy>
-during the Apache B<./configure> stage.
-
-
+To build mod_proxy into Apache just add I<--enable-module=proxy>
+during the Apache B<./configure> stage. Since you probably will need
+the mod_rewrite capability enable it as well with
+I<--enable-module=rewrite>.
 
 
 
@@ -1646,6 +1403,13 @@ during the Apache B<./configure> stage.
 
 This section explains a configuration setup for proxying your back-end
 mod_perl servers when you need to use Virtual Hosts.
+
+The term I<Virtual Host> refers to the practice of maintaining more
+than one server on one machine, as differentiated by their apparent
+hostname. For example, it is often desirable for companies sharing a
+web server to have their own domains, with web servers accessible as
+I<www.company1.com> and I<www.company2.com>, without requiring the
+user to know any extra path information.
 
 The approach is to use a unique port number for each virtual host at
 the back-end server, so you can redirect from the front-end server to
@@ -1664,7 +1428,7 @@ The front-end (light) server configuration:
     ServerAlias example.com
     RewriteEngine On
     RewriteOptions 'inherit'
-    RewriteRule \.(gif|jpg|png|txt)$ - [last]
+    RewriteRule \.(gif|jpg|png|txt|html)$ - [last]
     RewriteRule ^/(.*)$ http://localhost:4077/$1 [proxy]
   </VirtualHost>
 
@@ -1672,7 +1436,7 @@ The front-end (light) server configuration:
     ServerName foo.example.com
     RewriteEngine On
     RewriteOptions 'inherit'
-    RewriteRule \.(gif|jpg|png|txt)$ - [last]
+    RewriteRule \.(gif|jpg|png|txt|html)$ - [last]
     RewriteRule ^/(.*)$ http://localhost:4078/$1 [proxy]
   </VirtualHost>
 
@@ -1681,21 +1445,20 @@ I<www.example.com> and I<foo.example.com>. The two setups are almost
 identical.
 
 The front-end server will handle files with the extensions I<.gif>,
-I<.jpg>, I<.png> and I<.txt> internally, the rest will be proxied to
-be handled by the back-end server.
+I<.jpg>, I<.png>, I<.txt> and I<.html> internally, the rest will be
+proxied to be handled by the back-end server.
 
 The only difference between the two virtual hosts settings is that the
 former rewrites requests to port C<4077> at the back-end machine
 and the latter to port C<4078>.
 
-If your server is configured to run traditional CGI scripts (mod_cgi)
-as well as mod_perl CGI programs, then it would be beneficial to
-configure the front-end server to run the traditional CGI scripts
+If your server is configured to run traditional CGI scripts (under
+mod_cgi) as well as mod_perl CGI programs, then it would be beneficial
+to configure the front-end server to run the traditional CGI scripts
 directly.  This can be done by altering the C<gif|jpg|png|txt>
-I<Rewrite> rule to add C<|cgi> at the end, or adding a new rule to
-handle all C</cgi-bin/*> locations locally.  Similarly, static HTML
-pages can be served by the front-end server by adding C<|html> to the
-rule.
+I<Rewrite> rule to add C<|cgi> at the end if all your mod_cgi scripts
+have the I<.cgi> extension, or adding a new rule to handle all
+C</cgi-bin/*> locations locally.
 
 The back-end (heavy) server configuration:
 
@@ -1773,31 +1536,37 @@ I<--enable-module=proxy_add_forward> enables this module as you have
 guessed already.
 
 
-=head2 Use
+=head2 Usage
 
-If you are using C<Apache::{Registry,PerlRun}> just put something like
-the following into I<startup.pl>:
+If you are using C<Apache::Registry> or C<Apache::PerlRun> modules
+just put the following code into I<startup.pl>:
 
+  use Apache::Constants ();
   sub My::ProxyRemoteAddr ($) {
     my $r = shift;
    
     # we'll only look at the X-Forwarded-For header if the requests
     # comes from our proxy at localhost
-    return OK unless ($r->connection->remote_ip eq "127.0.0.1");
+    return Apache::Constants::OK 
+        unless ($r->connection->remote_ip eq "127.0.0.1") 
+            and $r->header_in('X-Forwarded-For');
   
     # Select last value in the chain -- original client's ip
     if (my ($ip) = $r->headers_in->{'X-Forwarded-For'} =~ /([^,\s]+)$/) {
       $r->connection->remote_ip($ip);
     }
         
-    return OK;
+    return Apache::Constants::OK;
   }
 
-And in C<httpd.conf>:
+And in the mod_perl's I<httpd.conf>:
 
   PerlPostReadRequestHandler My::ProxyRemoteAddr
 
-Otherwise you retrieve it directly in your code.
+and the right thing will happen transparently for your scripts.
+Otherwise if you write your own mod_perl content handler, you can
+retrieve it directly in your code using a similar code.
+
 
 =head2 Security
 
@@ -1816,18 +1585,15 @@ as being a reliable value is the one from
 C<r-E<gt>connection-E<gt>remote_ip>.
 
 From that point on, the remote IP address is correct.  You should be
-able to access C<REMOTE_ADDR> as usual.
+able to access C<$ENV{REMOTE_ADDR}> environment variable as usual.
 
 =head2 Caveats
 
 It was reported that Ben Laurie's Apache-SSL does not seem to put the
 IP addresses in the C<X-Forwarded-For> header--it does not set up such
-a header at all.  However, the C<REMOTE_ADDR> it sets up contains the
-IP address of the original client machine.
-
-You could do the same thing with other environment variables, although
-I think several of them are preserved.  You should run some tests or,
-maybe better, inspect the code to see which.
+a header at all.  However, the C<$ENV{REMOTE_ADDR}> environment
+variable it sets up contains the IP address of the original client
+machine.
 
 Prior to mod_perl 1.22 there was a need to repeat the
 S<PerlPostReadRequestHandler My::ProxyRemoteAddr> directive for each
@@ -1837,23 +1603,24 @@ virtual host, since it wasn't inherited by the virtual hosts.
 
 Some users report that they cannot get this module to work as
 advertised. They verify that the module is built in, but the front-end
-server is not generating the X-Forwarded-For header when requests are
-being proxied to the back-end server. As a result, the back-end
+server is not generating the C<X-Forwarded-For> header when requests
+are being proxied to the back-end server. As a result, the back-end
 server has no idea what the remote IP is.
 
 As it turns out, I<mod_proxy_add_forward> needs to be configured in
 Apache before I<mod_proxy> in order to operate properly, since Apache
 gives highest precedence to the last defined module.
 
-Moving the two build options required to enable mod_proxy_add_forward
-while compiling Apache build appears to have no effect on the default
-configuration order of modules, since in each case, the builds show
-mod_proxy_add_forward last in the list (or first via I</server-info>).
+Moving the two build options required to enable
+I<mod_proxy_add_forward> while configuring Apache appears to have no
+effect on the default configuration order of modules, since in each
+case, the resulting builds show I<mod_proxy_add_forward> last in the
+list (or first via I</server-info>).
 
-The solution is to explicitly define the configuration order in the
-I<http.conf> file, so that mod_proxy_add_forward appears before
-mod_proxy, and therefore gets executed after mod_proxy. (Modules are
-being executed in I<reverse> order, i.e. module that was I<Added>
+One solution is to explicitly define the configuration order in the
+I<http.conf> file, so that I<mod_proxy_add_forward> appears before
+I<mod_proxy>, and therefore gets executed after I<mod_proxy>. (Modules
+are being executed in I<reverse> order, i.e. module that was I<Added>
 first will be executed last.)
 
 Obviously, this list would need to be tailored to match the build
@@ -1869,11 +1636,40 @@ I<httpd_core.c>, of course):
   AddModule mod_rewrite.c
   AddModule mod_setenvif.c
 
-Note that the above snippet is added to I<httpd.conf>.
+Note that the above snippet is added to I<httpd.conf> of the front-end
+server.
+
+Another solution is to reorder the module list during configuration by
+using one or more C<--permute-module> arguments to the I<./configure>
+utility.  (Try C<./configure --help> to see if your version of Apache
+supports this option.)  C<--permute-module=foo:bar> will swap the
+position of I<mod_foo> and I<mod_bar> in the list,
+C<--permute-module=BEGIN:foo> will move I<mod_foo> to the beginning of
+the list, and C<--permute-module=foo:END> will move I<mod_foo> to the
+end.  For example suppose your module list from C<httpd -l> looks
+like:
+
+  http_core.c
+  [more modules snipped]
+  mod_proxy.c
+  mod_setenvif.c
+  mod_proxy_add_forward.c
+
+You might add the following arguments to I<./configure> to move
+I<mod_proxy_add_forward> to the position in the list just before
+I<mod_proxy>:
+
+  ./configure \
+  "--with-layout=Apache" \
+  "--activate-module=src/modules/extra/mod_proxy_add_forward.c" \
+  "--enable-module=proxy_add_forward" \
+  ... other options ...
+  "--permute-module=proxy:proxy_add_forward" \
+  "--permute-module=setenvif:END"
 
 With this change, the C<X-Forwarded-For> header is now being sent to
 the back-end server, and the remote IP appears in the back-end
-server's access log.
+server's I<access_log> file.
 
 
 
@@ -1889,14 +1685,17 @@ authentication itself.  If Apache proxies correctly, it will pass
 through all authentication information, making the "front-end" Apache
 somewhat "dumb", as it does nothing but pass through the information.
 
-In the configuration file your C<Auth> stuff needs to be inside
-C<E<lt>Directory ...E<gt>> ... C<E<lt>/DirectoryE<gt>> sections
-because if you use a C<E<lt>Location ...E<gt>>
-... C<E<lt>/LocationE<gt>> section the proxy server will take the
-authentication information for itself and not pass it on.
+In the configuration file your C<Auth> configuration directives need
+to be inside the C<E<lt>Directory ...E<gt>>
+... C<E<lt>/DirectoryE<gt>> sections because if you use the section
+C<E<lt>Location ...E<gt>> ... C<E<lt>/LocationE<gt>> the proxy server
+will take the authentication information for itself and not pass it
+on.
 
-The same applies to mod_ssl, if plugged into a front-end server.  It
-will properly encode/decode all the SSL requests.
+The same applies to mod_ssl and similar Apache SSL modules. If it gets
+plugged into a front-end server, it will properly encode/decode all
+the SSL requests. So if your machine is secured from inside, your
+back-end server can do secure transactions.
 
 
 
@@ -1916,10 +1715,16 @@ will properly encode/decode all the SSL requests.
 In the mod_proxy + mod_perl servers scenario, C<ProxyPass> was used to
 redirect all requests to the mod_perl server, by matching the
 beginning of the relative URI (e.g. I</perl>). What should you do if
-you want everything, but files with extensions like I<.gif> or
-I<.cgi>, to be proxypassed to the mod_perl server. These files are to
-to be served by the light Apache server which carries the mod_proxy
+you want everything, but files with extensions like I<.gif>, I<.cgi>
+and similar, to be proxypassed to the mod_perl server. These files are
+to to be served by the light Apache server which carries the mod_proxy
 module.
+
+The following example rewrites everything to the mod_perl server. It
+locally handles all requests for files with extensions I<gif>, I<jpg>,
+I<png>, I<css>, I<txt>, I<cgi> and relative URIs starting with
+I</cgi-bin> (e.g. if you want some scripts to be executed under
+mod_cgi).
 
   RewriteEngine On
   # handle GIF and JPG images and traditional CGI's directly
@@ -1927,11 +1732,6 @@ module.
   RewriteRule ^/cgi-bin - [last]
   # pass off everything but images to the heavy-weight server via proxy
   RewriteRule ^/(.*)$ http://localhost:4077/$1 [proxy]
-
-The following example rewrites everything to the mod_perl server. It
-locally handles all requests for files with extensions I<gif, jpg,
-png, css, txt, cgi> and relative URIs starting with I</cgi-bin>
-(e.g. if you want some scripts to be executed under mod_cgi)
 
 That is, first, handle locally what you want to handle locally, then
 hand off everything else to the back-end guy.
@@ -1954,6 +1754,51 @@ Redirect all those IE5 requests for I<favicon.ico> to a central image:
 A quick way to make dynamic pages look static:
 
   RewriteRule ^/wherever/([a-zA-Z]+).html /perl-bin/$1.cgi [PT]
+
+Instead of keeping all your Perl scripts in I</perl> and your static
+content everywhere else, you could keep your static content in special
+directories and keep your Perl scripts everywhere else.  You can still
+use the light/heavy apache separation approach described before, with
+a few minor modifications.
+
+In the I<light> Apache's I<httpd.conf> file, turn rewriting on:
+
+  RewriteEngine On
+
+Now list all directories that contain only static objects. For example
+if the only relative to C<DocumentRoot> directories are I</images> and
+I<style> you can set the following rule:
+
+  RewriteRule ^/(images|style) - [L]
+
+The C<[L]> (I<Last>) means that the rewrite engine should stop if it
+has a match.  This is necessary because the very last rewrite rule
+proxies everything to the I<heavy> server:
+
+  RewriteRule ^/(.*) http://www.example.com:8080/$1 [P]
+
+This line is the difference between a server for which static content
+is the default and one for which dynamic (perlish) content is the
+default.
+
+You should also add the I<reverse rewrite rule> as before:
+
+  ProxyPassReverse / http://www.example.com/
+
+so that the user doesn't see the port number C<:8080> in the browser's
+location window.
+
+It is possible to use C<localhost> in the C<RewriteRule> above if the
+heavy and light servers are on the same machine.  So if we sum up the
+above setup we get:
+
+  RewriteEngine On
+  RewriteRule ^/(images|style) - [L]
+  RewriteRule ^/(.*) http://www.example.com:8080/$1 [P]
+  ProxyPassReverse / http://www.example.com/
+
+
+
 
 
 =head1 Caching in mod_proxy

@@ -1,4 +1,4 @@
-u=head1 Controlling and Monitoring the Server
+=head1 Controlling and Monitoring the Server
 
 =head1 Restarting Techniques
 
@@ -81,19 +81,21 @@ case, C<END> blocks are executed after each request is served.
 =item HUP Signal: Restart Now
 
 Sending the C<HUP> signal to the parent causes it to kill off its
-children as if you had sent C<TERM> (any requests in progress are
-terminated) but the parent doesn't exit.
+children as if the C<TERM> signal had been sent, i.e. any requests in
+progress are terminated; but the parent does not exit.  Instead, the
+parent re-reads its configuration files, spawns a new set of child
+processes and continues to serve requests.  It is almost equivalent to
+stopping and then restarting the server.
 
-Instead the parent will reread its configuration files, close and
-re-open its log files, flush all the compiled and preloaded modules,
-and rerun startup files.  Then it spawns a new set of children and
-continues serving requests.  It's equivalent to stopping and then
-restarting the server.
+If the configuration files contain errors when restart is signalled,
+the parent will exit, so it is important to check the configuration
+files for errors before issuing a restart. How to perform the check
+will be covered shortly;
 
-Notice that if your configuration files have errors when you issue a
-restart, then the parent will exit.  Therefore you should check the
-configuration files for errors, before issuing the restart.  We will
-present a technique for performing this check in a moment.
+Sometimes using this approach to restart mod_perl enabled Apache may
+cause the processes memory incremental growth after each restart. This
+happens when Perl code loaded in memory is not completely torn down,
+leading to a memory leak.
 
 
 =item USR1 Signal: Gracefully Restart Now
@@ -116,8 +118,8 @@ restart to get completed and there is no real service at this time.
 By default, if a server is restarted (using C<kill -USR1 `cat
 logs/httpd.pid`> or with the C<HUP> signal), Perl scripts and modules
 are not reloaded.  To reload C<PerlRequire>s, C<PerlModule>s, other
-C<use()>'d modules and flush the C<Apache::Registry> cache, use 
-this directive in I<httpd.conf>:
+C<use()>'d modules and flush the C<Apache::Registry> cache, use this
+directive in I<httpd.conf>:
 
   PerlFreshRestart On
 
@@ -1630,18 +1632,6 @@ to resolve this problem as soon as possible since this pool won't last
 for a long time. In the meanwhile the C<Apache::Resource> module can
 be handy.
 
-Sometimes calling an undefined subroutine in a module can cause a
-tight loop that consumes all the available memory.  Here is a way to
-catch such errors.  Define an C<AUTOLOAD> subroutine:
-
-  sub UNIVERSAL::AUTOLOAD {
-    my $class = shift;
-    warn "$class can't \$UNIVERSAL::AUTOLOAD!\n";
-  }
-
-This will produce a nice error in I<error_log>, giving the line number
-of the call and the name of the undefined subroutine.
-
 For swapping monitoring techniques see the section 'L<Apache::VMonitor
 -- Visual System and Apache Server
 Monitor|debug/Apache_VMonitor_Visual_Syste>'.
@@ -1659,12 +1649,19 @@ before if at all they hit you.
 
 Sometimes calling an undefined subroutine in a module can cause a
 tight loop that consumes all the available memory.  Here is a way to
-catch such errors.  Define an autoload subroutine:
+catch such errors.  Define an C<UNIVERSAL::AUTOLOAD> subroutine in
+your I<startup.pl>, or in a E<lt>PerlE<gt>E<lt>/PerlE<gt> section in
+your I<httpd.conf> file:
 
   sub UNIVERSAL::AUTOLOAD {
     my $class = shift;
     warn "$class can't \$UNIVERSAL::AUTOLOAD!\n";
   }
+
+You can either put it in your startup.pl, or in a <Perl></Perl> section in
+your httpd.conf file.  I do the latter.  Putting it in all your mod_perl
+modules would be redundant (and might give you compile-time errors).
+
 
 This will produce a nice error in I<error_log>, giving the line number
 of the call and the name of the undefined subroutine.

@@ -26,8 +26,8 @@ For more information See L<Get helped with mod_perl|help/Get_help_with_mod_perl>
 
 Hi, I wrote this document to help people with mod_perl.  It does not
 mean that if you have any question regarding mod_perl, perl or
-whatever you think I might know, that you should send it directly to
-me.  Please see the L<Get help with mod_perl|help/Get_help_with_mod_perl>
+whatever you think I might know, you should send it directly to me.
+Please see the L<Get help with mod_perl|help/Get_help_with_mod_perl>
 section and follow the guidelines described there.
 
 However, you are welcome to submit corrections and suggestions
@@ -331,6 +331,13 @@ http://www.w3.org/Security/Faq/www-security-faq.html
 http://www.gunther.web66.com/FAQS/taintmode.html (by Gunther
 Birznieks)
 
+=item * cgi-list mailing list
+
+Send email to majordomo@jann.com with body:
+
+  subscribe cgi-list
+
+
 =back
 
 
@@ -502,5 +509,40 @@ http://www.sourcegear.com/CVS/Docs/blandy
 
 
 =back
+
+
+=head1 Get help with Performance and Scalability
+
+=over
+
+=item * Techniques and Technologies for Scaling Internet Services mailing list.
+
+The list's address: scalable@arctic.org.
+Subscribe by sending a message to scalable-subscribe@arctic.org.
+
+
+=item *
+
+=back
+
+
+
+=head1 Get help with Unix OS flavors -- Unix OS related resources
+
+=over
+
+=item * Memory system management and arhitecture:
+
+The Solaris memory system, sizing, tools and architecture:
+http://www.sun.com/solutions/third-party/global/SAS/pdf/vmsizing.pdf
+
+=item * 
+
+
+=back
+
+
+
+
 
 =cut

@@ -729,7 +729,8 @@ command line run. For example comparing S<'my %hash'> vs. S<'my %hash =
 
 The first one has less opcodes.
 
-
+Note that you shouldn't use C<Apache::Status> module on production
+server as it adds quite a bit of overhead for each request.
 
 
 
@@ -1527,9 +1528,9 @@ Here is the C<Apache::Registry> test script that we have used:
   printf "%8s %8s %8s\n", qw(Size Shared Diff);
   printf "%8d %8d %8d (bytes)\n",$size,$share,$diff;
 
-What it does is opening a connection to the database I<'test'> and
-issues a query to learn what tables the databases has.  When the data
-is collected and printed the connection would be closed in the regular
+The script opens a connection to the database I<'test'> and issues a
+query to learn what tables the databases has.  When the data is
+collected and printed the connection would be closed in the regular
 case, but C<Apache::DBI> overrides it with empty method.  When the
 data is processed a familiar to you already code to print the memory
 usage follows.
@@ -1591,7 +1592,7 @@ I<diff>, recall the real memory usage formula:
   RAM_dedicated_to_mod_perl = diff * number_of_processes
                             + the_processes_with_largest_shared_memory
 
-Notice that the the smaller the diff is, the bigger the number of
+Notice that the smaller the diff is, the bigger the number of
 processes you can have using the same amount of RAM.  Therefore every
 100K difference counts, when you multiply it by the number of
 processes. If we take the number from the version version (1) vs. (4)
@@ -2172,8 +2173,9 @@ away with free ones which do the same job.  You can use the
 L<ApacheBench|performance/Tuning_with_ab_ApacheBench> B<C<ab>> utility
 which comes with the Apache distribution, the L<crashme
 script|performance/Tuning_with_the_crashme_Script> which uses
-C<LWP::Parallel::UserAgent> or C<httperf> (see the L<Download
-page|download/>).
+C<LWP::Parallel::UserAgent>,
+L<httperf|performance/Tuning_with_http_load> or
+L<http_load|performance/Tuning_with_http_load>.
 
 It is important to make sure that you run the load generator (the
 client which generates the test requests) on a system that is more
@@ -2546,6 +2548,50 @@ sustain.  Here is a result that one might get:
      Errors: total 299 client-timo 299 socket-timo 0 connrefused 0 connreset 0
      Errors: fd-unavail 0 addrunavail 0 ftab-full 0 other 0
 
+L<httperf download|download/httperf_webserver_Benchmarking>
+
+=head2 Tuning with http_load
+
+C<http_load> is yet another utility that does webserver load
+testing. It can simulate 33.6 modem connection (I<-throttle>) and
+allows you to provide a file with a list of URLs, which we be fetched
+randomly. You can specify how many parallel connections to run using
+the I<-parallel N> option, or you can specify the number of requests
+to generate per second with I<-rate N> option. Finally you can tell
+the utility when to stop by specifying either the test time length
+(I<-seconds N>) or the total number of fetches (I<-fetches N>).
+
+A sample run with the file I<urls> including:
+
+  http://www.example.com/foo/
+  http://www.example.com/bar/
+
+We ask to generate three requests per second and run for only two
+seconds. Here is the generated output:
+
+  % ./http_load -rate 3 -seconds 2 urls
+  http://www.example.com/foo/: check-connect SUCCEEDED, ignoring
+  http://www.example.com/bar/: check-connect SUCCEEDED, ignoring
+  http://www.example.com/bar/: check-connect SUCCEEDED, ignoring
+  http://www.example.com/bar/: check-connect SUCCEEDED, ignoring
+  http://www.example.com/foo/: check-connect SUCCEEDED, ignoring
+  5 fetches, 3 max parallel, 96870 bytes, in 2.00258 seconds
+  19374 mean bytes/connection
+  2.49678 fetches/sec, 48372.7 bytes/sec
+  msecs/connect: 1.805 mean, 5.24 max, 0.79 min
+  msecs/first-response: 291.289 mean, 560.338 max, 34.349 min
+
+So you can see that it has reported 2.5 requests per second. Of course
+for the real test you will want to load the server heavily and run the
+test for a longer time to get more reliable results.
+
+Note that when you provide a file with a list of URLs make sure that
+you don't have empty lines in it. If you do -- the utility won't work
+complaining:
+
+  ./http_load: unknown protocol - 
+
+L<http_load download|download/http_load_another_webserver_Be>
 
 =head2 Tuning with the crashme Script
 
@@ -2581,149 +2627,7 @@ Sample output:
 
 And the code:
 
-  #!/usr/apps/bin/perl -w
-  
-  use LWP::Parallel::UserAgent;
-  use Time::HiRes qw(gettimeofday tv_interval);
-  use strict;
-  
-  ###
-  # Configuration
-  ###
-  
-  my $nof_parallel_connections = 10; 
-  my $nof_requests_total = 100; 
-  my $timeout = 10;
-  my @urls = (
-  	    'http://www.example.com:81/perl/faq_manager/faq_manager.pl',
-  	    'http://www.example.com:81/perl/access/access.cgi',
-  	   );
-  
-  
-  ##################################################
-  # Derived Class for latency timing
-  ##################################################
-  
-  package MyParallelAgent;
-  @MyParallelAgent::ISA = qw(LWP::Parallel::UserAgent);
-  use strict;
-  
-  ###
-  # Is called when connection is opened
-  ###
-  sub on_connect {
-    my ($self, $request, $response, $entry) = @_;
-    $self->{__start_times}->{$entry} = [Time::HiRes::gettimeofday];
-  }
-  
-  ###
-  # Are called when connection is closed
-  ###
-  sub on_return {
-    my ($self, $request, $response, $entry) = @_;
-    my $start = $self->{__start_times}->{$entry};
-    $self->{__latency_total} += Time::HiRes::tv_interval($start);
-  }
-  
-  sub on_failure {
-    on_return(@_);  # Same procedure
-  }
-  
-  ###
-  # Access function for new instance var
-  ###
-  sub get_latency_total {
-    return shift->{__latency_total};
-  }
-  
-  ##################################################
-  package main;
-  ##################################################
-  ###
-  # Init parallel user agent
-  ###
-  my $ua = MyParallelAgent->new();
-  $ua->agent("pounder/1.0");
-  $ua->max_req($nof_parallel_connections);
-  $ua->redirect(0);    # No redirects
-  
-  ###
-  # Register all requests
-  ###
-  foreach (1..$nof_requests_total) {
-    foreach my $url (@urls) {
-      my $request = HTTP::Request->new('GET', $url);
-      $ua->register($request);
-    }
-  }
-  
-  ###
-  # Launch processes and check time
-  ###
-  my $start_time = [gettimeofday];
-  my $results = $ua->wait($timeout);
-  my $total_time = tv_interval($start_time);
-  
-  ###
-  # Requests all done, check results
-  ###
-  
-  my $succeeded     = 0;
-  my %errors = ();
-  
-  foreach my $entry (values %$results) {
-    my $response = $entry->response();
-    if($response->is_success()) {
-      $succeeded++; # Another satisfied customer
-    } else {
-      # Error, save the message
-      $response->message("TIMEOUT") unless $response->code();
-      $errors{$response->message}++;
-    }
-  }
-  
-  ###
-  # Format errors if any from %errors 
-  ###
-  my $errors = join(',', map "$_ ($errors{$_})", keys %errors);
-  $errors = "NONE" unless $errors;
-  
-  ###
-  # Format results
-  ###
-  
-  #@urls = map {($_,".")} @urls;
-  my @P = (
-        "URL(s)"          => join("\n\t\t ", @urls),
-        "Total Requests"  => "$nof_requests_total",
-        "Parallel Agents" => $nof_parallel_connections,
-        "Succeeded"       => sprintf("$succeeded (%.2f%%)\n",
-  				   $succeeded * 100 / $nof_requests_total),
-        "Errors"          => $errors,
-        "Total Time"      => sprintf("%.2f secs\n", $total_time),
-        "Throughput"      => sprintf("%.2f Requests/sec\n", 
-  				   $nof_requests_total / $total_time),
-        "Latency"         => sprintf("%.2f secs/Request", 
-  				   ($ua->get_latency_total() || 0) / 
-  				   $nof_requests_total),
-       );
-  
-  
-  my ($left, $right);
-  ###
-  # Print out statistics
-  ###
-  format STDOUT =
-  @<<<<<<<<<<<<<<< @*
-  "$left:",        $right
-  .
-  
-  while(($left, $right) = splice(@P, 0, 2)) {
-    write;
-  }
-
-
-
+=code lwp-bench.pl The LWP::Parallel::UserAgent benchmark
 
 =head2 Choosing MaxClients
 
@@ -3210,7 +3114,7 @@ competing over CPU. Now if run 4 occurences of the above code:
   % perl -e '1**1 while 1' &
   % perl -e '1**1 while 1' &
 
-And when running our script in parallel with this processes, we get:
+And when running our script in parallel with these processes, we get:
 
   % perl stat_call_sample.pl
   2.0853558e-05 seconds
@@ -5066,8 +4970,21 @@ implementations.)
 =head2 Persistent DB Connections
 
 Another popular use of mod_perl is to take advantage of its ability to
-maintain persistent open database connections.  The basic approach is
-as follows:
+maintain persistent open database connections.
+
+You want to have a persistent database connection because the the most
+expensive part of a network transaction for most databases is the
+business of building and tearning down connections.
+
+Of course the persistence doesn't help with the latency problems
+during the actual use of the database connections.  Oracle is
+notoriously latency-sensitive which in most cases generates a network
+transaction per row returned which slows things down if the query
+execution matches many rows. You may want to read the Tim Bunce's
+Advanced DBI talk at http://www.carumba.com/talk/perl/DBI_Talk3_1999/
+which covers a lot of techniques to reduce latency.
+
+So here is the basic approach of making the connection persistent:
 
   # Apache::Registry script
   -------------------------
@@ -5551,23 +5468,26 @@ Mode|strategy/Adding_a_Proxy_Server_in_http_Ac>.
 
 
 
-=head2 Upload/Download of Big Files
+
+=head1 Upload and Download of Big Files
 
 You don't want to tie up your precious mod_perl backend server
-children doing something as long and dumb as transfering a file.
-The user won't really see any important performance benefits
-from mod_perl anyway, since the upload may take up to several minutes,
-and the overhead saved by mod_perl is typically under one second.
+children doing something as long and simple as transfering a file,
+especially a big one.  The overhead saved by mod_perl is typically
+under one second, which is an enormous saving for the scripts whose
+run time is under one second.  The user won't really see any important
+performance benefits from mod_perl, since the upload may take up to
+several minutes.
 
 If some particular script's main functionality is the uploading or
 downloading of big files, you probably want it to be executed on a
-plain apache server under mod_cgi.
+plain apache server under mod_cgi (i.e. performing this operation on
+the front-end server, if you use L<a dual-server
+setup|scenario/One_Plain_and_One_mod_perl_enabl>.
 
 This of course assumes that the script requires none of the
 functionality of the mod_perl server, such as custom authentication
 handlers.
-
-
 
 
 =head1 Apache/mod_perl Build Options

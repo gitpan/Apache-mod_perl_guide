@@ -42,7 +42,7 @@ sub new {
 				AutoCommit => 1, # commit executes immediately
 			       }
 			      )
-    or DBI->disconnect("Cannot connect to database: $DBI::errstr\n");
+    or die "Cannot connect to database: $DBI::errstr";
 
     # we want to die on errors if in debug mode
   $self->{dbh}->{RaiseError} = 1 if DEBUG;

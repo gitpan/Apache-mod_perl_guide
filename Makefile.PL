@@ -172,3 +172,7 @@ END
   
   return $target_dir;
 }
+
+
+# to make the release under a different name:
+# make dist DISTVNAME=Apache-mod_perl_guide-1.26-fix1

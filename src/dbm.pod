@@ -75,6 +75,7 @@ the new storage method.  You can use a script like this:
   
   use strict;
   use DB_File;
+  use Fcntl;
   
     # Do checks 
   die "Usage: btree2hash.pl filename(s))\n" unless @ARGV;
@@ -93,9 +94,9 @@ the new storage method.  You can use a script like this:
   
       # tie both dbs (db_hash is a fresh one!)
     tie %btree , 'DB_File',"$filename.btree", O_RDWR|O_CREAT, 
-        0660, $DB_BTREE or die "Can't tie %btree";
+        0660, $DB_BTREE or die "Can't tie $filename.btree";
     tie %hash ,  'DB_File',"$filename" , O_RDWR|O_CREAT, 
-        0660, $DB_HASH  or die "Can't tie %hash";
+        0660, $DB_HASH  or die "Can't tie $filename";
   
       # copy DB
     %hash = %btree;

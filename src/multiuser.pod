@@ -17,7 +17,7 @@ to install it for you.
 You are an old sailor in the ISP business, you have seen it all, you
 know how many ISPs are out there and you know that the sales margins
 are too low to keep you happy.  You are looking for some new service
-almost noone else provides, to attract more clients to become your
+almost no one else provides, to attract more clients to become your
 users and hopefully to have a bigger slice of the action than your
 competitors.
 
@@ -87,7 +87,7 @@ programmers exploit these features in their code).  Now multiply the
 average required size by the number of server users you intend to have
 and you will get the total memory requirement.
 
-Since ISPs never say no, you'd better take the inverse approach -
+Since ISPs never say I<No>, you'd better take the inverse approach -
 think of the largest memory size you can afford then divide it by one
 user's requirements as I have shown in this example, and you will know
 how many mod_perl users you can afford :)
@@ -107,7 +107,8 @@ If the answer to either of the above questions is I<Yes>, you are all
 set and your clients will prize your name for letting them run
 mod_perl!  There are tools to restrict resource usage (see for example
 the man pages for C<ulimit(3)>, C<getrlimit(2)>, C<setrlimit(2)> and
-C<sysconf(3)> ).
+C<sysconf(3)>, the last three have the corresponding Perl modules:
+C<BSD::Resource> and C<Apache::Resource>).
 
 [ReaderMETA]: If you have experience with other resource limiting
 techniques please share it with us.  Thank you!
@@ -119,7 +120,7 @@ If you have chosen this option, you have to provide your client with:
 =item *
 
 Shutdown and startup scripts installed together with the rest of your
-daemon startup scripts (e.g C</etc/rc.d> directory), so that when you
+daemon startup scripts (e.g I</etc/rc.d> directory), so that when you
 reboot your machine the user's server will be correctly shutdown and
 will be back online the moment your system starts up.  Also make sure
 to start each server under the username the server belongs to, or you
@@ -138,8 +139,8 @@ of the form C<user.given.virtual.hostname>.
 
 Letting the user run a mod_perl server immediately adds a requirement
 for the user to be able to restart and configure their own server.
-Only root can bind to port 80, this is why your users have to use
-port numbers greater than 1024.
+Only root can bind to port 80, this is why your users have to use port
+numbers greater than 1024.
 
 Another solution would be to use a setuid startup script, but think
 twice before you go with it, since if users can modify the scripts
@@ -222,6 +223,42 @@ can afford a stand alone box, thus achieving their goal of autonomy
 whilst keeping their ISP happy.
 
 =back
+
+=head2 Other resources related to mod_perl hosting to look at
+
+=over
+
+=item * The User-mode Linux Kernel
+
+http://user-mode-linux.sourceforge.net/
+
+User-Mode Linux is a safe, secure way of running Linux versions and
+Linux processes. Run buggy software, experiment with new Linux kernels
+or distributions, and poke around in the internals of Linux, all
+without risking your main Linux setup.
+
+User-Mode Linux gives you a virtual machine that may have more
+hardware and software virtual resources than your actual, physical
+computer. Disk storage for the virtual machine is entirely contained
+inside a single file on your physical machine. You can assign your
+virtual machine only the hardware access you want it to have. With
+properly limited access, nothing you do on the virtual machine can
+change or damage your real computer, or its software.
+
+So if you want to completely protect one user from another and
+yourself from your users this might be yet another alternative to the
+solutions suggested at the beginning of this chapter.
+
+=item *
+
+
+=item *
+
+
+
+=back
+
+
 
 =head1 Virtual Hosts in the guide
 

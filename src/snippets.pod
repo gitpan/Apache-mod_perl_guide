@@ -417,10 +417,11 @@ then the script will fail to find C<foo.txt>.  Think about
 C<crontab>s!
 
 Notice that you cannot use the C<FindBin.pm> package, something that
-you'd do in the regular Perl scripts, because it relies on the BEGIN
-block it won't work under mod_perl. It's loaded and executed only for
-the first script executed inside the process, all the others will use
-the cached value, which would be probably incorrect.  Aargh.
+you'd do in the regular Perl scripts, because it relies on the
+C<BEGIN> block it won't work under mod_perl. It's loaded and executed
+only for the first script executed inside the process, all the others
+will use the cached value, which would be probably incorrect if they
+reside in different directories.
 
 
 

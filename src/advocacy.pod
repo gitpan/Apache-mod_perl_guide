@@ -111,7 +111,7 @@ Lots of posts talk about latency vs throughput.
 
 =item *
 
-mod_perl, FastCGI, Velocigen and PerlEx are all give good performance
+mod_perl, FastCGI, Velocigen and PerlEx all give good performance
 gains over plain mod_cgi.
 
 =item *

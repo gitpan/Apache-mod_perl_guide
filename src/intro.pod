@@ -484,6 +484,7 @@ Credits of course go to ( alphabetically sorted ):
 
 =over
 
+
 =item * Ajay Shah
 
 =item * Andreas J. Koenig
@@ -498,15 +499,19 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Ask Bjoern Hansen
 
-=item * Autarch
+=item * Barrie Slaymaker
 
 =item * Bill Moseley
 
 =item * Brian Moseley
 
+=item * Carl Hansen
+
 =item * Chad K. Lewis
 
 =item * Chris Nokleberg
+
+=item * Chris Winters
 
 =item * Christof Damian
 
@@ -524,6 +529,8 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Dave Hodgkinson
 
+=item * Dave Rolsky
+
 =item * David Harris
 
 =item * David Huggins-Daines
@@ -532,11 +539,15 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * David Mitchell
 
+=item * DeWitt Clinton
+
 =item * Dean Fitz
 
 =item * Doug Bagley
 
 =item * Doug Kyle
+
+=item * Drew Taylor
 
 =item * Ed Park
 
@@ -558,6 +569,8 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Garr Updegraff
 
+=item * Ged Haywood
+
 =item * Ged W. Haywood
 
 =item * Geoff Crawshaw
@@ -570,13 +583,19 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Greg Cope
 
+=item * Greg Stark
+
 =item * Gunther Birznieks
+
+=item * Hailei Dai
 
 =item * Henrique Pantarotto
 
 =item * Honza Pazdziora
 
 =item * Howard Jones
+
+=item * Hunter Monroe
 
 =item * Ilya Obshadko
 
@@ -588,9 +607,13 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Jason Bodnar
 
+=item * Jason Rhinelander
+
 =item * Jauder Ho
 
 =item * Jay J
+
+=item * Jeff Chan
 
 =item * Jeff Rowe
 
@@ -599,6 +622,8 @@ Credits of course go to ( alphabetically sorted ):
 =item * Jie Gao
 
 =item * Joao Fonseca
+
+=item * Joe Schaefer
 
 =item * Joe Slag
 
@@ -622,13 +647,21 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Ken Williams
 
+=item * Kenny Gatdula
+
 =item * Kevin Murphy
+
+=item * Lance Cleveland
+
+=item * Larry Leszczynski
 
 =item * Leslie Mikesell
 
 =item * Lincoln Stein
 
 =item * Mads Toftum
+
+=item * Marcel Grunauer
 
 =item * Mark Mills
 
@@ -644,9 +677,11 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Michael Blakeley
 
-=item * Michael Finke 
+=item * Michael Finke
 
 =item * Michael Hall
+
+=item * Michael Rendell
 
 =item * Michael Schout
 
@@ -662,17 +697,25 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Nathan Vonnahme
 
+=item * Neil Conway
+
 =item * Nick Tonkin
 
 =item * Oleg Bartunov
 
 =item * Pascal Eeftinck
 
+=item * Patrick
+
+=item * Pavel Shmidt
+
 =item * Perrin Harkins
 
 =item * Peter Galbavy
 
 =item * Peter Haworth
+
+=item * Peter J. Schoenster
 
 =item * Peter Skov
 
@@ -696,15 +739,29 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Richard A. Wells
 
+=item * Richard Chen
+
 =item * Richard Dice
 
 =item * Richard More
 
 =item * Rick Myers
 
+=item * Robert Mathews
+
 =item * Robin Berjon
 
+=item * Rodger Donaldson
+
+=item * Ron Pero
+
+=item * Roy Nasser
+
+=item * Salve J Nilsen
+
 =item * Scott Fagg
+
+=item * Scott Holdren
 
 =item * Sean Dague
 
@@ -720,6 +777,8 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Terry West
 
+=item * Tim Bunce
+
 =item * Tom Brown
 
 =item * Tom Christiansen
@@ -727,6 +786,8 @@ Credits of course go to ( alphabetically sorted ):
 =item * Tom Hughes
 
 =item * Tom Mornini
+
+=item * Tuomas Salo
 
 =item * Tzvetan Stoyanov
 
@@ -738,9 +799,13 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Wesley Darlington
 
+=item * Will Trillich
+
 =item * Yann Kerhervé
 
-=item *  
+=item * Yann Ramin
+
+
 
 =item * Did I miss your name? Tell me!
 

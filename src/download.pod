@@ -85,9 +85,18 @@ with instructions on how to compile it and whatnot.
 
 http://www.hpl.hp.com/personal/David_Mosberger/httperf.html
 
+=head1 http_load - another webserver Benchmarking tool
+
+http://www.acme.com/software/http_load/
+
 =head1 ab - ApacheBench
 
 ApacheBench comes with the Apache distribution.
+
+=head1 Daquiri - yet another webserver Benchmarking tool
+
+should be available from the mod_backhand CVS tree:
+http://www.backhand.org/mod_backhand/
 
 
 =head1 High-Availability and Load Balancing Projects

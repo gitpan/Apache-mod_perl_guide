@@ -2,31 +2,116 @@
 		### mod_perl Guide CHANGES file ###
 		###################################
 
-09.21.2000 ver 1.27
+11.26.2000 ver 1.27
 
-*
+* intro.pod: 
 
-*
+  o. updated the long due credits section
 
-*
+* correct_headers.pod:
 
-*
+  o added a link to an info page:
+  "Prevent the browser from Caching a page"
 
-*
+* multiuser.pod:
 
-*
+  o added a ref to "The User-mode Linux Kernel" project (related to
+    running of many servers on the same machine safely to the system).
 
-*
+* performance.pod:
 
-*
+  o added the http_load utility section
 
-*
+  o added notes about latency problems with db transactions
+    "Persistent DB Connections" (Rodger Donaldson)
 
-*
+* download.pod:
 
-*
+  o added links to http_load and Daquiri (only link to the backhand
+    site) utilities.
 
-*
+* troubleshooting.pod:
+
+  o foo ... at /dev/null line 0 (Honza Pazdziora)
+
+  o httpd keeps on growing after each restart (Perrin Harkins)
+
+* debug.pod:
+
+  o suggestion to use warn while debugging (Kenny Gatdula)
+
+  o extended the section on using strace(1).
+
+  o documented the fact that Apache::Status shouldn't be used on
+    production machines because of the overhead that it creates
+    (Doug).
+
+  o extended the section: "Safe Resource Locking and Cleanup Code"
+    with localized file globs example (Doug)
+
+* help.pod:
+
+  o added cgi-list subscription info (Peter J. Schoenster)
+
+  o started new sections: 'Get help with Unix OS flavors -- Unix OS
+    related resources' and 'Get help with Performance and Scalability'
+
+* perl.pod: 
+
+  o new: Understanding Closures -- the Easy Way (Randal Shwartz,
+  Perrin Harkins, Stas)
+
+  o Exceptions section update: Exception::Class and Devel::StackTrace
+  (Matt Sergeant and Dave Rolsky)
+
+* porting.pod: 
+
+  o new item: "Return Codes under Apache::Registry" (Eric Cholet)
+
+  o "-M and other time() file tests under mod_perl" -- added a nice
+    TransHandler to handle the time resetting (Doug)
+
+  o Adding local() at "-M and other time() file tests under mod_perl"
+    (Andreas Koenig)
+
+  o Documented Apache::Reload 
+
+  o correction: PERL5LIB is not ignored when PerlTaintCheck is on
+
+* install.pod: 
+
+  o mod_proxy_add_forward setup extended with notes about
+  --permute-module to make it easy to place mod_proxy_add_forward
+  before mod_proxy (Larry Leszczynski)
+
+  o mod_perl and php install scenario (Roy Nasser)
+
+  o reviewed and extensively edited.
+
+  o added an info about Aphid Apache Installer
+
+  o removed the section about experimental compile option
+    PERL_MARK_WHERE since it should go away with 2.0 (it's still
+    mentioned in debug.pod : "Finding the Line Which Triggered the
+    Error or Warning" (Doug)
+
+* scenario.pod: reviewed and extensively edited.
+
+* strategy.pod: reviewed and extensively edited.
+
+* Minor corrections:
+
+  o install.pod: (Neil Conway, Lance Cleveland)
+
+  o perl.pod: (Pavel Shmidt)
+
+  o config.pod: (Michael Rendell)
+
+
+
+
+
+08.22.2000 ver 1.26-fix-01
 
 * build: fixed the Makefile.PL to detect the prerequisites. MANIFEST
   file is OK now (didn't accept files starting with './') (Marcel

@@ -297,6 +297,16 @@ This problem is only known to be caused by installing gnu ld under Solaris.
 =head1 Runtime
 
 
+=head2 foo ... at /dev/null line 0
+
+Under mod_perl you may receive a warning or an error in the
+I<error_log> which specifies I</dev/null> as the source file, and line
+0 as an line number where the printing of the message was triggered.
+This is absolutely normal if the code is executed from within a
+handler, because there is no actual file associated with the handler.
+Therefore C<$0> is set to I</dev/null> and that's what you see.
+
+
 =head2 Preventing mod_perl Processes From Going Wild
 
 See the sections "L<Non-Scheduled Emergency Log
@@ -671,6 +681,10 @@ Restart|control/Speeding_up_the_Apache_Terminati>" for more
 information.
 
 
+=head2 httpd keeps on growing after each restart
+
+See the I<HUP Signal> explanation at the section:
+L<Server Stopping and Restarting|control/Server_Stopping_and_Restarting>
 
 =head1 Windows OS specific notes
 

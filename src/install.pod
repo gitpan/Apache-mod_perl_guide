@@ -97,11 +97,6 @@ stages:
 
 =back
 
-
-
-
-
-
 =head2 Source Configuration (perl Makefile.PL ...)
 
 Before building and installing mod_perl you have to configure it.  You
@@ -118,7 +113,7 @@ C<perl Makefile.PL>.  Depending on the chosen configuration, the final
 product might be a stand-alone httpd binary or a loadable object.
 
 The source configuration mechanism in Apache 1.3 provides four major
-features from which mod_perl can benefit:
+features (which of course are available to mod_perl):
 
 =over 4
 
@@ -128,13 +123,13 @@ This is a mechanism modules can use to link themselves into the
 configuration process.  It is useful for automatically adjusting the
 configuration and build parameters from the modules sources.  It is
 triggered by C<ConfigStart>/C<ConfigEnd> sections inside
-I<modulename>C<.module> files.
+I<modulename.module> files (e.g. I<libperl.module>).
 
 =item Apache Autoconf-style Interface (APACI)
 
 This is the new top-level C<configure> script from Apache 1.3 which
 provides a GNU Autoconf-style interface.  It is useful for configuring
-the source tree without manually editing any C<src/Configuration>
+the source tree without manually editing any I<src/Configuration>
 files.  Any parameterization can be done via command line options to
 the C<configure> script.  Internally this is just a nifty wrapper to
 the old C<src/Configure> script.
@@ -145,24 +140,28 @@ present the complete Apache 1.3 source configuration mechanism is only
 available under Unix.  It doesn't work on the Win32 platform for
 example.
 
-=item B<Dynamic Shared Object (DSO) support>
+=item Dynamic Shared Object (DSO) support
 
 Besides Windows NT support this is one of most interesting features in
-Apache 1.3.  Its a way to build Apache modules as so-called C<dynamic
-shared objects> (usually named I<modulename>C<.so>) which can be
-loaded via the C<LoadModule> directive in Apache's C<httpd.conf> file.
-The benefit is that the modules are part of the C<httpd> program only
-on demand, i.e. only when the user wants a module is it loaded into
+Apache 1.3.  Its a way to build Apache modules as so-called I<dynamic
+shared objects> (usually named I<modulename.so>) which can be loaded
+via the C<LoadModule> directive in Apache's I<httpd.conf> file.  The
+benefit is that the modules are part of the C<httpd> executable only
+on demand, i.e. only when the user wants a module it is loaded into
 the address space of the C<httpd> executable.  This is interesting for
 instance in relation to memory consumption and upgrading.
 
 The DSO mechanism is provided by Apache's C<mod_so> module which needs
 to be compiled into the C<httpd> binary.  This is done automatically
-when DSO is enabled for module C<mod_xxx> via C<configure
---enable-module=xxx> or by explicitly adding C<mod_so> via C<configure
---enable-module=so>.
+when DSO is enabled for module C<mod_foo> via:
 
-=item B<APache eXtenSion (APXS) support tool>
+  ./configure --enable-module=foo
+
+or by explicitly adding C<mod_so> via:
+
+  ./configure --enable-module=so>.
+
+=item APache eXtenSion (APXS) support tool
 
 This is a new support tool from Apache 1.3 which can be used to build
 an Apache module as a DSO even B<outside> the Apache source-tree.  One
@@ -170,20 +169,24 @@ can say C<APXS> is for Apache what C<MakeMaker> and C<XS> are for
 Perl.  It knows the platform dependent build parameters for making DSO
 files and provides an easy way to run the build commands with them.
 
+(C<MakeMaker> allows an easy automatic configuration, build,
+testing and installation of the Perl modules, and C<XS> allows to call
+functions implemented in C/C++ from Perl code.)
+
 =back
 
 Taking these four features together provides a way to integrate
-mod_perl into Apache in a very clean and smooth way.  I<No patching of
-the Apache source tree is needed in the standard situation and in the
-APXS situation not even the Apache source tree is needed>.
+mod_perl into Apache in a very clean and smooth way.  I<No patching>
+of the Apache source tree is needed in the standard situation and in
+the APXS situation not even the Apache source tree is needed.
 
 To benefit from the above features a new hybrid build environment was
 created for the Apache side of mod_perl.  The Apache-side consists of
-the C source files of mod_perl which have to be compiled into the
+the mod_perl C source files which have to be compiled into the
 C<httpd> program.  They are usually copied to the subdirectory
-C<src/modules/perl/> in the Apache source tree.  To integrate this
+I<src/modules/perl/> in the Apache source tree.  To integrate this
 subtree into the Apache build process a lot of adjustments were done
-by mod_perl's C<Makefile.PL> in the past.  And additionally the
+by mod_perl's I<Makefile.PL> in the past.  And additionally the
 C<Makefile.PL> controlled the Apache build process.
 
 This approach is problematic in several ways.  It is very restrictive
@@ -191,7 +194,7 @@ and not very clean because it assumes that mod_perl is the only
 third-party module which has to be integrated into Apache.
 
 The new approach described below avoids these problems.  It prepares
-only the C<src/modules/perl/> subtree inside the Apache source tree
+only the I<src/modules/perl/> subtree inside the Apache source tree
 I<without> adjusting or editing anything else.  This way, no conflicts
 can occur.  Instead, mod_perl is activated later (when the Apache
 source tree is configured, via APACI calls) and then it configures
@@ -202,17 +205,20 @@ describing different installation passes, once the overview of the
 four building steps is completed.
 
 
+
 =head3 Configuration parameters
 
-C<perl Makefile.PL> accepts various parameters.  In this section we
-will learn what they are, and when should they be used.
+The command C<perl Makefile.PL>, which is also known as a
+I<"configuration stage">, accepts various parameters.  In this section
+we will learn what they are, and when should they be used.
 
 =head4 APACHE_SRC
 
-You will be asked the following question during the configuration
+If you specify neither the C<DO_HTTPD> nor the C<NO_HTTPD> parameters
+you will be asked the following question during the configuration
 stage:
 
-  "Configure mod_perl with ../apache_x.x.x/src ?"
+  Configure mod_perl with ../apache_x.x.x/src ?
 
 C<APACHE_SRC> should be used to define Apache's source tree directory.
 For example:
@@ -228,7 +234,7 @@ Answering I<'y'> confirms either I<Makefile.PL>'s guess about the
 location of the tree, or the directory you have specified with
 C<APACHE_SRC>.
 
-If you use C<DO_HTTPD=1> or C<NO_HTTPD>, the first apache source tree
+If you use C<DO_HTTPD=1> or C<NO_HTTPD>, the first Apache source tree
 found or the one you have defined will be used for the rest of the
 build process.
 
@@ -237,27 +243,35 @@ build process.
 Unless any of C<DO_HTTPD>, C<NO_HTTPD> or C<PREP_HTTPD> is used, you
 will be prompted by the following question:
 
-  "Shall I build httpd in ../apache_x.x.x/src for you?"
+  Shall I build httpd in ../apache_x.x.x/src for you?
 
 Answering I<'y'> will make sure an httpd binary will be built in
 I<../apache_x.x.x/src> when you run C<make>.
 
-To avoid this prompt when the answer is I<Yes> use:
+To avoid this prompt when the answer is I<Yes> specify the following
+argument:
 
   DO_HTTPD=1
 
 Note that if you set C<DO_HTTPD=1>, but do not use
 C<APACHE_SRC=../apache_x.x.x/src> then the first apache source tree
-found will be used to configure and build against.
+found will be used to configure and build against. Therefore it's
+highly advised to always use an explicit C<APACHE_SRC> parameter, to
+avoid confusion.
 
-C<PREP_HTTPD=1> just means default 'C<n>' to the second prompt,
-meaning I<do not build (make) httpd in the Apache source tree>.  But
+C<PREP_HTTPD=1> just means default 'C<n>' to the latter prompt,
+meaning: I<Do not build (make) httpd in the Apache source tree>.  But
 it will still ask you about Apache's source location even if you have
 used the C<APACHE_SRC> parameter.  Providing the C<APACHE_SRC>
 parameter will just eliminate the need for C<perl Makefile.PL> to make
 a guess.
 
-To avoid the two prompts and avoid building httpd, use:
+To avoid the two prompts:
+
+  Configure mod_perl with ../apache_x.x.x/src ?
+  Shall I build httpd in ../apache_x.x.x/src for you?
+
+and avoid building httpd, use:
 
   NO_HTTPD=1
 
@@ -266,6 +280,7 @@ manually.  We will talk about it later.  In any case you will need to
 run C<make install> in the mod_perl source tree, so the Perl side of
 mod_perl will be installed.  Note that, C<make test> won't work until
 you have built the server.
+
 
 
 =head4 Callback Hooks
@@ -279,11 +294,13 @@ takes place. Since we don't know exactly when the event will take
 place we give the event handler a callback to the subroutine we want
 executed. The handler will call our subroutine at the right time.
 
-By default, all callback hooks except for C<PerlHandler> are turned
-off.  You may enable them by editing I<src/modules/perl/Makefile>, or
-when running C<perl Makefile.PL>.
+By default, most of the callback hooks except for
+C<PerlHandler>,C<PerlChildInitHandler>, C<PerlChildExitHandler>,
+C<PerlConnectionApi>, and C<PerlServerApi> are turned off.  You may
+enable them by editing I<src/modules/perl/Makefile>, or when running
+C<perl Makefile.PL>.
 
-Possible parameters are:
+The possible parameters for the appropriate hooks are:
 
   PERL_POST_READ_REQUEST
   PERL_TRANS
@@ -356,18 +373,6 @@ extensions, or configure mod_perl like this:
  perl Makefile.PL "PERL_STATIC_EXTS=Something::Static Another::One" 
 
 
-=head4 PERL_MARK_WHERE
-
-Generally for C<Apache::Registry> scripts, the reported line number
-for warnings and errors that end up in the I<error_log> file is not
-correct.  This is due to the fact that C<Apache::Registry>
-auto-magically wraps the scripts running under its handler in special
-code that enables the caching of the compiled scripts.
-
-If configured with C<PERL_MARK_WHERE=1>, mod_perl will attempt to
-compensate for this effect and show the exact line which triggered the
-error or warning.
-
 =head4 APACI_ARGS
 
 When you use the C<USE_APACI=1> parameter, you can tell C<Makefile.PL>
@@ -375,12 +380,12 @@ to pass any arguments you want to the Apache C<./configure> utility,
 e.g:
 
   % perl Makefile.PL USE_APACI=1 \
-  APACI_ARGS='--sbindir=/usr/local/sbin/httpd_perl, \
-         --sysconfdir=/usr/local/etc/httpd_perl, \
-         --localstatedir=/usr/local/var/httpd_perl, \
-         --runtimedir=/usr/local/var/httpd_perl/run, \
-         --logfiledir=/usr/local/var/httpd_perl/logs, \
-         --proxycachedir=/usr/local/var/httpd_perl/proxy'
+  APACI_ARGS='--sbindir=/usr/local/httpd_perl/sbin, \
+         --sysconfdir=/usr/local/httpd_perl/etc, \
+         --localstatedir=/usr/local/httpd_perl/var, \
+         --runtimedir=/usr/local/httpd_perl/var/run, \
+         --logfiledir=/usr/local/httpd_perl/var/logs, \
+         --proxycachedir=/usr/local/httpd_perl/var/proxy'
 
 Notice that B<all> C<APACI_ARGS> (above) must be passed as one long
 line if you work with C<t?csh>!!!  However it works correctly as shown
@@ -401,6 +406,24 @@ the C<APACHE_PREFIX> parameter, e.g.:
 
 This should be used together with the L<APACI_ARGS|install/APACI_ARGS>
 option.
+
+In addition when the C<APACHE_PREFIX> option is used C<make install>
+be executed in the Apache source directory, which makes these two
+equivalent:
+
+  % perl Makefile.PL APACHE_SRC=../apache_x.x.x/src \
+    DO_HTTPD=1 USE_APACI=1 EVERYTHING=1 \
+    APACI_ARGS='--prefix=/usr/local/httpd_perl'
+  % make && make test && make install
+  % cd ../apache_x.x.x
+  % make install
+
+  % perl Makefile.PL APACHE_SRC=../apache_x.x.x/src \
+    DO_HTTPD=1 USE_APACI=1 EVERYTHING=1 \
+    APACHE_PREFIX=/usr/local/httpd_perl'
+  % make && make test && make install
+
+Now you can pick your favorite installation method.
 
 
 =head3 Environment Variables
@@ -511,8 +534,8 @@ version, do this:
 
   % perl Makefile.PL CONFIG=Configuration.custom
 
-Where C<Configuration.custom> is the full pathname of the file
-I<relative to the Apache source tree you build against>.
+Where I<Configuration.custom> is the pathname of the file I<relative
+to the Apache source tree you build against>.
 
 
 =head3  perl Makefile.PL Troubleshooting
@@ -560,11 +583,11 @@ and try again.  Now you should get a useful error message.
 
 =head4 Missing or Misconfigured libgdbm.so
 
-On some RedHat systems you might encounter a problem during the C<perl
-Makefile.PL> stage, when the installed Perl was built with the C<gdbm>
-library, but the library isn't actually installed.  If this is your
-situation make sure you install it before proceeding with the build
-process.
+On some Linux RedHat systems you might encounter a problem during the
+C<perl Makefile.PL> stage, when the installed from the rpm package
+Perl was built with the C<gdbm> library, but the library isn't
+actually installed.  If this is your situation make sure you install
+it before proceeding with the build process.
 
 You can check how Perl was built by running the C<perl -V> command:
 
@@ -606,6 +629,11 @@ with:
 
   % ln -s libgdbm.so.2.0.0 libgdbm.so.2
 
+Of course if when you read this a new version of the C<libgdbm>
+library will be released, you will have to adjust the version
+numbers. We didn't use the usual I<xx.xx> version replacement here, to
+make it easier to understand how the symbolic links should be set.
+
 
 =head4 About gdbm, db and ndbm libraries
 
@@ -614,11 +642,10 @@ interface that Apache actually uses, so when you build mod_perl you
 end up with whichever library was linked first by the perl compile.
 If you build apache without mod_perl you end up with whatever appears
 to be be your ndbm library which will vary between systems, and
-especially Linux distributions.  Some use gdbm - RedHat uses db but
-seems to have switched to the file-incompatible 2.x version in their
-6.0 release.  You may have to work a bit to get both Apache and Perl
-to use the same library and you are likely to have trouble copying the
-dbm file from one system to another or even using it after an upgrade.
+especially Linux distributions.  You may have to work a bit to get
+both Apache and Perl to use the same library and you are likely to
+have trouble copying the dbm file from one system to another or even
+using it after an upgrade.
 
 
 
@@ -688,38 +715,10 @@ version of Perl you are using and other important details.
 
 =head4 Unrecognized format specifier for...
 
-  From: Scott Fagg <scott.fagg@arup.com.au>
-  
-  I'm using apache 1.3.9 , mod_fastcgi 2.2.2 and mod_perl 1.21
-  
-  Originally my build of these three together worked, however when I
-  went to rebuild a few months later I recieved a lot of "unrecognized
-  format specifier" errors.  A search of the internet showed that I
-  wasn't the only one but I couldn't find a solution mentioned.
-  
-  Puzzled, I tried to track down the problem.  Using clean source I
-  could build Apache/mod_perl/mod_fastcgi on my RedHat 5.2 workstation
-  but never on my RedHat 5.2 server.
-  
-  The only tinkering I'd done with the server was to use SFIO to
-  rebuild Perl and get mod_fastcgi working the first time I used
-  FastCGI.
-  
-  By removing the C<sfio> .h files, the Apache/mod_perl compile would
-  get further and the 'unrecognized format specifier' errors
-  disappeared, but naturally other pieces of code refused to compile
-  complaining about the missing C<sfio> files.
-  
-  A quick check of the mod_fast site noted that it no longer needed
-  SFIO, so I removed it and replaced my rebuilt sfio-perl binaries
-  with clean ones (from a redhat RPM) and was able to rebuild apache
-  with mod_perl+mod_fastcgi (+php). All of my mod_perl stuff works and
-  so too does my fastcgi.
-  
-  Hope that helps some one. I wasn't able to find any answers to the
-  problem while searching the net.
-
-
+This error usually reported due to the problems with some versions of
+SFIO library. Try to use the latest version to get around this
+problem. Or if you don't really need SFIO, rebuild Perl without this
+library.
 
 
 =head2 Built Server Testing (make test)
@@ -825,16 +824,14 @@ the C<./t> directory (mnemonic - t, tests).  I'll list a few examples,
 but of course things may change in the future.
 
   modules/cookie......skipping test on this platform
+  modules/request.....skipping test on this platform
 
-Install libapreq
+Install libapreq package which includes among others the
+C<Apache::Request> and C<Apache::Cookie> modules.
 
   modules/psections...skipping test on this platform
 
-Install C<Devel::Symdump> / C<Data::Dumper>
-
-  modules/request.....skipping test on this platform
-
-Install libapreq (C<Apache::Request>)
+Install C<Devel::Symdump> and C<Data::Dumper>
 
   modules/sandwich....skipping test on this platform
 
@@ -1084,13 +1081,11 @@ gives you the freedom to add third-party modules.
 
 =head2 Build mod_perl as a DSO inside the Apache Source Tree via APACI
 
-B<Warning>:  I<THIS IS STILL EXPERIMENTAL, SO BE WARNED!>
+B<Warning>:  I<This is still experimental, so be warned!>
 
 With Apache 1.3 there is support for building modules as Dynamic
 Shared Objects (DSO).  So there is support for DSO in mod_perl now,
 too.  Your mileage may vary.  Almost certainly it will.
-
-B<Warning>:  I<YOU HAVE BEEN WARNED!>
 
 We have already said that the new mod_perl build environment
 (C<USE_APACI>) is a hybrid.  What does it mean?  It means for instance
@@ -1545,8 +1540,11 @@ to:
 
 =head2 mod_perl and Raven SSL
 
-Note: Please consult http://www.covalent.net/support if you have
+
+The following are the installation notes for the static and DSO
+mod_perl. Please consult http://www.covalent.net/support if you have
 additional questions regarding Raven SSL.
+
 
 =head3 Dynamic (DSO) mod_perl and Raven SSL Installation
 
@@ -1749,9 +1747,52 @@ line is above C<E<lt>IfDefine SSLE<gt>> section.
 =back
 
 
+=head2 mod_perl and mod_php
 
+This is a simple installation scenario of the mod_perl and mod_php in
+Apache server:
 
+=over
 
+=item 1
+
+Configure Apache.
+
+  % ./configure --prefix=/usr/local/etc/httpd
+
+=item 1
+
+Build mod_perl.
+
+  % cd ../mod_perl-x.xx
+  % perl Makefile.PL APACHE_SRC=../apache_x.x.xx/src NO_HTTPD=1 \
+    USE_APACI=1 PREP_HTTPD=1 EVERYTHING=1
+  % make
+  % make test
+  % make install
+
+=item 1
+
+Build mod_php.
+
+  % cd ../php-x.x.xx
+  % ./configure --with-apache=../apache_x.x.xx \
+     --wtih-mysql --enable-track-vars
+  % make
+  % make install
+
+=item 1
+
+Complete the Apache installation.
+
+  % cd ../apache_x.x.xx
+  % ./configure --prefix=/usr/local/etc/httpd \
+     --activate-module=src/modules/perl/libperl.a \
+     --activate-module=src/modules/php3/libphp3.a \
+     --enable-module=stats \
+     --enable-module=rewrite
+
+=back
 
 
 =head1 mod_perl Installation with the CPAN.pm Interactive Shell
@@ -2257,12 +2298,12 @@ Apache configuration files:
   
   PerlModule Apache::Registry 
   Alias /perl/ /home/httpd/perl/ 
-  <Location /perl 
+  <Location /perl>
     SetHandler perl-script 
     PerlHandler Apache::Registry 
     PerlSendHeader On 
     Options +ExecCGI
-  </Location
+  </Location>
 
 After a complete shutdown and startup of the server, mod_perl should
 be up and running.
@@ -2987,6 +3028,10 @@ you are more likely to make a mistake that way.
 
 =head1 Automating installation
 
+=over
+
+=item * Apache Builder
+
 James G Smith wrote an Apache Builder, that can install a combination
 of Apache, mod_perl, and mod_ssl -- it also has limited support for
 including mod_php in the mix.
@@ -2994,6 +3039,18 @@ including mod_php in the mix.
 http://hex.tamu.edu/build-apache  (the actual Perl script)
 
 http://hex.tamu.edu/generic.conf  (a sample configuration file)
+
+=item * Aphid Apache Installer
+
+Aphid provides a facility for bootstrapping SSL-enabled Apache web
+servers (mod_ssl) with an embedded Perl interpreter (mod_perl). Source
+is downloaded from the Internet, compiled, and the resulting system is
+installed in the directory you specify.
+
+http://sourceforge.net/projects/aphid/
+
+=back
+
 
 
 
@@ -3318,6 +3375,110 @@ any other directory containing a version of httpd, then call it as
 'httpd'.  Don't use a relative path!
 
 =back
+
+
+
+
+=head1 Pros and Cons of Building mod_perl as DSO
+
+On modern Unix derivatives there is a nifty mechanism usually called
+dynamic linking/loading of Dynamic Shared Objects (DSO), which
+provides a way to build a piece of program code in a special format
+for loading in at run-time into the address space of an executable
+program.
+
+As of Apache 1.3, the configuration system supports two optional
+features for taking advantage of the modular DSO approach: compilation
+of the Apache core program into a DSO library for shared usage and
+compilation of the Apache modules into DSO files for explicit loading
+at run-time.
+
+Should you use this method? Read the pros and cons and decide for
+yourself.
+
+Pros:
+
+=over 
+
+=item *
+
+The server package is more flexible at run-time because the actual
+server process can be assembled at run-time via C<LoadModule>
+I<httpd.conf> configuration commands instead of I<Configuration>
+C<AddModule> commands at build-time.  For instance this way one is
+able to run different server instances (standard & SSL version, with
+and without mod_perl) with only one Apache installation.
+
+=item *
+
+The server package can be easily extended with third-party modules
+even after installation.  This is at least a great benefit for vendor
+package maintainers who can create an Apache core package and
+additional packages containing extensions like PHP3, mod_perl,
+mod_fastcgi, etc.
+
+=item *
+
+Easier Apache module prototyping because with the DSO/apxs pair you
+can both work outside the Apache source tree and only need an S<apxs
+-i> command followed by an S<apachectl restart> to bring a new version
+of your currently developed module into the running Apache server.
+
+
+=back
+
+Cons:
+
+=over 
+
+=item *
+
+The DSO mechanism cannot be used on every platform because not all
+operating systems support dynamic loading of code into the address
+space of a program.
+
+=item *
+
+The server starts up approximately 20% slower because of the
+symbol resolving overhead the Unix loader now has to do.
+
+=item *
+
+The server runs approximately 5% slower on some platforms because
+position independent code (PIC) sometimes needs complicated assembler
+tricks for relative addressing which are not necessarily as fast as
+absolute addressing.
+
+=item *
+
+Because DSO modules cannot be linked against other DSO-based libraries
+(ld -lfoo) on all platforms (for instance a.out-based platforms
+usually don't provide this functionality while ELF-based platforms do)
+you cannot use the DSO mechanism for all types of modules. Or in other
+words, modules compiled as DSO files are restricted to only use
+symbols from the Apache core, from the C library (libc) and all other
+dynamic or static libraries used by the Apache core, or from static
+library archives (libfoo.a) containing position independent code. The
+only way you can use other code is to either make sure the Apache core
+itself already contains a reference to it, loading the code yourself
+via dlopen() or enabling the SHARED_CHAIN rule while building Apache
+when your platform supports linking DSO files against DSO libraries.
+
+=item *
+
+Under some platforms (many SVR4 systems) there is no way to force the
+linker to export all global symbols for use in DSO's when linking the
+Apache httpd executable program. But without the visibility of the
+Apache core symbols no standard Apache module could be used as a
+DSO. The only workaround here is to use the SHARED_CORE feature
+because this way the global symbols are forced to be exported. As a
+consequence the Apache src/Configure script automatically enforces
+SHARED_CORE on these platforms when DSO features are used in the
+Configuration file or on the configure command line.
+
+=back
+
+
 
 =cut
 

@@ -28,9 +28,13 @@ Books are good, but an easily accessible and searchable Perl reference
 at your fingertips is a great time saver. It always has the up-to-date
 information for the version of perl you're using.
 
-While you can use online Perl documentation at the Web, the C<perldoc>
-utility provides you with access to the documentation installed on
-your system.  To find out what Perl manpages are available execute:
+Of course you can use online Perl documentation at the Web. I prefer
+http://theoryx5.uwinnipeg.ca/CPAN/perl/ to the official URL:
+http://www.perl.com/pub/v/documentation is very slow :( . The
+C<perldoc> utility provides you with access to the documentation
+installed on your system.  To find out what Perl manpages are
+available execute:
+
 
   % perldoc perl
 
@@ -69,9 +73,9 @@ To read the I<perldoc> manpage you would execute:
 
 Sometimes it's very hard to understand what a warning is complaining
 about.  You see the source code, but you cannot understand why some
-specific snippet produces that warning.  The mystery often results from
-the fact that the code can be called from different places if it's
-located inside a subroutine.
+specific snippet produces that warning.  The mystery often results
+from the fact that the code can be called from different places if
+it's located inside a subroutine.
 
 Here is an example:
 
@@ -346,32 +350,40 @@ return a pointer to an auto variable is a disaster in C or C++; the
 perl equivalent, returning a reference to a lexical variable created
 in a function is normal and useful.)
 
+=over 
 
-Also see the clarification of C<my()> vs. C<use vars> - Ken Williams
-writes:
+=item *
 
-  Yes, there is quite a bit of difference!  With use vars(), you are
-  making an entry in the symbol table, and you are telling the
-  compiler that you are going to be referencing that entry without an
-  explicit package name.
-  
-  With my(), NO ENTRY IS PUT IN THE SYMBOL TABLE.  The compiler
-  figures out C<at compile time> which my() variables (i.e. lexical
-  variables) are the same as each other, and once you hit execute time
-  you cannot go looking those variables up in the symbol table.
+C<my()> vs. C<use vars>:
 
-And C<my()> vs. C<local()> - Randal Schwartz writes:
+With use vars(), you are making an entry in the symbol table, and you
+are telling the compiler that you are going to be referencing that
+entry without an explicit package name.
 
-  local() creates a temporal-limited package-based scalar, array,
-  hash, or glob -- when the scope of definition is exited at runtime,
-  the previous value (if any) is restored.  References to such a
-  variable are *also* global... only the value changes.  (Aside: that
-  is what causes variable suicide. :)
-  
-  my() creates a lexically-limited non-package-based scalar, array, or
-  hash -- when the scope of definition is exited at compile-time, the
-  variable ceases to be accessible.  Any references to such a variable
-  at runtime turn into unique anonymous variables on each scope exit.
+With my(), NO ENTRY IS PUT IN THE SYMBOL TABLE.  The compiler figures
+out C<at compile time> which my() variables (i.e. lexical variables)
+are the same as each other, and once you hit execute time you cannot
+go looking those variables up in the symbol table.
+
+=item *
+
+C<my()> vs. C<local()>:
+
+local() creates a temporal-limited package-based scalar, array, hash,
+or glob -- when the scope of definition is exited at runtime, the
+previous value (if any) is restored.  References to such a variable
+are *also* global... only the value changes.  (Aside: that is what
+causes variable suicide. :)
+
+my() creates a lexically-limited non-package-based scalar, array, or
+hash -- when the scope of definition is exited at compile-time, the
+variable ceases to be accessible.  Any references to such a variable
+at runtime turn into unique anonymous variables on each scope exit.
+
+=back
+
+
+
 
 =head2 Additional reading references
 
@@ -569,11 +581,11 @@ Let's rewrite the code to use this technique:
   print_power_of_2(5);
   print_power_of_2(6);
 
-Now C<$func_ref> contains a reference to an anonymous function, which
-we later use when we need to get the power of two. (In Perl, a
-function is the same thing as a subroutine.) Since it is anonymous,
-the function will automatically be rebound to the new value of the
-outer scoped variable C<$x>, and the results will now be as expected.
+Now C<$func_ref> contains a reference to an anonymous subroutine,
+which we later use when we need to get the power of two.  Since it is
+anonymous, the subroutine will automatically be rebound to the new
+value of the outer scoped variable C<$x>, and the results will now be
+as expected.
 
 Let's verify:
 
@@ -586,12 +598,94 @@ So we can see that the problem is solved.
 
 
 
+=head1 Understanding Closures -- the Easy Way
 
+In Perl, a closure is just a subroutine that refers to one or more
+lexical variables declared outside the subroutine itself and must
+therefore create a distinct clone of the environment on the way out.
 
+And both named subroutines and anonymous subroutines can be closures.
 
+Here's how to tell if a subroutine is a closure or not:
 
+  for (1..5) {
+    push @a, sub { "hi there" };
+  }
+  for (1..5) {
+    {
+      my $b;
+      push @b, sub { $b."hi there" };
+    }
+  }
+  print "anon normal:\n", join "\t\n",@a,"\n";
+  print "anon closure:\n",join "\t\n",@b,"\n";
 
+which generates:
 
+  anon normal:
+  CODE(0x80568e4)	
+  CODE(0x80568e4)	
+  CODE(0x80568e4)	
+  CODE(0x80568e4)	
+  CODE(0x80568e4)	
+  
+  anon closure:
+  CODE(0x804b4c0)	
+  CODE(0x8056b54)	
+  CODE(0x8056bb4)	
+  CODE(0x80594d8)	
+  CODE(0x8059538)	
+
+Note how each code reference from the non-closure is identical, but
+the closure form must generate distinct coderefs to point at the
+distinct instances of the closure.
+
+And now the same with named subroutines:
+
+  for (1..5) {
+    sub a { "hi there" };
+    push @a, \&a;
+  }
+  for (1..5) {
+    {
+      my $b;
+      sub b { $b."hi there" };
+      push @b, \&b;
+    }
+  }
+  print "normal:\n", join "\t\n",@a,"\n";
+  print "closure:\n",join "\t\n",@b,"\n";
+
+which generates:
+
+  anon normal:
+  CODE(0x80568c0)	
+  CODE(0x80568c0)	
+  CODE(0x80568c0)	
+  CODE(0x80568c0)	
+  CODE(0x80568c0)	
+  
+  anon closure:
+  CODE(0x8056998)	
+  CODE(0x8056998)	
+  CODE(0x8056998)	
+  CODE(0x8056998)	
+  CODE(0x8056998)	
+
+We can see that both versions has generated the same code
+reference. For the subroutine I<a> it's easy, since it doesn't include
+any lexical variables defined outside it in the same lexical scope. 
+
+As for the subroutine I<b>, it's indeed a closure, but Perl won't
+recompile it since it's a named subroutine (see the I<perlsub>
+manpage). It's something that we don't want to happen in our code
+unless we want it for this special effect, similar to I<static>
+variables in C.
+
+This is the underpinnings of that famous I<"won't stay shared">
+message.  A I<my> variable in a named subroutine context is generating
+identical code references and therefore it ignores any future changes
+to the lexical variables outside of it.
 
 
 
@@ -1174,8 +1268,8 @@ I</tmp/load.pl>):
   print "test.pm => $INC{'test.pm'}\n";
 
 In the above example C<$FindBin::Bin> is equal to I</tmp>. If we move
-the script somewhere else... e.g. I</tmp/x> in the code above
-C<$FindBin::Bin> equals I</home/x>.
+the script somewhere else... e.g. I</tmp/new_dir> in the code above
+C<$FindBin::Bin> equals I</tmp/new_dir>.
 
   % /tmp/load.pl
   
@@ -1993,9 +2087,17 @@ Example usage:
     # ...
   }
 
+And of course you can use the qr() operator which makes the code even
+more efficient:
 
+  my $pat = '^foo$';
+  my $re  = qr($pat);
+  foreach( @list ) {
+      print if /$re/o;
+    }
 
-
+The qr() operator compiles the pattern for each request and then use
+the compiled version in the actual match.
 
 
 
@@ -2568,20 +2670,25 @@ L<CPAN|download/Perl>). This should be considered your best option
 for structured exception handling because it is well known and well
 supported and used by a lot of other applications.
 
-=item * Exception.pm and StackTrace.pm
+=item * Exception::Class and Devel::StackTrace
 
-by Autarch (from ftp://ftp.urth.org/pub/).
+by Dave Rolsky both available from CPAN of course.
 
-C<Exception> a bit cleaner than the AUTOLOAD method from the above
-examples as it can catch typos later on.  Plus it lets you create
-actual class hierarchies for your exceptions, which could be nice if
-you want to create exception classes that do more stuff and then
-inherit from them.
+C<Exception::Class> is a bit cleaner than the C<AUTOLOAD> method from
+above as it can catch typos in exception class names, whereas the
+method above will automatically create a new class for you.  In
+addition, it lets you create actual class hierarchies for your
+exceptions, which can be useful if you want to create exception
+classes that provide extra methods or data.  For example, an exception
+class for database errors could provide a method for returning the SQL
+and bound parameters in use at the time of the error.
+
 
 =item * Try.pm
 
-Tony Olekshy's. Adds an unwind stack and some other interesting features.
-Not on the CPAN. Available at http://www.avrasoft.com/perl/rfc/try-1136.zip
+Tony Olekshy's. Adds an unwind stack and some other interesting
+features.  Not on the CPAN. Available at
+http://www.avrasoft.com/perl/rfc/try-1136.zip
 
 =back
 

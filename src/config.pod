@@ -444,7 +444,7 @@ In addition C<ScriptAlias> assigns all the requests that match the URI
 is actually the same as: 
 
   Alias /cgi-bin /home/httpd/cgi-bin
-  SetHandler cgi-handler
+  SetHandler cgi-script
 
 where latter directive invokes mod_cgi. You shouldn't use the
 C<ScriptAlias> directive unless you want the request to be processed
@@ -1107,7 +1107,7 @@ will be ignored (unset).  See the 'L<Switches -w,
 -T|porting/Command_Line_Switches_w_T_e>' section.
 
 C<PerlSetVar> is very similar to C<PerlSetEnv>, but you extract it
-with another method. 
+with another method.
 
   PerlSetVar foo bar
 
@@ -1122,7 +1122,7 @@ and in the code you read it with:
 
 The above prints: 
 
-  value
+  bar
 
 Note that you cannot do this:
 
@@ -1156,6 +1156,15 @@ or
 
 Make sure that you use an even number of elements if you store the
 retrieved values in a hash.
+
+While the Apache's C<SetEnv> and mod_perl's C<PerlSetEnv> apparently
+perform the same thing, the former doesn't happen until the fixup
+phase, the latter happens as soon as possible, so those variables are
+available before then, e.g. in C<PerlAuthenHandler> for
+C<$ENV{ORACLE_HOME}> (or another evironment variable that you need in
+these early request processing stages.
+
+
 
 =head2 PerlSetupEnv
 
@@ -2274,7 +2283,7 @@ simple example, showing how to add your own Configuration directives.
   use strict;
   use Apache::ModuleConfig ();
   use DynaLoader ();
-   
+
   if($ENV{MOD_PERL}) {
     no strict;
     $VERSION = '0.01';
