@@ -2,6 +2,97 @@
 		### mod_perl Guide CHANGES file ###
 		###################################
 
+
+08.05.2000 ver 1.25
+
+* License: People asked me to redistribute mod_perl Guide in other
+  ways than just mirroring the mod_perl site. Therefore I've licensed
+  the guide under GPL and included the required info in the CPAN
+  package.
+
+* perl:
+
+  o added "Using Non-Hardcoded Configuration Module Names" (Chris Winters)
+
+
+* debug:
+
+  o updated: "How can I find out if a mod_perl code has a memory leak"
+
+  o rewritten:
+    Handling the 'User pressed Stop button' case 
+      Detecting Aborted Connections 
+      The Importance of Cleanup Code 
+        Critical Section 
+        Safe Resource Locking and Cleanup Code 
+
+* config:
+  
+  o added a sub header "Running CGI, PerlRun, and Registry Scripts
+    located in the same Directory" to make the info more prominent to
+    find. (Ron Pero)
+  
+  o PerlAddVar info was added
+ 
+* control
+
+  o "Swapping Prevention" rewritten from scratch and moved from
+    performance chapter to control chapter (Ed Phillips, Barrie
+    Slaymaker, Joshua Chamas)
+
+  o "Preparing for Machine Reboot" -- added a section describing the
+    chkconfig(8) use (Andreas Koenig)
+
+* porting: 
+
+  o the wrong suggested solution to the nested sub problem was
+    spotted!!! (Hunter Monroe, Hailei Dai) it's fixed now. 
+
+  o update: "Terminating requests and processes, the exit() and
+    child_terminate() functions" -- under perl5.6 you don't need to
+    override exit anymore! (Doug, Eric Cholet)
+
+  o s/PerlTaintMode/PerlTaintCheck/ (Gunther Birznieks)
+
+* review: 
+
+  o Mark Summerfield has reviewed these chapters: modules,
+  browserbugs, security and start.
+
+* performance:
+
+  o "CGI.pm vs Apache::Request" and "Apache::args vs
+    Apache::Request::param" were merged into a single section called:
+    "Apache::args vs Apache::Request::param vs CGI::param"
+
+  o The first example showing the use of ab was corrected (Joe
+    Schaefer)
+
+  o rewritten: 
+
+    + Apache::Registry PerlHandler versus Custom PerlHandler
+    + Keeping the Shared Memory Limit 
+    + Limiting the Size of the Processes
+    + Limiting Other Resources Used by Apache Child Processes
+
+* modules:  
+
+  o "Apache::GTopLimit - Limit Apache httpd processes" merged into
+    performance chapter.
+
+  o Apache::PerlVINC configuration corrected (Patrick)
+
+* Minor corrections: 
+  o config (Carl Hansen, Ron Pero, Jeff Chan, Cliff Rayman, Marcel Grunauer)
+  o control (Marcel Grunauer)
+  o debug (Marcel Grunauer)
+  o install (Ron Pero)
+  o snippets (Ask Bjoern Hansen, Chris Nokleberg)
+  o perl (Will Trillich, Cliff Rayman, Jason Rhinelander)
+  o porting (Ged Haywood)
+
+
+
 06.07.2000 ver 1.24
 
 * perl: "catching exceptions" -- a few corrections (Matt Sergeant)

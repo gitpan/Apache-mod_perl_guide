@@ -49,12 +49,11 @@ easier. (Note that the filenames will vary, and I<xx.xx> will differ.)
 Since mod_perl can be configured in many different ways (features can
 be enabled or disabled, directories can be modified, etc.) it's
 preferable to use a manual installation, as a prepackaged version
-might not suite your needs. Manual installation will allow you to make
+might not suit your needs. Manual installation will allow you to make
 the fine tuning for the best performance as well.
 
-We will talk in extension about the prepackaged versions and scenarios
-to prepare your own packages for reuse on many machines in this
-chapter.
+In this chapter we will talk extensively about the prepackaged versions,
+and ways to prepare your own packages for reuse on many machines.
 
 =head1 The Gory Details
 
@@ -2213,7 +2212,7 @@ to verify the availability of the mod_perl API.
 =head1 Installation Without Superuser Privileges
 
 As you have already learned, mod_perl enabled Apache consists of two
-main components: perl modules and Apache itself.  Let's tackle the
+main components: Perl modules and Apache itself.  Let's tackle the
 tasks one at a time.
 
 I'll show a complete installation example using I<stas> as a username,
@@ -2362,17 +2361,17 @@ I<i386-linux> and I<5.00503>.  If your system runs a different version
 of Perl, operating system, processor or chipset architecture, then
 some of the directories will have different names.
 
-I also have a perl-5.00561 installed under C</usr/local/lib/>
+I also have a perl-5.6.0 installed under C</usr/local/lib/>
 so when I do:
 
-  % /usr/local/bin/perl5.00561 -V
+  % /usr/local/bin/perl5.6.0 -V
 
 I see:
 
   @INC:
-    /usr/local/lib/perl5/5.00561/i586-linux
-    /usr/local/lib/perl5/5.00561
-    /usr/local/lib/site_perl/5.00561/i586-linux
+    /usr/local/lib/perl5/5.6.0/i586-linux
+    /usr/local/lib/perl5/5.6.0
+    /usr/local/lib/site_perl/5.6.0/i586-linux
     /usr/local/lib/site_perl
 
 Note that it's still I<Linux>, but the newer Perl version uses the
@@ -2474,7 +2473,8 @@ modified value of C<@INC>:
   Built under linux
   Compiled at Apr  6 1999 23:34:07
   %ENV:
-    PERL5LIB="/home/stas/lib/perl5/5.00503:/home/stas/lib/perl5/site_perl/5.005"
+    PERL5LIB="/home/stas/lib/perl5/5.00503:
+    /home/stas/lib/perl5/site_perl/5.005"
   @INC:
     /home/stas/lib/perl5/5.00503/i386-linux
     /home/stas/lib/perl5/5.00503
@@ -2542,14 +2542,16 @@ whole path at once) where the local configuration file will go:
 
 Now copy the system wide configuration file to your local one.
 
-  % cp /usr/lib/perl5/5.00503/CPAN/Config.pm /home/stas/.cpan/CPAN/MyConfig.pm
+  % cp /usr/lib/perl5/5.00503/CPAN/Config.pm \
+    /home/stas/.cpan/CPAN/MyConfig.pm
 
 The only thing left is to change the base directory of I<.cpan> in
 your local file to the one under your home directory.  On my machine I
 replace C</usr/src/.cpan> (that's where my system's C<.cpan> directory
 resides) with C</home/stas>.  I use Perl of course!
 
-  % perl -pi -e 's|/usr/src|/home/stas|' /home/stas/.cpan/CPAN/MyConfig.pm
+  % perl -pi -e 's|/usr/src|/home/stas|' \
+  /home/stas/.cpan/CPAN/MyConfig.pm
 
 Now you have the local configuration file ready, you have to tell it
 what special parameters you need to pass when executing the C<perl
@@ -2718,17 +2720,18 @@ as we saw in the previous section use C<APACI_ARGS>.  For example:
     --logfiledir=/home/stas/apache/var/logs, \
     --proxycachedir=/home/stas/apache/var/proxy'
 
-Note that the above multiline splitting will work only with C<bash>,
-C<tcsh> users will have to list all the parameters on a single line.
+Note that the above multiline splitting will work only with
+C<(ba)?sh>, C<t?csh> users will have to list all the parameters on a
+single line.
 
 Basically the installation is complete.  The only remaining problem is
 the C<@INC> variable.  This won't be correctly set if you rely on the
 C<PERL5LIB> environment variable unless you set it explicitly in a
-startup file which is C<require>'d before loading any other module that
-resides in your local repository.  A much nicer approach is to use the
-C<lib> pragma as we saw before, but in a slightly different way - we
-use it in the startup file and it affects all the code that will be
-executed under mod_perl handlers.  For example:
+startup file which is C<require>'d before loading any other module
+that resides in your local repository.  A much nicer approach is to
+use the C<lib> pragma as we saw before, but in a slightly different
+way--we use it in the startup file and it affects all the code that
+will be executed under mod_perl handlers.  For example:
 
   PerlRequire /home/stas/apache/perl/startup.pl
 
@@ -2749,9 +2752,11 @@ mod_perl|porting/_INC_and_mod_perl>' for more information.
 The only place you can alter the "original" value is during the server
 configuration stage either in the startup file or by putting
 
-  PerlSetEnv Perl5LIB /home/stas/lib/perl5/5.00503/:/home/stas/lib/perl5/site_perl/5.005
+  PerlSetEnv Perl5LIB \
+  /home/stas/lib/perl5/5.00503/:/home/stas/lib/perl5/site_perl/5.005
 
-in I<httpd.conf>.
+in I<httpd.conf>, but the latter setting will be ignored if you use
+the C<PerlTaintcheck> setting, and I hope you do use it.
 
 The rest of the mod_perl configuration and use is just the same as if
 you were installing mod_perl as superuser.
@@ -2886,8 +2891,8 @@ C<makepl_arg>.
   cpan> o conf makepl_arg PREFIX=/home/stas
 
 Not so neat, but a working solution.  You could have written the value
-on a piece of paper instead of saving it to makepl_arg.save, but you
-are more likely to make a mistake that way.
+on a piece of paper instead of saving it to C<makepl_arg.save>, but
+you are more likely to make a mistake that way.
 
 
 

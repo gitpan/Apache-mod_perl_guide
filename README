@@ -2,13 +2,13 @@ NAME
     mod_perl_guide - The mod_perl Guide
 
 SYNOPSIS
-    Use your favorite Netscape Browser to read the guide after
-    installing the package.
+    Use your favorite Netscape Browser to read the guide after installing
+    the package.
 
 DESCRIPTION
-    This is an HTML version of the mod_perl guide. You can also see
-    the online version at http://perl.apache.org/guide . This
-    include the PDF version as well.
+    This is an HTML version of the mod_perl guide. You can also see the
+    online version at http://perl.apache.org/guide . This include the PDF
+    version as well.
 
     mod_perl project's home page: http://perl.apache.org
 
@@ -19,14 +19,13 @@ INSTALLATION
       make install
 
 CORRECTIONS
-    Corrections and suggestions are welcome. If you submit patches,
-    please do that against the POD source files in the *src*
-    directory. Please take the POD file, edit it and send it to me.
+    Corrections and suggestions are welcome. If you submit patches, please
+    do that against the POD source files in the *src* directory. Please take
+    the POD file, edit it and send it to me.
 
-    This package doesn't include the up-to-date POD sources, since
-    they get modified all the time. Please download the latest
-    sources CVS snapshot from http://www.stason.org/guide-snapshots/
-    .
+    This package doesn't include the up-to-date POD sources, since they get
+    modified all the time. Please download the latest sources CVS snapshot
+    from http://www.stason.org/guide-snapshots/ .
 
     Thank you!
 

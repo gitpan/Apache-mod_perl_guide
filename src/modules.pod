@@ -2,10 +2,10 @@
 
 =head1 Apache::Session - Maintain session state across HTTP requests
 
-This module provides the Apache/mod_perl user a mechanism for storing
-persistent user data in a global hash, which is independent of its
-real storage mechanism.  Currently you can choose from these storage
-mechanisms C<Apache::Session::DBI>, C<Apache::Session::Win32>,
+This module provides the Apache/mod_perl user with a mechanism for
+storing persistent user data in a global hash, which is independent of
+the underlying storage mechanism.  Currently you can choose from these
+storage mechanisms C<Apache::Session::DBI>, C<Apache::Session::Win32>,
 C<Apache::Session::File>, C<Apache::Session::IPC>.  Read the man page
 of the mechanism you want to use for a complete reference.
 
@@ -59,16 +59,15 @@ example which uses cookies to track the user's session.
   $r->header_out("Set-Cookie" => $session_cookie);
 
 After setting this up, you can stick anything you want into %session
-(except file handles), and it will still be there when the user invokes
-the next page.
+(except file handles and code references), and it will still be there
+when the user invokes the next page.
 
-It is possible to write an Apache authen handler using
+It is possible to write an Apache authentication handler using
 C<Apache::Session>.  You can put your authentication token into the
 session.  When a user invokes a page, you open their session, check to
-see if they have a valid token, and approve or deny their
-authorization based on that.
+see if they have a valid token, and authenticate or forbid based on that.
 
-As for IIS, let's compare.  IIS's sessions are only valid on the
+By way of comparison note that IIS's sessions are only valid on the
 same web server as the one that issued the session.
 C<Apache::Session>'s session objects can be shared amongst a farm of
 many machines running different operating systems, including even
@@ -107,8 +106,8 @@ This module monitors hanging Apache/mod_perl processes.  You define the
 time in seconds after which the process is to be counted as I<hanging> or
 I<run away>.
 
-When the process is considered as I<hanging> it will be killed and the
-event logged into a log file.
+When the process is considered to be I<hanging> it will be killed and the
+event logged in a log file.
 
 Generally you should use the C<amprapmon> program that is bundled with
 this module's distribution package, but you can write your own code
@@ -180,7 +179,7 @@ machine.
   $Apache::VMonitor::PROC_REGEX = join "\|", qw(httpd mysql squid);
 
 
-More information available in the module's extensive manpage.
+More information is available in the module's extensive manpage.
 
 It requires C<Apache::Scoreboard> and C<GTop> to work.  C<GTop> in
 turn requires the C<libgtop> library but is not available for all
@@ -199,72 +198,10 @@ too large or if they share too little of their memory.  You can
 choose to set up the process size limiter to check the process 
 size on every request:
 
-    # in your startup.pl:
-    use Apache::GTopLimit;
-  
-    # Control the life based on memory size
-    # in KB, so this is 10MB
-    $Apache::GTopLimit::MAX_PROCESS_SIZE = 10000;
-  
-    # Control the life based on Shared memory size
-    # in KB, so this is 4MB
-    $Apache::GTopLimit::MIN_PROCESS_SHARED_SIZE = 4000;
-  
-    # watch what happens  
-    $Apache::GTopLimit::DEBUG = 1;
-  
-    # in your httpd.conf:   
-    PerlFixupHandler Apache::GTopLimit
-    # you can set this up as any Perl*Handler that handles
-    # part of the request, even the LogHandler will do.
-
-Or you can just check those requests that are likely to get big or
-unshared.  This way of checking is also easier for those who are
-mostly just running Apache::Registry scripts:
-
-    # in your CGI:
-    use Apache::GTopLimit;  
-      # Max Process Size in KB
-    Apache::GTopLimit->set_max_size(10000);
-
-and/or:
-
-    use Apache::GTopLimit;
-       # Min Shared process Size in KB
-    Apache::GTopLimit->set_min_shared_size(4000);
-
-Since accessing the process info might add a little overhead, you may
-want to only check the process size every N times.  To do so, put this
-in your I<startup.pl> or your code:
-
-    $Apache::GTopLimit::CHECK_EVERY_N_REQUESTS = 2;
-
-This will only check the process size every other time the process size
-checker is called.
-
-This module was written in response to questions on the mod_perl mailing
-list on how to tell the httpd process to exit if:
-
-=over 4
-
-=item *
-
-its memory size goes beyond a specified limit
-
-=item *
-
-its shared memory size goes below a specified limit
-
-=back
-
-Note: This module will run on platforms supported by B<GTop.pm> a Perl
-interface to libgtop (which of course needs B<libgtop> : See
-http://home-of-linux.org/gnome/libgtop/ ).
-
-Referer to the C<Apache::GTopLimit> manpage for more information.
-
-
-
+The module is thoroughly explained in the sections: "L<Keeping the
+Shared Memory Limit|performance/Keeping_the_Shared_Memory_Limit>" and
+"L<Limiting the Size of the
+Processes|performance/Limiting_the_Size_of_the_Process>"
 
 
 =head1 Apache::Request (libapreq) - Generic Apache Request Library
@@ -272,11 +209,15 @@ Referer to the C<Apache::GTopLimit> manpage for more information.
 This package contains modules for manipulating client request data via
 the Apache API with Perl and C.  Functionality includes:
 
-- parsing of application/x-www-form-urlencoded data
+=over
 
-- parsing of multipart/form-data
+=item parsing of application/x-www-form-urlencoded data
 
-- parsing of HTTP Cookies
+=item parsing of multipart/form-data
+
+=item parsing of HTTP Cookies
+
+=back
 
 The Perl modules are simply a thin xs layer on top of libapreq, making
 them a lighter and faster alternative to CGI.pm and CGI::Cookie.  See
@@ -297,7 +238,7 @@ C<Apache::RequestNotes> provides a simple interface allowing all
 phases of the request cycle access to cookie or form input parameters
 in a consistent manner.  Behind the scenes, it uses libapreq
 L<Apache::Request|modules/Apache_Request_libapreq_Gen>>) functions to
-parse request data and puts references to the data in pnotes.
+parse request data and puts references to the data in C<pnotes()>.
 
 Once the request is past the PerlInit phase, all other phases can have
 access to form input and cookie data without parsing it themselves.
@@ -323,7 +264,7 @@ look|porting/Apache_PerlRun_a_closer_look>.
 =head1 Apache::RegistryNG -- Apache::Registry New Generation
 
 C<Apache::RegistryNG> is the same as C<Apache::Registry>, aside from
-using filename instead of URI for the namespace.  It also uses an Object 
+using filenames instead of URIs for namespaces.  It also uses an Object 
 Oriented interface.
 
   PerlModule Apache::RegistryNG
@@ -435,9 +376,9 @@ compress the output on the fly.)
 Have you ever served a huge HTML file (e.g. a file bloated with
 JavaScript code) and wondered how could you send it compressed, thus
 dramatically cutting down the download times?  After all java applets
-can be compressed into a jar and benefit from a faster download
-times.  Why can't we do the same with a plain ASCII (HTML, JS etc.)?
-ASCII text can often be compressed by a factor of 10. 
+can be compressed into a jar and benefit from faster download times.
+Why can't we do the same with plain ASCII (HTML, JS etc.)?  ASCII text
+can often be compressed by a factor of 10.
 
 C<Apache::GzipChain> comes to help you with this task.  If a client
 (browser) understands C<gzip> encoding, this module compresses the
@@ -452,12 +393,12 @@ For example to compress all html files on the fly, do this:
   </Files>
 
 Remember that it will work only if the browser claims to accept
-compressed input, by setting the C<Accept-Encoding> header.  
-C<Apache::GzipChain> keeps a list of user-agents, thus it also 
-looks at the C<User-Agent> header to check for browsers known to 
-accept compressed output.
+compressed input, by setting the C<Accept-Encoding> header.
+C<Apache::GzipChain> keeps a list of user-agents, thus it also looks
+at the C<User-Agent> header to check for browsers known to accept
+compressed output.
 
-For example if you want to return compressed files which will in 
+For example if you want to return compressed files which will in
 addition pass through the Embperl module, you would write:
 
   <Location /test>
@@ -466,13 +407,14 @@ addition pass through the Embperl module, you would write:
   </Location>
 
 Hint: Watch the C<access_log> file to see how many bytes were actually
-sent, and compare that with the bytes sent using a regular configuration.
+sent, and compare that with the bytes sent using a regular
+configuration.
 
 (See also C<perldoc Apache::GzipChain>).
 
-Notice that the rightmost PerlHandler must be a content producer.  Here
-we are using C<Apache::PassFile> but you can use any module which creates
-output.
+Notice that the rightmost PerlHandler must be a content producer.
+Here we are using C<Apache::PassFile> but you can use any module which
+creates output.
 
 
 
@@ -511,7 +453,7 @@ And this one:
 Will compess the output of the C<Apache::Registry> scripts. Yes, you
 should write C<Apache::RegistryFilter> and not C<Apache::Registry>.
 
-You can put as many filters as you want:
+You can use as many filters as you want:
 
   PerlModule Apache::Filter
   <Files ~ "*\.blah">
@@ -521,7 +463,7 @@ You can put as many filters as you want:
   </Files>
 
 You can test that it works by either looking at the size of the
-respond at I<access.log> or by telnet:
+response in the I<access.log> or by telnet:
 
   telnet localhost 8000
   Trying 127.0.0.1
@@ -532,9 +474,6 @@ respond at I<access.log> or by telnet:
   User-Agent: Mozilla
 
 And you will get the data compressed if configured correctly.
-
-META: what the full mime type for gzip?
-
 
 
 =head1 Apache::PerlVINC - set a different @INC perl-location 
@@ -551,8 +490,8 @@ C<@INC>, and reload the file with C<require()>:
     SetHandler perl-script
     PerlHandler Apache::Status
   
-    PerlINC /home/dougm/dev/modperl/lib
     PerlVersionINC On
+    PerlINC /home/dougm/dev/modperl/lib
     PerlFixupHandler Apache::PerlVINC
     PerlRequire Apache/Status.pm
   </Location>
@@ -561,11 +500,15 @@ C<@INC>, and reload the file with C<require()>:
     SetHandler perl-script
     PerlHandler Apache::Status
   
-    PerlINC /home/other/current/modperl/lib
     PerlVersionINC On
+    PerlINC /home/other/current/modperl/lib
     PerlFixupHandler Apache::PerlVINC
     PerlRequire Apache/Status.pm
   </Location>
+
+C<PerlVersionINC On> must come before the C<PerlINC>
+statement. C<PerlINC> wont store that path unless C<PerlVersionINC> is
+On.
 
 It's important to be aware that a changed C<@INC> is effective only
 inside the C<E<lt>LocationE<gt>> or a similar configuration directive.
@@ -578,10 +521,6 @@ To address possible issues of namespace clashes during reload, the
 handler could call C<$r-E<gt>child_terminate()> so the next server to
 load the different versions will have a fresh namespace.  This is not 
 a good idea in a high load environment, of course.
-
-If you can't find it on CPAN, get it at:
-http://perl.apache.org/~dougm/Apache-PerlVINC-0.01.tar.gz
-
 
 =head1 Apache::LogSTDERR
 

@@ -248,13 +248,22 @@ declaration of the C<handler> subroutine. If you put your code into a
 library or module, which the main script require()'s or use()'s, this
 effect doesn't occur.
 
-For example if we put the subroutine C<increment_counter()> into
-C<mylib.pl>, save it in the same directory as the main script and
-require() it, there will be no problem at all. (Don't forget the C<1;>
-at the end of the library or the require() might fail.)
+For example if we move wrap the code from the script into the
+subroutine I<thecode>, place the both subroutines into the the
+I<mylib.pl> file, save it in the same directory as the script itself
+and require() it, there will be no problem at all. (Don't forget the
+C<1;> at the end of the library or the require() might fail.)
 
   mylib.pl:
   ---------
+  my $counter;
+  sub run{
+    print "Content-type: text/plain\r\n\r\n";
+    $counter = 0;
+    for (1..5) {
+      increment_counter();
+    }
+  }
   sub increment_counter{
     $counter++;
     print "Counter is equal to $counter !\r\n";
@@ -263,32 +272,31 @@ at the end of the library or the require() might fail.)
 
   counter.pl:
   ----------
-  #!/usr/bin/perl -w
-  
   use strict;
   require "./mylib.pl";
-  
-  print "Content-type: text/plain\r\n\r\n";
-  
-  my $counter = 0;
-  
-  for (1..5) {
-    increment_counter();
-  }
+  run();
 
-Unless the script is very short, I tend to write all the
-code in external libraries, and to have only a few lines in the main
-script.  Generally the main script simply calls the main function of
-my library. Usually I call it C<init()>. I don't worry about nested
-subroutine effects anymore (unless I create them myself :).
+This solution provides the easiest and the fastest way to solve the
+nested subroutines problem, since all you have to do is to move the
+code into a separate file, by first wrapping the initial code into
+some function that you later will call from the script and keeping the
+lexically scoped variables that could cause the problem out of this
+function.
+
+But as a general rule of thumb, unless the script is very short, I
+tend to write all the code in external libraries, and to have only a
+few lines in the main script.  Generally the main script simply calls
+the main function of my library.  Usually I call it C<init()> or
+C<run()>.  I don't worry about nested subroutine effects anymore
+(unless I create them myself :).
 
 The section 'L<Remedies for Inner
-Subroutines|perl/Remedies_for_Inner_Subroutines>' discusses other
-possible workarounds for this problem.
+Subroutines|perl/Remedies_for_Inner_Subroutines>' discusses 
+many other possible workarounds for this problem.
 
 You shouldn't be intimidated by this issue at all, since Perl is your
-friend. Just keep the warnings mode B<On> and Perl will gladly tell you
-whenever you have this effect, by saying:
+friend. Just keep the warnings mode B<On> and Perl will gladly tell
+you whenever you have this effect, by saying:
 
   Variable "$counter" will not stay shared at ...[snipped]
 
@@ -575,7 +583,7 @@ or
   PerlSetEnv PERL5LIB /home/httpd/perl:/home/httpd/mymodules
 
 Note that this setting will be ignored if you have the
-C<PerlTaintMode> mode turned on.
+C<PerlTaintCheck> mode turned on.
 
 =item * 
 
@@ -627,7 +635,7 @@ about.  If, however, you are developing a script that includes other
 modules, the files you use() or require() aren't checked for
 modification and you need to do something about that.
 
-So how do we get our modperl-enabled server to recognize changes in
+So how do we get our mod_perl-enabled server to recognize changes in
 library modules?  Well, there are a couple of techniques:
 
 =head2 Restarting the server
@@ -1070,7 +1078,7 @@ of some source (for which the token is called the "patch pumpkin").
   
   print $q->header(-type=>'text/html');
   print $q->p(qq{$fname $lname holds the patch pumpkin
-               for this perl release.});
+               for this Perl release.});
 
 The script has a hardcoded value for the name. It's very simple:
 initialize the CGI object, print the proper HTTP header and tell the
@@ -1199,7 +1207,7 @@ A sample script using the presented subroutine would be:
   my $config_file = "./config.pl";
   reread_conf($config_file);
   print $q->p(qq{$fname $lname holds the patch pumpkin
-               for this perl release.});
+               for this Perl release.});
   
   sub reread_conf{
     my $file = shift;
@@ -2010,10 +2018,12 @@ S<(" " x 80)> for right-justifying.
 
 =head1 Terminating requests and processes, the exit() and child_terminate() functions
 
-Perl's C<exit()> built-in function cannot be used in mod_perl
-scripts. Calling it causes the mod_perl process to exit (which defeats
-the purpose of using mod_perl). The C<Apache::exit()> function should
-be used instead.
+Perl's C<exit()> built-in function (all versions prior to 5.6) cannot
+be used in mod_perl scripts.  Calling it causes the mod_perl process
+to exit (which defeats the purpose of using mod_perl).  The
+C<Apache::exit()> function should be used instead.  Starting from Perl
+version 5.6 mod_perl will override exit() behind the scenes, using
+C<CORE::GLOBAL::>, a new I<magical> package.
 
 You might start your scripts by overriding the exit() subroutine (if
 you use C<Apache::exit()> directly, you will have a problem testing
@@ -2870,7 +2880,7 @@ time.  And, of course, clean scripts will still run under mod_cgi
 
 =head1 Passing ENV variables to CGI
 
-META: you have a duplication with config.pod here.
+META: there is a duplication with config.pod here.
 
 To pass an environment variable from a configuration file, add to it:
 
@@ -3264,9 +3274,9 @@ This is the original script's code we are going to work with:
   sub print_header{
       # prepare a cooke
     my $c = CGI::Cookie->new
-      (-name    => 'sessionID',
-       -value   => $sessionID,
-       -expires => '+1h');
+      ('-name'    => 'sessionID',
+       '-value'   => $sessionID,
+       '-expires' => '+1h');
     
     print $q->header
       (-type   => 'text/html',

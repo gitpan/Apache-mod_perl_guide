@@ -115,7 +115,7 @@ restart to get completed and there is no real service at this time.
 
 By default, if a server is restarted (using C<kill -USR1 `cat
 logs/httpd.pid`> or with the C<HUP> signal), Perl scripts and modules
-are not reloaded.  To reload C<PerlRequire>'s, C<PerlModule>'s, other
+are not reloaded.  To reload C<PerlRequire>s, C<PerlModule>s, other
 C<use()>'d modules and flush the C<Apache::Registry> cache, use 
 this directive in I<httpd.conf>:
 
@@ -129,7 +129,7 @@ PerlFreshRestart|troubleshooting/Evil_things_might_happen_when_us>.
 
 We've already mentioned that restart or termination can sometimes take
 quite a long time, (e.g. tens of seconds), for a mod_perl server.  The
-reason for that is a call to the perl_destruct() Perl API function
+reason for that is a call to the C<perl_destruct()> Perl API function
 during the child exit phase.  This will cause proper execution of
 C<END> blocks found during server startup and will invoke the
 C<DESTROY> method on global objects which are still alive.
@@ -163,7 +163,7 @@ ordinary file isn't.
 =head1 Using apachectl to Control the Server
 
 The Apache distribution comes with a script to control the server.
-It's called I<apachectl> and it is installed into the same location as
+It's called C<apachectl> and it is installed into the same location as
 the httpd executable.  We will assume for the sake of our examples
 that it's in C</usr/local/sbin/httpd_perl/apachectl>:
 
@@ -509,7 +509,7 @@ especially in the mod_perl case, where many Perl modules are loaded at
 the server startup.
 
 By the way, don't let all this setuid stuff to confuse you -- when the
-parent process is loaded, the childred processes are spawned as
+parent process is loaded, the children processes are spawned as
 non-root processes. This section has presented a way to allow non-root
 users to start the server as root user, the rest is exactly the same
 as if you were executing the script as root in first place.
@@ -614,9 +614,9 @@ following setup:
   /etc/rc.d/init.d/httpd_docs
   /etc/rc.d/init.d/httpd_perl
   /etc/rc.d/rc3.d/S86httpd_docs -> ../init.d/httpd_docs
-  /etc/rc.d/rc3.d/S87httpd_perl -> ../init.d/httpd_perl
-  /etc/rc.d/rc6.d/K86httpd_docs -> ../init.d/httpd_docs
-  /etc/rc.d/rc6.d/K87httpd_perl -> ../init.d/httpd_perl
+  /etc/rc.d/rc3.d/S86httpd_perl -> ../init.d/httpd_perl
+  /etc/rc.d/rc6.d/K16httpd_docs -> ../init.d/httpd_docs
+  /etc/rc.d/rc6.d/K16httpd_perl -> ../init.d/httpd_perl
 
 The scripts themselves reside in the I</etc/rc.d/init.d> directory.
 There are symbolic links to these scripts in other directories. The
@@ -624,10 +624,25 @@ names are the same as the script names but they have numbers
 prepended, which are used for executing the scripts in a particular
 order: the lower numbers are executed earlier.
 
-Under RedHat Linux, when a machine is booted and its runlevel set to 3
-(multiuser+network), Linux goes into C</etc/rc.d/rc3.d/> and executes
-the scripts the symbolic links point to with the C<start> argument.
-When it sees I<S87httpd_perl>, it executes:
+When the system starts (level 3) we want the Apache to be started when
+almost all of the services are running already, therefore I've used
+I<S86>. For example if the mod_perl enabled Apache issues a
+C<connect_on_init()> the SQL server should be started before Apache.
+
+When the system shuts down (level 6), Apache should be stopped as one
+of the first processes, therefore I've used C<K16>. Again if the server
+does some cleanup processing during the shutdown event and requires
+third party services to be running (e.g. SQL server) it should be
+stopped before these services.
+
+Notice that it's normal for more than one symbolic link to have the
+same sequence number.
+
+Under RedHat Linux and similar systems, when a machine is booted and
+its runlevel set to 3 (multiuser + network), Linux goes into
+I</etc/rc.d/rc3.d/> and executes the scripts the symbolic links point
+to with the C<start> argument.  When it sees I<S86httpd_perl>, it
+executes:
 
   /etc/rc.d/init.d/httpd_perl start
 
@@ -640,11 +655,108 @@ called with the C<stop> argument, like this:
 Most systems have GUI utilites to automate the creation of symbolic
 links.  For example RedHat Linux includes the C<control-panel>
 utility, which amongst other things includes the C<RunLevel Manager>.
+(which can be invoked directly as either ntsysv(8) or tksysv(8)).
 This will help you to create the proper symbolic links.  Of course
 before you use it, you should put C<apachectl> or similar scripts into
 the I<init.d> or equivalent directory. Or you can have a symbolic link
 to some other location instead.
 
+The simplest approach is to use the chkconfig(8) utility which adds
+and removes the services for you. The following example shows how to
+add an I<httpd_perl> startup script to the system.
+
+First move or copy the file into the directory I</etc/rc.d/init.d>:
+
+  % mv httpd_perl /etc/rc.d/init.d
+
+Now open the script in your favorite editor and add the following
+lines after the main header of the script:
+
+  # Comments to support chkconfig on RedHat Linux
+  # chkconfig: 2345 86 16
+  # description: mod_perl enabled Apache Server
+
+So now the beginning of the script looks like:
+
+  #!/bin/sh
+  #
+  # Apache control script designed to allow an easy command line
+  # interface to controlling Apache.  Written by Marc Slemko,
+  # 1997/08/23
+  
+  # Comments to support chkconfig on RedHat Linux
+  # chkconfig: 2345 86 16
+  # description: mod_perl enabled Apache Server
+  
+  #
+  # The exit codes returned are:
+  # ...
+
+Adjust the line:
+
+  # chkconfig: 2345 86 16
+
+to your needs. The above setting says to says that the script should
+be started in levels 2, 3, 4, and 5, that its start priority should be
+86, and that its stop priority should be 16.
+
+Now all you have to do is to ask C<chkconfig> to configure the startup
+scripts. Before we do that let's look at what we have:
+
+  % find /etc/rc.d | grep httpd_perl
+  
+  /etc/rc.d/init.d/httpd_perl
+
+Which means that we only have the startup script itself. Now we
+execute:
+
+  % chkconfig --add httpd_perl
+
+and see what has changed:
+
+  % find /etc/rc.d | grep httpd_perl
+  
+  /etc/rc.d/init.d/httpd_perl
+  /etc/rc.d/rc0.d/K16httpd_perl
+  /etc/rc.d/rc1.d/K16httpd_perl
+  /etc/rc.d/rc2.d/S86httpd_perl
+  /etc/rc.d/rc3.d/S86httpd_perl
+  /etc/rc.d/rc4.d/S86httpd_perl
+  /etc/rc.d/rc5.d/S86httpd_perl
+  /etc/rc.d/rc6.d/K16httpd_perl
+
+As you can see C<chkconfig> created all the symbolic links for us,
+using the startup and shutdown priorities as specified in the line:
+
+  # chkconfig: 2345 86 16
+
+If for some reason you want to remove the service from the startup
+scripts, all you have to do is to tell C<chkconfig> to remove the
+links:
+
+  % chkconfig --del httpd_perl
+
+Now if we look at the files under the directory I</etc/rc.d/> we see
+again only the script itself.
+
+  % find /etc/rc.d | grep httpd_perl
+  
+  /etc/rc.d/init.d/httpd_perl
+
+Of course you may keep the startup script in any other directory as
+long as you can link to it. For example if you want to keep this file
+with all the Apache binaries in I</usr/local/apache/bin>, all you have
+to do is to provide a symbolic link to this file:
+
+  % ln -s /usr/local/apache/bin/apachectl /etc/rc.d/init.d/httpd_perl
+
+and then:
+
+  %  chkconfig --add httpd_perl
+
+Note that in case of using symlinks the link name in
+I</etc/rc.d/init.d> is what matters and not the name of the script the
+link points to.
 
 
 
@@ -702,15 +814,16 @@ The script:
     echo "$0 $ARG: httpd not running, trying to start"
     if $HTTPD ; then
       echo "$0 $ARG: httpd started"
-      mail $EMAIL -s "$0 $ARG: httpd started" </dev/null >& /dev/null
+      mail $EMAIL -s "$0 $ARG: httpd started" > /dev/null 2>&1
     else
       echo "$0 $ARG: httpd could not be started"
-      mail $EMAIL -s "$0 $ARG: httpd could not be started" </dev/null >& /dev/null
+      mail $EMAIL -s \
+      "$0 $ARG: httpd could not be started" > /dev/null 2>&1
     fi
   fi
 
 Another approach, probably even more practical, is to use the cool
-C<LWP> perl package to test the server by trying to fetch some
+C<LWP> Perl package to test the server by trying to fetch some
 document (script) served by the server.  Why is it more practical?
 Because while the server can be up as a process, it can be stuck and
 not working.  Failing to get the document will trigger restart, and
@@ -723,10 +836,9 @@ your disk space with multiple error messages filling the I<error_log>,
 in five minutes you might run out of free disk space which might bring
 your system to its knees.  Chances are that no other child will be
 able to serve requests, since the system will be too busy writing to
-the I<error_log> file.  Think big -- if you are running a heavy
-service (which is very fast since you are running under mod_perl)
-adding one more request every minute will not be felt by the server at
-all.
+the I<error_log> file.  Think big--if you are running a heavy service
+(which is very fast since you are running under mod_perl) adding one
+more request every minute will not be felt by the server at all.
 
 So we end up with a crontab entry like this:
 
@@ -857,7 +969,7 @@ press the browser's I<STOP> button after a few seconds.
 In addition you should know that when running with C<-X> you will not
 see the control messages that the parent server normally writes to the
 I<error_log> (I<"server started">, I<"server stopped"> etc).  Since
-S<httpd -X> causes the server to handle all requests itself, without
+C<httpd -X> causes the server to handle all requests itself, without
 forking any children, there is no controlling parent to write the
 status messages.
 
@@ -874,7 +986,7 @@ have no problems, since you have complete control over the server.
 However, often you will have a group of developers who need to develop
 mod_perl scripts and modules concurrently.  This means that each
 developer will want to have control over the server - to kill it, to
-run it in single server mode, to restart it etc., as well as having
+run it in single server mode, to restart it, etc., as well as having
 control over the location of the log files, configuration settings
 like C<MaxClients>, and so on.
 
@@ -928,7 +1040,7 @@ Eric: "Stas, I'm going to restart the server".
 In the above technique, you need to discover the PID of your parent
 C<httpd_perl> process, which is written in
 C</usr/local/var/httpd_perl/run/httpd.pid.stas> (and the same for the
-user eric).  To make things even easier we change the I<apachectl>
+user I<eric>).  To make things even easier we change the I<apachectl>
 script to do the work for us.  We make a copy for each developer
 called B<apachectl.username> and we change two lines in each script:
 
@@ -936,7 +1048,7 @@ called B<apachectl.username> and we change two lines in each script:
   HTTPD='/usr/local/sbin/httpd_perl/httpd_perl -Dusername'
 
 So for the user I<stas> we prepare a startup script called
-B<apachectl.stas> and we change these two lines in the standard
+I<apachectl.stas> and we change these two lines in the standard
 apachectl script as it comes unmodified from Apache distribution.
 
   PIDFILE=/usr/local/var/httpd_perl/run/httpd.pid.stas
@@ -996,11 +1108,11 @@ server we have the following code:
 The IP addresses are the addresses of the developer desktop machines
 (where they are running their web browsers).  So if an html file
 includes a a relative URI I</perl/test.pl> or even
-http://www.example.com/perl/test.pl, clicking on the link will be
+I<http://www.example.com/perl/test.pl>, clicking on the link will be
 internally proxied to http://www.example.com:8000/perl/test.pl if the
-click has been made at the user stas's desktop machine, or to
-http://www.example.com:8001/perl/test.pl for a request generated from
-the user eric's machine, per our above URI rewrite example.
+click has been made at the user I<stas>'s desktop machine, or to
+I<http://www.example.com:8001/perl/test.pl> for a request generated
+from the user I<eric>'s machine, per our above URI rewrite example.
 
 Another possibility is to use C<REMOTE_USER> variable if all the
 developers are forced to authenticate themselves before they can
@@ -1011,7 +1123,7 @@ We wish to stress again, that the above setup will work only with
 relative URIs in the HTML code. If you choose to generate full URIs
 including non-80 port the requests originated from this HTML code will
 bypass the light server listenting to the default port 80, and go
-directly to the server:port of the full URI.
+directly to the I<server:port> of the full URI.
 
 
 
@@ -1055,8 +1167,8 @@ exact environment of the server, first deleting environment variables
 like C<PERL5LIB> and then calling the same perl binary that it is
 being used by the server.  Next, set the environment identical to the
 server's by copying the Perl run directives from the server startup
-and configuration files or even require()'ing the startup file, if it
-doesn't include C<Apache::> modules stuff, unavailable under shell.
+and configuration files or even I<require()>'ing the startup file, if
+it doesn't include C<Apache::> modules stuff, unavailable under shell.
 This will also allow you to remove completely the first line of the
 script, since mod_perl doesn't need it anyway and the wrapper knows
 how to call the script.
@@ -1189,7 +1301,8 @@ files:
   my $gzip_exec = "/usr/bin/gzip";
   
   my ($sec,$min,$hour,$mday,$mon,$year) = localtime(time);
-  my $time = sprintf "%0.4d.%0.2d.%0.2d-%0.2d.%0.2d.%0.2d", $year+1900,++$mon,$mday,$hour,$min,$sec;
+  my $time = sprintf "%0.4d.%0.2d.%0.2d-%0.2d.%0.2d.%0.2d",
+       $year+1900,++$mon,$mday,$hour,$min,$sec;
   $^I = ".$time";
   
   # rename log files
@@ -1330,7 +1443,7 @@ from the crontab, to handle the situations like this.  The cron job
 should run every few minutes or even every minute, since if you
 experience this problem you know that log files fills up very fast.
 The example script will rotate when the I<error_log> will grow over
-100K. Note that this script is usefull when you have the normal
+100K. Note that this script is useful when you have the normal
 scheduled log rotation facility working, remember that this one is an
 emergency solver and not to be used for routine log rotation.
 
@@ -1366,6 +1479,172 @@ this abnormal situation and restart the Apache server.
 
 
 
+=head1 Swapping Prevention
+
+Before I delve into swapping process details, let's refresh our
+knowledge of memory components and memory management
+
+The computer memory is called RAM, which stands for Random Access
+Memory.  Reading and writing to RAM is, by a few orders, faster than
+doing the same operations on a hard disk, the former uses non-movable
+memory cells, while the latter uses rotating magnetic media.
+
+On most operating systems swap memory is used as an extension for RAM
+and not as a duplication of it. So if your OS is one of those, if you
+have 128MB of RAM and 256MB swap partition, you have a total of 384MB
+of memory available. You should never count the extra memory when you
+decide on the maximum number of processes to be run, and I will show
+why in the moment.
+
+The swapping memory can be built of a number of hard disk partitions
+and swap files formatted to be used as swap memory. When you need more
+swap memory you can always extend it on demand as long as you have
+some free disk space (for more information see the I<mkswap> and
+I<swapon> manpages).
+
+System memory is quantified in units called memory pages. Usually the
+size of a memory page is between 1KB and 8KB.  So if you have 256MB of
+RAM installed on your machine and the page size is 4KB your system has
+64,000 main memory pages to work with and these pages are fast.  If
+you have 256MB swap partition the system can use yet another 64,000
+memory pages, but they are much slower.
+
+When the system is started all memory pages are available for use by
+the programs (processes).
+
+Unless the program is really small, the process running this program
+uses only a few segments of the program, each segment mapped onto its
+own memory page. Therefore only a few memory pages are required to be
+loaded into the memory.
+
+When the process needs an additional program's segment to be loaded
+into the memory, it asks the system whether the page containing this
+segment is already loaded in the memory. If the page is not found--an
+event know as a I<page fault> occurs, which requires the system to
+allocate a free memory page, go to the disk, read and load the
+requested program's segment into the allocated memory page.
+
+If a process needs to bring a new page into physical memory and there
+are no free physical pages available, the operating system must make
+room for this page by discarding another page from physical memory.
+
+If the page to be discarded from physical memory came from an image or
+data file and has not been written to then the page does not need to
+be saved. Instead it can be discarded and if the process needs that
+page again it can be brought back into memory from the image or data
+file.
+
+However, if the page has been modified, the operating system must
+preserve the contents of that page so that it can be accessed at a
+later time. This type of page is known as a I<dirty page> and when it
+is removed from memory it is saved in a special sort of file called
+the swap file. This process is referred to as a I<swapping out>.
+
+Accesses to the swap file are very long relative to the speed of the
+processor and physical memory and the operating system must juggle the
+need to write pages to disk with the need to retain them in memory to
+be used again.
+
+In order to improve the swapping out process, to decrease the
+possibility that the page that has just been swapped out, will be
+needed at the next moment, the LRU (least recently used) or a similar
+algorithm is used.
+
+To summarize the two swapping scenarios, read-only pages discarding
+incurs no overhead in contrast with the discarding scenario of the
+data pages that have been written to, since in the latter case the
+pages have to be written to a swap partition located on the slow disk.
+Therefore your machine's overall performance will be much better if
+there will be less memory pages that can become dirty.
+
+But the problem is, Perl is a language with no strong data types,
+which means that both the program code and the program data are seen
+as a data pages by OS since both mapped to the same memory
+pages. Therefore a big chunk of your Perl code becomes dirty when its
+variables are modified and when the pages need to be discarded they
+have to be written to the swap partition.
+
+This leads us to two important conclusions about swapping and Perl.
+
+=over 
+
+=item *
+
+Running your system when there is no free main memory available
+hinders performance, because processes memory pages should be
+discarded and then reread from disk again and again.
+
+=item *
+
+Since a majority of the running code is a Perl code, in addition to
+the overhead of reading the previously discarded pages in, the
+overhead of saving the dirty pages to the swap partition is occurring.
+
+=back
+
+When the system has to swap memory pages in and out, the system slows
+down, not serving the processes as fast as before. This leads to an
+accumulation of processes waiting for their turn to run, which further
+causes processing demands to go up, which in turn slows down the
+system even more as more memory is required.  This ever worsening
+spiral will lead the machine to halt, unless the resource demand
+suddenly drops down and allows the processes to catch up with their
+tasks and go back to normal memory usage.
+
+In addition it's important to know that for a better performance, most
+programs, particularly programs written in Perl, on most modern OSs
+don't return memory pages while they are running. If some of the
+memory gets freed it's reused when needed by the process, without
+creating the additional overhead of asking the system to allocate new
+memory pages.  That's why you will observe that Perl programs grow in
+size as they run and almost never shrink.
+
+When the process quits it returns its memory pages to the pool of
+freely available pages for other processes to use.
+
+This scenario is certainly educating, and it should be now obvious
+that your system that runs the web server should never swap. It's
+absolutely normal for your desktop to start swapping. You will see it
+immediately since things will slow down and sometimes the system will
+freeze for a short periods. But as I've just mentioned, you can stop
+starting new programs and can quit some, thus allowing the system to
+catch up with the load and come back to use the RAM.
+
+In the case of the web server you have much less control since it's
+users who load your machine by issuing requests to your server.
+Therefore you should configure the server, so that the maximum number
+of possible processes will be small enough using the C<MaxClients>
+directive (For the technique for choosing the right C<MaxClients>
+refer to the section 'L<Choosing
+MaxClients|performance/Choosing_MaxClients>'). This will ensure that 
+at peak hours the system won't swap. Remember that swap space is an
+emergency pool, not a resource to be used routinely.  If you are low
+on memory and you badly need it, buy it or reduce the number of
+processes to prevent swapping.
+
+However sometimes, due to the faulty code, some process might start
+spinning in an unconstrained loop, consuming all the available RAM and
+starting to heavily use swap memory. In such a situation it helps when
+you have a big emergency pool (i.e. lots of swap memory). But you have
+to resolve this problem as soon as possible since this pool won't last
+for a long time. In the meanwhile the C<Apache::Resource> module can
+be handy.
+
+Sometimes calling an undefined subroutine in a module can cause a
+tight loop that consumes all the available memory.  Here is a way to
+catch such errors.  Define an C<AUTOLOAD> subroutine:
+
+  sub UNIVERSAL::AUTOLOAD {
+    my $class = shift;
+    warn "$class can't \$UNIVERSAL::AUTOLOAD!\n";
+  }
+
+This will produce a nice error in I<error_log>, giving the line number
+of the call and the name of the undefined subroutine.
+
+For swapping monitoring techniques see the section 'L<Apache::VMonitor
+-- Visual System and Apache Server
+Monitor|debug/Apache_VMonitor_Visual_Syste>'.
 
 
 
@@ -1387,8 +1666,8 @@ catch such errors.  Define an autoload subroutine:
     warn "$class can't \$UNIVERSAL::AUTOLOAD!\n";
   }
 
-This will produce a nice error in error_log, giving the line number of
-the call and the name of the undefined subroutine.
+This will produce a nice error in I<error_log>, giving the line number
+of the call and the name of the undefined subroutine.
 
 
 =cut

@@ -889,7 +889,7 @@ and then submit it for your script to process.
     $counter = increment_counter($counter);
   
     sub increment_counter{
-      my $counter = shift || 0 ;
+      my $counter = shift;
   
       $counter++;
       print "Counter is equal to $counter !\n";
@@ -926,7 +926,7 @@ variables in a calling function.
     increment_counter(\$counter);
   
     sub increment_counter{
-      my $r_counter = shift || 0;
+      my $r_counter = shift;
   
       $$r_counter++;
       print "Counter is equal to $$r_counter !\n";
@@ -1055,10 +1055,11 @@ file.
 C<%INC> is another special Perl variable that is used to cache the
 names of the files and the modules that were successfully loaded and
 compiled by use(), require() or do() statements. Before attempting to
-load a file or a module, Perl checks whether it's already in the
-C<%INC> hash. If it's there, the loading and therefore the compilation
-are not performed at all. Otherwise the file is loaded into memory and
-an attempt is made to compile it.
+load a file or a module with use() or require(), Perl checks whether
+it's already in the C<%INC> hash. If it's there, the loading and
+therefore the compilation are not performed at all. Otherwise the file
+is loaded into memory and an attempt is made to compile it. do() does
+unconditional loading--no lookup in the C<%INC> hash is made.
 
 If the file is successfully loaded and compiled, a new key-value pair
 is added to C<%INC>. The key is the name of the file or module as it
@@ -1479,6 +1480,18 @@ evaluated.
 
 =head1 Using Global Variables and Sharing Them Between Modules/Packages
 
+It helps when you code your application in a structured way, using the
+perl packages, but as you probably know once you start using packages
+it's much harder to share the variables between the various
+packagings. A configuration package comes to mind as a good example of
+the package that will want its variables to be accessible from the
+other modules.
+
+Of course using the Object Oriented (OO) programming is the best way
+to provide an access to variables through the access methods. But if
+you are not yet ready for OO techniques you can still benefit from
+using the techniques we are going to talk about.
+
 =head2 Making Variables Global
 
 When you first wrote C<$x> in your code you created a (package) global
@@ -1529,7 +1542,6 @@ global.
   $q = CGI->new;
   
   My::HTML::printmyheader();
-  ----------------
 
 Note that we have imported C<$q> from C<My::HTML>. And C<My::HTML>
 does the export of C<$q>:
@@ -1555,7 +1567,6 @@ does the export of C<$q>:
     print $q->header();
   }
   1;
-  -------------------
 
 So the C<$q> is shared between the C<My::HTML> package and
 C<script.pl>. It will work vice versa as well, if you create the
@@ -1570,8 +1581,8 @@ You leave C<My::HTML> untouched, and modify I<script.pl> to include:
 
  use My::Doc qw($q);
 
-Then you write C<My::Doc> exactly like C<My::HTML> - except of course
-that the content is different :).
+Then you add the same C<Exporter> code that we used in C<My::HTML>,
+into C<My::Doc>, so that it also exports C<$q>.
 
 One possible pitfall is when you want to use C<My::Doc> in both
 C<My::HTML> and I<script.pl>. Only if you add
@@ -1591,7 +1602,6 @@ share C<$q> any more. To make things clear here is the code:
   $q = new CGI;
   
   My::HTML::printmyheader();
-  ----------------
 
 
   My/HTML.pm
@@ -1618,7 +1628,6 @@ share C<$q> any more. To make things clear here is the code:
     My::Doc::printtitle('Guide');
   }
   1;
-  -------------------
 
   My/Doc.pm
   ----------------
@@ -1642,7 +1651,6 @@ share C<$q> any more. To make things clear here is the code:
     print $q->h1($title);
   }
   1;
-  -------------------
 
 
 =head2 Using the Perl Aliasing Feature to Share Global Variables
@@ -1711,10 +1719,86 @@ Which is an error. But you can write:
 For more information about aliasing, refer to the Camel book, second
 edition, pages 51-52.
 
+=head2 Using Non-Hardcoded Configuration Module Names
 
+You have just seen how to use a configuration module for configuration
+centralization and an easy access to the information stored in this
+module. However, there is somewhat of a chicken-and-egg problem--how
+to let your other modules know the name of this file? Hardcoding the
+name is brittle--if you have only a single project it should be fine,
+but if you have more projects which use different configurations and
+you will want to reuse their code you will have to find all instances
+of the hardcoded name and replace it. 
 
+Another solution could be to have the same name for a configuration
+module, like C<My::Config> but putting a different copy of it into
+different locations. But this won't work under mod_perl because of the
+namespace collision. You cannot load different modules which uses the
+same name, only the first one will be loaded.
 
+Luckily, there is another solution which allows us to stay flexible.
+C<PerlSetVar> comes to rescue. Just like with environment variables,
+you can set server's global Perl variables which can be retrieved from
+any module and script. Those statements are placed into the
+I<httpd.conf> file. For example
 
+  PerlSetVar FooBaseDir       /home/httpd/foo
+  PerlSetVar FooConfigModule  Foo::Config
+
+Now we require() the file where the above configuration will be used.
+
+  PerlRequire /home/httpd/perl/startup.pl
+
+In the I<startup.pl> we might have the following code:
+
+    # retrieve the configuration module path
+  use Apache:
+  my $s             = Apache->server;
+  my $base_dir      = $s->dir_config('FooBaseDir')      || '';
+  my $config_module = $s->dir_config('FooConfigModule') || '';
+  die "FooBaseDir and FooConfigModule aren't set in httpd.conf" 
+    unless $base_dir and $config_module;
+  
+    # build the real path to the config module
+  my $path = "$base_dir/$config_module";
+  $path =~ s|::|/|;
+  $path .= ".pm";
+    # we have something like "/home/httpd/foo/Foo/Config.pm"
+  
+    # now we can pull in the configuration module
+  require $path;
+
+Now we know the module name and it's loaded, so for example if we need
+to use some variables stored in this module to open a database
+connection, we will do:
+
+  Apache::DBI->connect_on_init
+  ("DBI:mysql:${$config_module.'::DB_NAME'}::${$config_module.'::SERVER'}",
+   ${$config_module.'::USER'},
+   ${$config_module.'::USER_PASSWD'},
+   {
+    PrintError => 1, # warn() on errors
+    RaiseError => 0, # don't die on error
+    AutoCommit => 1, # commit executes immediately
+   }
+  );
+
+Where variable like:
+
+  ${$config_module.'::USER'}
+
+In our example are really:
+
+  $Foo::Config::USER
+
+If you want to access these variable from within your code at the run
+time, instead accessing to the server object C<$c>, use the request
+object C<$r>:
+
+  my $r = shift;
+  my $base_dir      = $r->dir_config('FooBaseDir')      || '';
+  my $config_module = $r->dir_config('FooConfigModule') || '';
+  
 
 
 =head1 The Scope of the Special Perl Variables

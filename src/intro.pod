@@ -682,11 +682,7 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Radu Greab
 
-=item * Radu Greab
-
 =item * Ralf Engelschall
-
-=item * Ralf S. Engelschall
 
 =item * Randal L. Schwartz
 
@@ -712,7 +708,7 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Sean Dague
 
-=item * Shane shane@isupportlive.com
+=item * Shane
 
 =item * Stephane Benoit
 

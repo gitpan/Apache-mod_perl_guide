@@ -1021,39 +1021,40 @@ As you have noticed, I still haven't explained why the process hanging
 in the C<while(1)> loop isn't aborted by Apache.  The next section
 covers this.
 
-
-
-
-
+META: add the note about using the 'curinfo' gdb macro to perform an
+easy detecting of the hanging location.
 
 
 =head1 Handling the 'User pressed Stop button' case
 
-When a user presses a B<STOP> or B<RELOAD> button, Apache could detect
-this via the C<SIGPIPE> signal (Broken pipe).  It could then halt the
-script execution and perform all the cleanup stuff it has to do.  But
-the C<SIGPIPE> will be triggered only when the process attempts to
-send some data to the client browser via the broken connection.  If
-the script is doing some lengthy operation, without writing anything
-to the client, it won't be stopped until that operation is completed
-and an attempt is made to send at least one character the client.
+When a user presses a B<STOP> or B<RELOAD> button, the current socket
+connection goes broken (aborted). It would be nice if Apache could
+always immediately detect this event. Unfortunately there is no way to
+tell whether the connection is still valid unless an attempt to read
+from or write to connection is made.
 
-Apache >= 1.3.6 does not catch SIGPIPE anymore, and modperl can do
+If the reading of the request's data is completed and the code does
+processing without writing anything back to the client the broken
+connection won't be noticed. When an attempt is made to send at least
+one character to the client, the broken connection would be noticed
+and the C<SIGPIPE> signal (Broken pipe) would be sent to the
+process. The program could then halt its execution and perform all the
+cleanup stuff it has to do.
+
+Apache >= 1.3.6 does not catch SIGPIPE anymore, and mod_perl can do
 the job much better.
 
-Since Apache version 1.3.6:
+Prior to Apache version 1.3.6, C<SIGPIPE> was handled by Apache.
+Currently Apache is not handling SIGPIPE anymore and mod_perl takes
+care of it. 
 
-=over
+Under mod_perl C<$r-E<gt>print> (or just print()) returns a I<true>
+value on success, a I<false> value on failure. The latter usually
+happens when the connection is broken.
 
-=item *
-
-C<$r-E<gt>print> returns I<true> on success, I<false> on failure
-(broken connection).
-
-=item *
-
-If you want a similar to the old C<SIGPIPE> behaviour, simply
-configure:
+If you want a similar to the old C<SIGPIPE> behaviour (as it was
+before Apache version 1.3.6), add the following configuration
+directive:
 
   PerlFixupHandler Apache::SIG
 
@@ -1064,17 +1065,18 @@ installs a different C<SIGPIPE> handler which rewinds the context to
 make sure Perl is back to normal state, preventing these bizarre
 errors.
 
-=back
-
-
+But in general case, you don't need to use the above setting.
 
 =head2 Detecting Aborted Connections
 
 Let's use the knowledge we have acquired to trace the execution of the
-code and see all the events as they happen.
+code and watch all the events as they happen. 
 
-Let's take a little script that obviously "hangs" the server:
+Let's take a little script that obviously I<"hangs"> the server
+process:
 
+  stopping_detector.pl
+  --------------------
   my $r = shift;
   $r->send_http_header('text/plain');
   
@@ -1088,36 +1090,40 @@ Let's take a little script that obviously "hangs" the server:
 
 The script gets a request object C<$r> by shift()ing it from the C<@_>
 argument list passed by the handler() subroutine.  (This magic is done
-by C<Apache::Registry>).  Then the script sends a I<Content-type>
-header, telling the client that we are going to send some plain text.
+by C<Apache::Registry>).  Then the script sends a C<Content-type>
+header, telling the client that we are going to send a plain text as a
+response.
 
-We print out a single line telling us the id of the process that
-handles this request, which we need to know in order to run the
-tracing utility.  Then we flush Apache's buffer.  (If we don't flush
-the buffer we will never see the line printed.  That's because our
-output is shorter than the buffer size and the script intentionally
-hangs, so the buffer won't be auto-flushed as the script hangs at the
-end.)
+Next the script prints out a single line telling us the id of the
+process that handles this request, which we need to know in order to
+run the tracing utility.  Then we flush Apache's buffer.  (If we don't
+flush the buffer we will never see this short information printed.
+That's because our output is shorter than the buffer size and the
+script intentionally hangs, so the buffer won't be auto-flushed as the
+script hangs at the end.)
 
-Then we enter an infinite loop, which just increments a dummy variable
-and sleeps for a second.
+Then we enter an infinite C<while(1)> loop, which just increments a
+dummy variable and sleeps for a second.
 
 Running C<strace -p PID>, where I<PID> is the process ID as printed to
 the browser, we see the following output printed every second:
 
   SYS_175(0, 0xbffff41c, 0xbffff39c, 0x8, 0) = 0
-  SYS_174(0x11, 0, 0xbffff1a0, 0x8, 0x11) = 0
-  SYS_175(0x2, 0xbffff39c, 0, 0x8, 0x2)   = 0
-  nanosleep(0xbffff308, 0xbffff308, 0x401a61b4, 0xbffff308, 0xbffff41c) = 0
-  time([941281947])                       = 941281947
-  time([941281947])                       = 941281947
+  SYS_174(0x11, 0, 0xbffff1a0, 0x8, 0x11)    = 0
+  SYS_175(0x2, 0xbffff39c, 0, 0x8, 0x2)      = 0
+  nanosleep(0xbffff308, 0xbffff308, 
+            0x401a61b4, 0xbffff308, 0xbffff41c) = 0
+  time([941281947])                     = 941281947
+  time([941281947])                     = 941281947
 
 Let's leave C<strace> running and press the B<STOP> button.  Did
-anything change?  No, the same trace printed every second.  Which
-means that Apache didn't detect the broken pipe.
+anything change?  No, the same system calls trace is printed every
+second.  Which means that Apache didn't detect the broken connection.
 
-Let's try to write a NULL C<\0> character to the client so the broken
-pipe will be detected as soon the B<Stop> button is pressed:
+Now we are going to write the C<\0> (NULL) character to the client in
+attempt to detect the broken connection as close as possible to the
+time the B<Stop> button is pressed at. Therefore we modify the loop
+code in the following way:
 
   while(1){
     $r->print("\0");
@@ -1127,12 +1133,20 @@ pipe will be detected as soon the B<Stop> button is pressed:
   }
 
 We add a print() statement to print a NULL character and then we check
-whether the connection was aborted. If it was, we break from the loop.
+whether the connection was aborted with help of the
+C<$r-E<gt>connection-E<gt>aborted> method. If the connection is
+broken, we break out of the loop.
 
 We run this script and strace on it as before, but we see that it
-still doesn't work.  The trouble is we aren't flushing the buffer.
-After printing the NULL, add $r->rflush():
+still doesn't work.  The trouble is we aren't flushing the buffer,
+which leaves the characters in the buffer and they won't be printed
+before the buffer will get full and will be autoflushed.  Since we
+want to attempt to write to the connection pipe all the time, after
+printing the NULL, we add $r->rflush(). Here is a new version of the
+code:
 
+  stopping_detector2.pl
+  ---------------------
   my $r = shift;
   $r->send_http_header('text/plain');
   
@@ -1149,8 +1163,9 @@ After printing the NULL, add $r->rflush():
     sleep 1;
   }
 
-Watch C<strace>'s output on the running process and then press the
-B<Stop> button, you will see:
+After starting the C<strace> utility on the running process as we did
+before and pressing the B<Stop> button, we have seen the following
+output.
 
   SYS_175(0, 0xbffff41c, 0xbffff39c, 0x8, 0) = 0
   SYS_174(0x11, 0, 0xbffff1a0, 0x8, 0x11) = 0
@@ -1179,8 +1194,7 @@ logging:
 
   write(17, "127.0.0.1 - - [30/Oct/1999:13:52"..., 81) = 81
 
-In the I<access_log> file we can see the file descriptor of the
-logfile in this process (17).
+where 17 is a file descriptor of the opened I<access_log> file
 
 Let's see how can we make the code more general-purpose:
 
@@ -1219,47 +1233,47 @@ If the server has noticed that the request was cancelled via a
 C<SIGPIPE>, then the log line will end with C<1>, otherwise it will
 just be a dash.
 
-
-
 =head2 The Importance of Cleanup Code
 
-This is a critical issue with aborted scripts.
+Cleanup code is a critical issue with aborted scripts.
 
-What happens to locked resources?  Will they be freed or not?  If not,
-scripts using these resources and the same locking scheme will hang,
-waiting for this resource to be freed.
+What happens to locked resources if there are any?  Will they be freed
+or not?  If not, scripts using these resources and the same locking
+scheme will hang, waiting for them to be freed.
 
-Under mod_cgi this was a problem only if you happened to use external
-lock files for lock indication, instead of using flock().  If the
-script was aborted between the lock and the unlock code, and you
+First let's go one step back and recall what are the problems and
+solutions for this issue under mod_cgi.
+
+Under mod_cgi the resource locking issue is a problem only if you
+happened to create external lock files and and use them for lock
+indication, instead of using flock().  If the script running under
+mod_cgi is aborted between the lock and the unlock code, and you
 didn't bother to write cleanup code to remove old dead locks then you
-were in big trouble.
+are in big trouble.
 
-With mod_cgi you can create an C<END> block, and put the cleanup code
-there:
+The solution is to use an C<END> block to place the cleanup code in:
 
-  END{
+  END {
     # some code that ensures that locks are removed
   }
 
 When the script is aborted, Apache will run the C<END> blocks.
 
 If you use C<flock()> things are much simpler, since all opened files
-will be closed.  When the file is closed, the lock is removed as well
-and all the locked resources will be freed.  There are systems where
-flock(2) is unavailable, and for those you can use Perl's emulation of
-this function.
+will be closed when the script exits.  When the file is closed, the
+lock is removed as well--all the locked resources get freed.  There
+are systems where flock(2) is unavailable, and for those you can use
+Perl's emulation of this function.
 
-With mod_perl things are more complex.  Because the processes don't
-exit after processing a request, files won't be closed unless you
-explicitly close() them or reopen with the open() call, which first
-closes a file.  Let's see what problems we might encounter, and
-possible solutions for them.
-
+With mod_perl things can be more complex when you use global variables
+as a filehandlers. Because the processes don't exit after processing a
+request, files won't be closed unless you explicitly close() them or
+reopen with the open() call, which first closes a file.  Let's see
+what problems we might encounter, and possible solutions for them.
 
 =head3 Critical Section
 
-First I want to make a little detour to discuss the I<"critical
+First we want to make a little detour to discuss the I<"critical
 section"> issue.
 
 Let's start with a resource locking scheme. A schematic representation of
@@ -1273,76 +1287,102 @@ a proper locking technique is as follows:
 
 If the locking is exclusive, only one process can hold the resource at
 any given time, which means that all the other processes will have to
-wait, and this code snippet becomes a so called bottleneck. That's why
-the section of the code where the resource is locked is called
-critical and you must make it as short as possible.
+wait, therefore the code between the locking and unlocking functions
+can become a service bottleneck. That's why this code section is
+called critical and once started it should be finished as soon as
+possible.
 
-In a shared locking scheme, where many processes can concurrently
-access the resource, if there are processes that sometimes want to get
-an exclusive lock it's also important to keep the critical section as
-short as possible.
+Even if you use a shared locking scheme, where many processes are
+allowed to concurrently access the resource, if there are processes
+that sometimes want to get an exclusive lock it's also important to
+keep the critical section as short as possible.
 
-The code below uses a shared lock, but has a poorly-designed critical
-section:
+The next example uses a shared lock, but has a poorly-designed
+critical section:
 
+  critical_section_sh.pl
+  -------------------
   use Fcntl qw(:flock);
   use Symbol;
   my $fh = gensym;
   
-  open $fh, "filename" or die "$!";
+  open $fh, "/tmp/foo" or die $!;
   flock $fh, LOCK_SH;
-  
     # start critical section
+  
   seek $fh, 0, 0;
   my @lines = <$fh>;
   for(@lines){
     print if /foo/;
   }
-    # end critical section
   
+    # end critical section
   close $fh; # close unlocks the file
 
-The code opens the file for reading, locks and rewinds to the start,
-reads all the lines from the file and prints out the lines that
-contain the string I<foo>.  Note that the file remains open and locked
-while the loop executes.
+The code opens the file for reading, locks and rewinds it to the
+beginning, reads all the lines from the file and prints out the lines
+that contain the string I<'foo'>.
+
+The C<gensym()> function imported by the C<Symbol> module creates an
+anonymous glob and returns a reference to it.  Such a glob reference
+can be used as a file or directory handle.  and therefore allows using
+lexically scoped variables as filehandlers. C<Fcntl> imports into the
+script's namespace file locking symbols like: C<LOCK_SH>, C<LOCK_EX>
+and more. Refer to the C<Fcntl> manpage for more information.
+
+If the file the script reads is big, it'd take a relatively long time
+for this code to complete. All this time the file remains open and
+locked. While it's other processes may access this file for reading
+(shared lock), the process that wants to modify the file (which
+requires an acquision of the exclusive lock), will be blocked waiting
+for this section to complete.
 
 We can optimize the critical section this way:
 
 Once the file has been read, we have all the information we need from
-it.  The loop might take some time to complete.  We don't need the
-file to be open while the loop executes, because we don't access it
-inside the loop.  If we close the file before we start the loop, we
-will allow other processes to have access to the file if they need it,
-instead of blocking them for no reason.
+it.  In order to make the example simpler we've chosen to just print
+out the matching lines. In reality the code might be much longer.
 
+We don't need the file to be open while the loop executes, because we
+don't access it inside the loop.  If we close the file before we start
+the loop, we will allow other processes to have an exclusive access to
+the file if they need it, instead of blocking them for no reason.
+
+In the following corrected version of the previous example, we only
+read the content of the file during the critical section and process
+it afterwards, without creating a possible bottleneck.
+
+  critical_section_sh2.pl
+  --------------------
   use Fcntl qw(:flock);
   use Symbol;
   my $fh = gensym;
   
-  open $fh, "filename" or die "$!";
+  open $fh, "/tmp/foo" or die $!;
   flock $fh, LOCK_SH;
-  
     # start critical section
+  
   seek $fh, 0, 0;
   my @lines = <$fh>;
-    # end critical section
   
+    # end critical section
   close $fh; # close unlocks the file
   
   for(@lines){
     print if /foo/;
   }
 
-This is another very similar script, but now using an exclusive lock.
-It reads in a file and writes it back, prepending a number of new text
-lines to the head of the file.
+Here is another similar example, but now it uses an exclusive lock.
+The script reads in a file and writes it back, prepending a number of
+new text lines to the head of the file.
 
+  critical_section_ex.pl
+  --------------------
   use Fcntl qw(:flock);
   use Symbol;
   my $fh = gensym;
   
-  open $fh, "+>>filename" or die "$!";
+  open $fh, "+>>/tmp/foo" or die $!;
   flock $fh, LOCK_EX;
   
     # start critical section
@@ -1363,38 +1403,36 @@ lines to the head of the file.
   
   close $fh; # close unlocks the file
 
-First let's see how the code works.  I will discuss why I use the
-C<Symbol> module to generate the file handles in the next
-section.
-
 Since we want to read the file, modify and write it back, without
 anyone else changing it on the way, we open it for read and write with
 the help of I<+E<gt>E<gt>> and lock it with an exclusive lock.  You
 cannot safely accomplish this task by opening the file first for read
 and then reopening for write, since another process might change the
-file between the two.  (You could get away with I<+E<lt>>, see
-I<perldoc -f open> or the I<perlfunc> manpage for more information
+file between the two events.  (You could get away with I<+E<lt>> as
+well, please refer to the I<perlfunc> manpage for more information
 about the open() function.)
 
-Next the code prepares the lines of text it wants to prepend to the
+Next, the code prepares the lines of text it wants to prepend to the
 head of the file, and assigns them and the content of the file to the
 C<@lines> array.  Now we have our data ready to be written back to the
 file, so we seek() to the start of the file and truncate() it to zero
 size.  In our example the file always grows, so in this case there is
 no need to truncate it, but if there was a chance that the file might
-shrink then truncating would be necessary.  However it's good practice to use
-truncate(), as you never know what changes your code might undergo in
-the future.  The truncate() operation does not carry any significant
-performance penalty.  Finally we write the data back to the file and
-close it, which unlocks it as well.
+shrink then truncating would be necessary.  However it's good practice
+to always use truncate(), as you never know what changes your code
+might undergo in the future.  The truncate() operation does not carry
+any significant performance penalty.  Finally we write the data back
+to the file and close it, which unlocks it as well.
 
 Did you notice that we created the text lines to be prepended as close
-to the place of usage as possible?  This is good "locality of code"
-style, but it makes the critical section longer.  In such cases you
-should sacrifice style, in order to make the critical section as short
-as possible.  An improved version of this script with a shorter
-critical section looks like this:
+to the place of usage as possible?  This complies with good
+I<"locality of code"> style, but it makes the critical section longer.
+In such cases you should sacrifice style, in order to make the
+critical section as short as possible.  An improved version of this
+script with a shorter critical section looks like this:
 
+  critical_section_ex2.pl
+  --------------------
   use Fcntl qw(:flock);
   use Symbol;
   
@@ -1407,68 +1445,71 @@ critical section looks like this:
     );
   
   my $fh = gensym;
-  open $fh, "+>>filename" or die "$!";
+  open $fh, "+>>/tmp/foo" or die $!;
   flock $fh, LOCK_EX;
-  
     # start critical section
+  
   seek $fh, 0, 0;
   push @lines, <$fh>;
   
   seek $fh, 0, 0;
   truncate $fh, 0;
   print $fh @lines;
-    # end critical section
   
+    # end critical section
   close $fh; # close unlocks the file
 
-There are two important differences.  Firstly, we prepare the text
-lines to be prepended I<before> the file is locked.  Secondly, instead
-of creating a new array and copying lines from one array to another,
-we append the file directly to the C<@lines> array.
+There are two important differences.  First, we prepare the text lines
+to be prepended I<before> the file is locked.  Second, instead of
+creating a new array and copying lines from one array to another, we
+append the file directly to the C<@lines> array.
 
 
-=head3 Safe Resource Locking
+=head3 Safe Resource Locking and Cleanup Code
 
 Let's get back to the main issue of this section, which is safe
 resource locking.
 
 Unless you use the C<Apache::PerlRun> handler that does the cleanup
 for you, if you don't make a habit of closing all the files that you
-open you will encounter lots of problems.  If you open a file but
-don't close it, you will have file descriptor leakage.  Since the
-number of file descriptors available to you is finite, at some point
-you will run out of them and your service will fail.
+open--in some cases you will encounter lots of problems.  If you open
+a file but don't close it, you may have file descriptor leakage.
+Since the number of file descriptors available to you is finite, at
+some point you may run out of them and your service will fail.  This
+is bad, but you can live with it until you run out of file descriptors
+(which will happen much faster on a heavily used server).
 
-This is bad, but you can live with it until you run out of file
-descriptors (which will happen much faster on a heavily used server).
+You can use system utilities to observe the opened and locked files,
+as well as the processes that has opened (and locked) the files.  On
+FreeBSD you would use the fstat(1) utility. On many other UN*X flavors
+the lsof(1) utility is available.
+
 But this is nothing compared to the trouble you will give yourself if
-you lock, but forget to unlock or close your locked files.  Since
-close() always unlocks the file, you don't have to unlock files
-explicitly.
-
-But a locked file will stay locked after your code has terminated!
-
-Any other process requesting a lock on the same file (or resource)
-will wait indefinitely for it to become unlocked.  Since this will not
-happen until the server reboots, all these processes will hang.
+the code terminates and the file stays locked.  Any other process
+requesting a lock on the same file (or resource) will wait
+indefinitely for it to become unlocked.  Since this will not happen
+until the server reboots, all these processes trying to use this
+resource will hang.
 
 Here is an example of such a terrible mistake:
 
+  flock.pl
+  --------
+  use Fcntl qw(:flock);
   open IN, "+>>filename" or die "$!";
   flock IN, LOCK_EX;
-  # do something
-  # quit without closing and unlocking the file
+    # do something
+    # quit without closing and unlocking the file
 
-Is this safe code?  No - we forgot to close the file.
+Is this safe code?  No - we forgot to close the file. So let's add the
+close():
 
-So let's add the close():
-
+  flock2.pl
+  ---------
+  use Fcntl qw(:flock);
   open IN, "+>>filename" or die "$!";
   flock IN, LOCK_EX;
-    # start critical section
-  # do something
-    # end critical section
-  # close and unlock the file
+    # do something
   close IN;
 
 Is it safe code now?  Unfortunately it is not.  There is a chance that
@@ -1477,381 +1518,92 @@ C<Stop> or C<Reload> buttons) during the critical section.  The script
 will be aborted before it has had a chance to close() the file, which
 is just as bad as if we forgot to close it.
 
-There are a few approaches we can take to solving this problem.  If
-you are running under C<Apache::Registry> and friends, the C<END>
-block will perform the cleanup work for you.  You might use C<END> in
-the same way for scripts running under mod_cgi, or in plain Perl
-scripts.  Just add the cleanup code to this block and you are safe.
-Since under mod_perl the C<END> blocks will not be executed after the
-completion of a request, but only when an Apache child process exits,
-then if you are writing your own handlers you will need to use the
-register_cleanup() function to supply cleanup code similar to that
-used in C<END> blocks instead of using C<END> blocks.  We will see a
-few examples later.
+In fact if the same process will run the same code again, an open()
+call will close the file first, which will unlock the resource. This
+is because C<IN> is a global variable.  But it's quite possible that
+the process that created the lock, will not serve the same request for
+a while, since it would be busy serving other requests. So relying on
+it to reopen the file is a bad idea.
 
-Of course, if the same child executes the same section of code of the
-same script, the open() call on the same file handle will first
-close() the file. But this will happen only if it's the same
-filehandle, which is correct if you use the scalar variable like
-C<IN>, C<OUT>. As you will see in a moment if you use C<Symbol> or
-<IO::*> modules, a unique filehandle will be generated every time --
-you get a file desriptor leakage and the file will be not unlocked in
-case it was locked.
+This problem happens B<only> if you use global variables as file
+handles. The following example has the same problem.
 
-On Linux OS you can use the lsof(1) utility to list open files and the
-processes who have opened them. On FreeBSD you would use the fstat(1)
-utility.
-
-Now I want to show you a much easier safe locking solution.
-
-Although it might not be obvious, the problem we have encountered is
-actually the fact that file handles like C<IN> are global variables.
-If we could make them lexically scoped, all our worries would go away.
-You know that lexically scoped (with the my() operand) variables 
-are
-automatically destroyed when they go out of scope.  When the program
-quits, all the lexical variables will be destroyed since they only have
-file scope.  When a variable holding an opened file descriptor is
-destroyed, the file will automatically be closed and unlocked.
-
-So if you use this technique to work with files, you even don't have
-to explicitly close the files!  (Of course if you recall the critical
-section discussion above, you will still want to make sure that you
-close them as soon as possible.)  In addition to the benefits of safe
-file handling, having the file handlers lexically scoped will protect
-you from names collisions.  If you use global file handles, e.g when
-you have to open more than one file, you always have to make sure you
-don't use the same filehandle name somewhere else in the code in case
-it might still be associated with an open file.  To emphasize the risk
-of collisions think of subroutine that opens a file for you:
-
-  sub open_file{
-    my $filename  = shift;
-    open FILE, ">$filename" or die "$!";
-    return \*FILE;
-  }
-
-  my $fh1 = open_file("/tmp/x");
-  my $fh2 = open_file("/tmp/y");
-  print $fh1 "X";
-  print $fh2 "Y";
-
-This code doesn't do what you think it should do.  Instead of writing
-the character C<X> to I</tmp/x> file and C<Y> to I</tmp/y>, what you
-see after running this script is that I</tmp/x> is empty and I</tmp/y>
-contains a C<XY> string.  Why is that?  Because you have used the same
-global variable C<FILE> twice, and when you called open_file() for a
-second time it opened a different file using the same variable.  Since
-open_file() always returns a reference to the same global file handle
-variable, both C<$fh1> and C<$fh2> point to it.
-
-There is another way.  As you saw earlier we can generate unique,
-lexically scoped file handles with the C<Symbol> module.
-
-C<Symbol::gensym()> creates an anonymous glob and returns a reference
-to it.  Such a glob reference can be used as a file or directory
-handle.  Here is how you can use it:
-
-  use Symbol;
-  my $fh = gensym;
+  flock3.pl
+  ---------
+  use Fcntl qw(:flock);
+  use Symbol ();
+  use vars qw($fh);
+  $fh = Symbol::gensym();
   open $fh, "+>>filename" or die "$!";
   flock $fh, LOCK_EX;
-  # do something
-
-Now the file will be always unlocked after processing the request.
-
-Instead of using close(), you might use a block:
-
-  use Symbol;
-  {
-    my $fh = gensym;
-    open $fh, "+>>filename" or die "$!";
-    flock $fh, LOCK_EX;
     # do something
-  }
-  # the file will be automatically closed and unlocked at this point
+  close $fh;
 
-But this is perhaps not so obvious to the reader of the code, so you
-might want to avoid this last technique and put in an explicit close().
+C<$fh> is still a global variable and therefore the code using it
+suffers from the same problem.
+
+The simplest solution to this problem is to always use lexically
+scoped variables (created with my()).  Whether script gets aborted
+before close() is called or you forgot the use close() the lexically
+scoped variable will always go out of scope and therefore if the file
+was locked it will be unlocked. Here is a good version of the code:
+
+  flock4.pl
+  ---------
+  use Fcntl qw(:flock);
+  use Symbol ();
+  my $fh = Symbol::gensym();
+  open $fh, "+>>filename" or die "$!";
+  flock $fh, LOCK_EX;
+    # do something
+  close $fh;
+
+Please don't conclude from this example that you don't have to close
+files anymore, since they will be automatically closed for you. It's a
+bad style and should be avoided.
+
+Under Perl version 5.6 C<Symbol.pm>-like functionality is a built-in
+feature, so you can do:
+
+  open my $fh, ">/tmp/foo" or die $!;
+
+and C<$fh> will be automatically vivified as a valid filehandle, so
+you don't need to use the C<Symbol> module anymore, if backward
+compatibility is not a requirement.
 
 You can also use the C<IO::*> modules, such as C<IO::File> or
 C<IO::Dir>.  These are much bigger than the <Symbol> module, and worth
 using for files or directories only if you are already using them for
 the other features which they provide.  As a matter of fact, these
-modules use the C<Symbol> module themselves.  Here are some examples of
-their use:
+modules use the C<Symbol> module themselves.  Here is an example of
+their usage:
 
   use IO::File;
-  my $fh = IO::File->new(">filename");
-  # the rest is as before
-
-and:
-
   use IO::Dir;
+  my $fh = IO::File->new(">filename");
   my $dh = IO::Dir->new("dirname");
 
-Under perl 5.6 C<Symbol.pm>-like functionality is a built-in feature,
-so you can do:
+If you still have to use global filehandles, there are a few
+approaches we can take to solving the locking problem.
 
-  open my $fh, "> filename";
+If you are running under C<Apache::Registry> and friends, the C<END>
+block will perform the cleanup work for you.  You might use C<END> in
+the same way for scripts running under mod_cgi, or in plain Perl
+scripts.  Just add the cleanup code to this block and you are safe.
 
-and C<$fh> will be automatically vivified as a valid filehandle, so
-you don't need to use the C<Symbol> module anymore.
-
-=head3 Cleanup Code
-
-Finally, let's look at the case where we need special clean up code.
-As you have seen, we solved the problem of accidentally leaving file
-handles lying around by lexically scoping them.  There are however,
-situations where you absolutely must write cleanup code.  A tied dbm
-file is a good example.
-
-A reminder: a dbm file is a simple database, which allows you to store
-pairs of keys and values in it.  As of this writing, Berkeley DB is
-the most advanced dbm implementation, it allows you to store key/value
-pairs using the HASH, BTREE and RECNO algorithms.  The C<BerkeleyDB>
-module provides a Perl interface to Berkeley DB versions 2 and 3,
-while the C<DB_File> module handles the older Berkeley DB, version 1.
-Refer to the C<DB_File> man page for more information.
-
-With the help of the TIE interface, working with dbm files is very
-simple because they are represented in Perl as simple hash variables.
-They behave almost exactly like hashes.
-
-In order to access a dbm file you have to tie it first:
-
-  use Fcntl qw(O_RDWR O_CREAT);
-  use DB_File;
-  my $filename = "/tmp/mydb";
-  my %hash;
-  tie %hash, 'DB_File', $filename, O_RDWR|O_CREAT, 0660, $DB_HASH
-     or die "Can't tie %hash : $!";
-
-The first argument to tie() is the hash variable to which we want the
-dbm file to be tied.  The remaining arguments are: the name of the
-module that provides the interface (C<DB_File> in this case); the name
-of our dbm file; Fcntl flags; file permissions; and finally the
-interface method to be used (DB_HASH, DB_BTREE or DB_RECNO).
-
-From now on we use C<%hash> to read from and write to the dbm file,
-like this:
-
-  $hash{foo} = "Larry Wall";
-  my $name = $hash{foo};
-
-The only wrinkle is that when we modify the hash (by assigning some
-values to it) the changes are not written immediately to the file.
-They are cached to improve performance.  The cache buffers are flushed
-in the following circumstances: when they become full; when the sync()
-method is called on the database handle; and when the hash is untied
-(closed).  So be aware that if the program quits abnormally, the dbm
-file might be corrupted.
-
-To untie the dbm file, simply call:
-
-  untie %hash;
-
-To gain the access to the sync() method, you should retrieve the
-database handle which is returned by the tie() method:
-
-  my $dbh = tie %hash, 'DB_File', $filename, O_RDWR|O_CREAT, 0660, $DB_HASH
-     or die "Can't tie %hash : $!";
-
-Now you can flush the cache with:
-
-  $hash{foo} = "Larry Wall";
-  $dbh->sync;
-
-Important: If you have saved a copy of the object returned from tie(),
-the underlying database file will not be closed until both the tied
-variable is untied and all copies of the saved object are destroyed.
-
-We do this as follows:
-
-  undef $dbh;
-  untie %hash;
-
-Of course, you have to lock the dbm file exactly like any other
-resource if some script modifies its contents.  Refer to L<Locking dbm
-handlers|dbm/Locking_dbm_handlers> for more information.
-
-Okay, enough introduction, let's get to the point.  Since both C<%hash>
-and C<$dbh> are lexically scoped variables, they will always be
-destroyed, even if you forgot to untie() them or if the request was
-aborted before the untie() function was called.
-
-Suppose that you want to have the benefit of mod_perl's persistent
-global variables in each process and to use this feature to create
-persistent dbm hashes.  You tie() them only once per Apache child
-process, thus saving the time which it would take to tie() and untie()
-them for each client request.  Assuming that you remember that you
-must flush the cache buffers (with the sync() method) when you modify
-the hash that represents the dbm file, the idea is a good one.  Let's
-code it...
-
-We declare C<$dbh> and C<%hash> as global variables, then pull in the
-C<Fcntl> module and import the symbols we are going to use.  Actually
-we need only C<LOCK_EX> from the tags provided by C<:flock>.  We pull
-in the C<DB_File> and C<Symbol> modules:
-
-  use strict;
-  use vars qw($dbh %hash);
-  use Fcntl qw(:flock O_RDWR O_CREAT);
-  use DB_File;
-  use Symbol;
-  
-  # Send the I<Content-type> header of plain text type and tell the
-  # user the PID of the process that's serving the request:
-  
-  my $r = shift;
-  $r->send_http_header('text/plain');
-  $r->print("PID $$\n");
-  
-  # The location of the dbm file and its lock file:
-  
-  my $filename = "/tmp/mydb";
-  my $lockfile = "$filename.lock";
-  
-  # Generate a unique anonymous glob, store it in a lexically scoped
-  # variable C<$fh>, and lock the file.  This in turn advisory locks
-  # the dbm file (which will be safely tied):
-  
-  my $fh = gensym;
-  open $fh, ">$lockfile" or die "Cannot open $lockfile: $!";
-  flock $fh, LOCK_EX;
-
-  # Other copies of this script which wish to access the following
-  # code have to acquire the lock file first.  Since it's an exclusive
-  # lock, only one copy of the script will be able to tie the dbm
-  # file.
-
-  $dbh ||= tie %hash, 'DB_File', $filename, O_RDWR|O_CREAT, 0660, $DB_HASH
-     or die "Can't tie %hash : $!";
-
-This code snippet demands some explanation.
-
-  $a ||= $b;
-
-is the same as:
-
-  $a = $a || $b;
-
-The boolean test C<||> (logical OR) doesn't care about undefined
-values, since C<undef> is C<false> in Perl.  So what it does is this:
-
-If C<$a> is I<true>, leave it unmodified.  Otherwise test C<$b>.
-
-If C<$b> I<true>, assign the value of C<$b> to C<$a>.
-
-If C<$b> is I<false>, C<$a> stays undefined.
-
-Note that 0 and C<""> (the empty string) are both I<defined>, but
-they are I<false> values!  Refer to the perlop(1) manpage for more
-information about the C<||> operator.
-
-Back to our tie() snippet.  For each mod_perl process, when this
-code is executed for the first time, the C<$dbh> variable is
-undefined.  Therefore the right-hand part of the statement will be
-executed, tie()ing the dbm file.  On every subsequent invocation of
-the code by that same process, C<$dbh> will contain a database
-handle.  This is considered by Perl to be a I<true> value, so the
-tie() call will not be executed, eliminating the overhead of the call
-to tie().
-
-Now we fill the dbm file with random key/value pairs.  Each
-invocation of the code will either generate a new key/value pair or,
-if an existing key is returned by rand(), override an old one.
-
-  $hash{int rand 10} = (qw(a b c d))[int rand 4];
-  $dbh->sync();
-
-The most important part of the code is to flush the modifications to
-the dbm.
-
-    # unlock the db
-  close $fh;
-
-Now it's safe to unlock the dbm file.  Please refer to L<Locking dbm
-handlers|dbm/Locking_dbm_handlers> to learn why you should use a dbm's
-file descriptor to lock itself.  To cut a long story short, if you
-don't you may corrupt your dbm file.
-
-After we leave the critical section, we can take our time and print out
-the current contents of the dbm file.
-
-  # print the contents of the the dbm file
-  print map {"$_ => $hash{$_}\n"} sort keys %hash;
-
-Here is the same code with fewer comments:
-
-  use strict;
-  use vars qw($dbh %hash);
-  use Fcntl qw(:flock O_RDWR O_CREAT);
-  use DB_File;
-  use Symbol;
-  
-  my $r = shift;
-  $r->send_http_header('text/plain');
-  $r->print("PID $$\n");
-  
-  my $filename = "/tmp/mydb";
-  my $lockfile = "$filename.lock";
-  
-  my $fh = gensym;
-  open $fh, ">$lockfile" or die "Cannot open $lockfile: $!";
-  
-    # must lock the db file before opening it
-  flock $fh, LOCK_EX;
-  
-  $dbh ||= tie %hash, 'DB_File', $filename, O_RDWR|O_CREAT, 0660, $DB_HASH
-     or die "Can't tie %hash : $!";
-  
-    # fill the dbmfile with random key/value pairs
-  $hash{int rand 10} = (qw(a b c d))[int rand 4];
-  
-    # sync the DB
-  $dbh->sync();
-  
-    # unlock the db
-  close $fh;
-  
-    # print the contents of the the dbm file
-  print map {"$_ => $hash{$_}\n"} sort keys %hash;
-
-Well, if you run this code, you pretty soon figure out that this code
-doesn't do what we thought it would.  What happens is that each
-process keeps its own copy of the C<%hash> and modifies it. When the
-process calls the sync() method, the dbm file is updated with the
-contents of the private C<%hash> of this process.  If a request
-happens to be served by a process that hasn't yet tie()d the C<%hash>,
-the dbm file will be initialized to the value of the C<%hash> used by
-the process that last called sync() on the dbm file.  But if it is
-handled by a process that has already tied the C<%hash>, it won't read
-the contents of the dbm file but will use its private value of the
-C<%hash> instead.
-
-In reality things are even more complicated.  The above scenario is
-true only when the hash file is smaller than the buffer size of the
-dbm file.  When it becomes bigger than the buffer, its contents are
-flushed.  When you do C<keys %hash>, all the keys will be brought from
-the dbm file which causes the process to read the values saved by the
-previous sync() calls and automatic flushes caused by buffer overflow.
-
-Which creates a whole big mess with the data and makes the whole idea is
-useless.
-
-But if you have followed me this far, let's see what else is wrong
-with this code.  It's the sync() call.  If the script somehow stops
-before sync() is called, the dbm will be unlocked because C<$fh>
-is lexically scoped.  But it won't be properly sync()ed, which at some
-point will corrupt the dbm file.
-
-The solution is simple.  Write an C<END> block to sync the file:
+For example if you work with dbm files just like with locking it's
+important to flush the dbm buffers, by calling a sync() method:
 
   END{
     # make sure that the DB is flushed
      $dbh->sync();
   }
+
+Normally the C<END> blocks will not be executed after the completion
+of a request, but only when an Apache child process exits, then if you
+are writing your own handlers you will need to use the
+register_cleanup() function to supply cleanup code similar to that
+used in C<END> blocks instead of using C<END> blocks.  
 
 Under mod_perl, the above will work only for C<Apache::Registry>
 scripts.  Otherwise execution of the C<END> block will be postponed
@@ -3663,7 +3415,7 @@ Now run the program:
   Program received signal SIGABRT, Aborted.
   0x400da4e1 in __kill () from /lib/libc.so.6
 
-At this point the server should die because of the call to dump().
+At this point the server should die because of the call to C<dump()>.
 When that happens we use C<bt> or C<where> to ask for a stack back
 trace.
 
@@ -3711,11 +3463,11 @@ We load the file and compile it:
   #6  0x807ef1c in perl_do_file ()
   #5  0x80d3a9c in perl_eval_sv ()
 
-dump() gets executed:
+C<dump()> gets executed:
 
   #3  0x8118990 in Perl_pp_dump ()
 
-dump() calls __kill():
+C<dump()> calls C<__kill()>:
 
   #0  0x400da4e1 in __kill () from /lib/libc.so.6
 
@@ -3785,7 +3537,7 @@ to produce a Perl stacktrace.
         Abort(coredump)
 
 
-META: should I move the Apache::StatINC here? (I think not, since it
+META: should I move the C<Apache::StatINC> here? (I think not, since it
 relates to other topics like reloading config files, but you should
 mention it here with a pointer to it)
 
@@ -4104,11 +3856,13 @@ way saves reallocation in v5.005 but may not do so in other versions.
 
 
 
-=head1 How can I find out if a mod_perl script has a memory leak
+=head1 How can I find out if a mod_perl code has a memory leak
 
-C<Apache::Leak> (derived from C<Devel::Leak>) should help you with
-this task.  Example:
+The C<Apache::Leak> module (derived from C<Devel::Leak>) should help
+you detecting the leakages in your code. For example:
 
+  leaktest.pl
+  -----------
   use Apache::Leak;
   
   my $global = "FooAAA";
@@ -4119,11 +3873,11 @@ this task.  Example:
   };
 
 The argument to C<leak_test()> is an anonymous sub, so you can just
-throw it any code you suspect might be leaking.  Beware, it
-will run the code twice!  The first time in, new C<SV>s are created,
-but does not mean you are leaking.  The second pass will give better
-evidence.  You do not need to be inside mod_perl to use it.  From the
-command line, the above script outputs:
+throw it any code you suspect might be leaking.  Beware, it will run
+the code twice!  The first time in, new C<SV>s are created, but does
+not mean you are leaking.  The second pass will give better evidence.
+You do not need to be inside mod_perl to use it.  From the command
+line, the above script outputs:
 
   ENTER: 1482 SVs
   new c28b8 : new c2918 : 
@@ -4139,9 +3893,10 @@ C<SUPPORT> doc for building C<libperld.a>.  When that is built, copy
 the C<perl> from that directory to your Perl bin directory, but name
 it C<dperl>.
 
-Leak explanation: C<$$global = 1;> : new global variable created
-C<FooAAA> with value of C<1>, this will not be destroyed until this
-module is destroyed.
+Our example's leak explanation: C<$$global = 1;> : new global variable
+C<FooAAA> created with value of C<1>, this will not be destroyed until
+this module is destroyed.  Under mod_perl the module doesn't get
+destroyed until the process quits.
 
 C<Apache::Leak> is not very user-friendly, have a look at
 C<B::LexInfo>.  It is possible to see something that might appear to
@@ -4161,12 +3916,8 @@ is entered.  You'll see similar behaviour for C<@array> length,
 C<%hash> keys, and scratch areas of the pad-list for OPs such as
 C<join()>, `C<.>', etc.
 
-C<Apache::Status> now includes a new C<StatusLexInfo> option.
-
-C<Apache::Leak> works better if you've built a I<libperld.a> (see
-I<SUPPORT> document) and given C<PERL_DEBUG=1> to mod_perl's
-C<Makefile.PL>.
-
+C<Apache::Status> includes a C<StatusLexInfo> option which can show
+you the internals of your code.
 
 
 

@@ -1793,8 +1793,6 @@ is served by the front end:
   RewriteEngine     on
   RewriteLogLevel   0
   RewriteRule       ^/(perl.*)$  http://127.0.0.1:8052/$1   [P,L]
-  RewriteRule       ^proxy:.*       -                         [F]
-  ProxyRequests     on
   NoCache           *
   ProxyPassReverse  /  http://www.example.com/
 

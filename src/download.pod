@@ -18,7 +18,7 @@ is included in the downloaded Perl distribution).
 =head1 CPAN Downloads
 
 You can download most of the Perl modules from CPAN.  There are many
-mirrors of this site.  The main site's URL is http://cpan.org/.  
+mirrors of this site.  The main site's URL is http://cpan.org/.
 
 You may want to search the Perl modules database by using
 http://search.cpan.org/.
@@ -160,6 +160,15 @@ http://www.toodarkpark.org/computers/dbs.html
 
 My collection of various links to databases implementations
 http://stason.org/TULARC/webmaster/db.html
+
+=head1 libgtop
+
+LibGTop is a library that fetches system related information such as
+CPU Load, Memory Usage and information about running processes. The
+module C<GTop> provides a Perl interface to this library.
+
+http://home-of-linux.org/gnome/libgtop/
+
 
 =cut
 

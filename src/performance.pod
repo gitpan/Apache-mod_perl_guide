@@ -147,6 +147,16 @@ Hardware|hardware/Choosing_Hardware>".
 In order to improve performance we need measurement tools. The main
 tool categories are benchmarking and code profiling.
 
+It's important to understand that in a major number of the
+benchmarking tests that we will execute we will not look at the
+absolute result numbers but the relation between the two and more
+result sets, since in most cases we would try to show which coding
+approach is preferable and the you shouldn't try to compare the
+absolute results collected while running the same benchmarks on your
+machine, since you won't have the exact hardware and software setup
+anyway. So this kind of comparisment would be misleading. Compare the
+relative results from the tests running on your machine, don't compare
+your absolute results with those in this Guide.
 
 =head2 Benchmarking Applications
 
@@ -607,7 +617,7 @@ preloaded)
 Now you can start to optimize your code. Or test which of the several
 implementations is of the least size.
 
-For example let's compare C<CGI.pm>'s OO vs procedural interfaces:
+For example let's compare C<CGI.pm>'s OO vs. procedural interfaces:
 
 As you will see below the first OO script uses about 2k bytes while
 the second script (procedural interface) uses about 5k.
@@ -706,7 +716,7 @@ seems to me like a bug, but probably that's how C<CGI.pm> works.
 
 
 BTW, you can check the number of opcodes in the code by a simple
-command line run. For example comparing S<'my %hash'> vs S<'my %hash =
+command line run. For example comparing S<'my %hash'> vs. S<'my %hash =
 ()'>.
 
   % perl -MO=Terse -e 'my %hash' | wc -l
@@ -1584,7 +1594,7 @@ I<diff>, recall the real memory usage formula:
 Notice that the the smaller the diff is, the bigger the number of
 processes you can have using the same amount of RAM.  Therefore every
 100K difference counts, when you multiply it by the number of
-processes. If we take the number from the version version (1) vs (4)
+processes. If we take the number from the version version (1) vs. (4)
 and assume that we have 256M of memory dedicated to mod_perl processes
 we will get the following numbers using the formula derived from the
 above formula:
@@ -1760,51 +1770,6 @@ don't preload and precompile the methods that we are going to use.
 META: I've heard that the 3.x generation will be less bloated, so
 probably I'll have to rerun this using the new version.
 
-
-
-
-
-
-
-
-
-=head2 Memory Swapping is Considered Bad
-
-Swap memory is slow since it resides on the hard disc, which is
-I<much> slower than the RAM.
-
-Why and when the swapping happens?  Your machine starts to swap when
-there is no more available RAM to use for the process currently using
-the CPU.  To gain the required number of memory pages requested by the
-process the kernel has to page out (i.e. move to a hard disk's swap
-partition) exactly the same number of pages.  The kernel pages out
-memory pages using the LRU (least recently used) or a similar
-algorithm to decide which pages to take out, in attempt to prevent the
-situation where the next process in queue for CPU will need exactly
-the pages that were paged out, and prevent the page fault (when the
-page is not found in RAM) occur, which in turn will require more pages
-to be swapped out in order to free the memory for the pages that get
-swapped in.
-
-When the CPU has to page memory pages in and out things slow down,
-causing processing demands to go up, which in turn slows down the
-system even more as more memory is required.  This ever worstening
-spiral will lead the machine to halt, unless the resource demand
-suddenly drops down and allows the processes to catch up with their
-tasks and go back to normal memory usage.
-
-When tuning the performance of your box, you must configure all the
-runnning software components in such a way that no memory swapping
-will occur: even during peak hours.  Swap space is an emergency pool,
-not a resource to be used routinely.  If you are low on memory and you
-badly need it, buy it.  Memory is cheap.
-
-For swapping monitoring techniques see the section 'L<Apache::VMonitor
--- Visual System and Apache Server
-Monitor|debug/Apache_VMonitor_Visual_Syste>'.
-
-For the mod_perl specific swapping prevention guideliness see the
-section 'L<Choosing MaxClients|performance/Choosing_MaxClients>'.
 
 
 
@@ -2239,36 +2204,38 @@ Let's try it.  We will simulate 10 users concurrently requesting a
 very light script at C<www.example.com:81/test/test.pl>.  Each
 simulated user makes 10 requests.
 
-  % ./ab -n 100 -c 10 www.example.com:81/test/test.pl
+  % ./ab -n 100 -c 10 http://www.example.com:81/test/test.pl
 
 The results are:
 
+  Document Path:          /perl/test.pl
+  Document Length:        16 bytes
+  
   Concurrency Level:      10
-  Time taken for tests:   0.715 seconds
+  Time taken for tests:   1.683 seconds
   Complete requests:      100
   Failed requests:        0
-  Non-2xx responses:      100
-  Total transferred:      60700 bytes
-  HTML transferred:       31900 bytes
-  Requests per second:    139.86
-  Transfer rate:          84.90 kb/s received
+  Total transferred:      16100 bytes
+  HTML transferred:       1600 bytes
+  Requests per second:    59.42
+  Transfer rate:          9.57 kb/s received
   
-  Connection Times (ms)
+  Connnection Times (ms)
                 min   avg   max
-  Connect:        0     0     3
-  Processing:    13    67    71
-  Total:         13    67    74
+  Connect:        0    29   101
+  Processing:    77   124  1259
+  Total:         77   153  1360
 
 The only numbers we really care about are:
 
   Complete requests:      100
   Failed requests:        0
-  Requests per second:    139.86
+  Requests per second:    59.42
 
 Let's raise the request load to 100 x 10 (10 users, each makes 100
 requests):
 
-  % ./ab -n 1000 -c 10 www.example.com:81/perl/access/access.cgi
+  % ./ab -n 1000 -c 10  http://www.example.com:81/perl/access/access.cgi
   Concurrency Level:      10
   Complete requests:      1000
   Failed requests:        0
@@ -2277,15 +2244,15 @@ requests):
 As expected, nothing changes -- we have the same 10 concurrent users.
 Now let's raise the number of concurrent users to 50:
 
-  % ./ab -n 1000 -c 50 www.example.com:81/perl/access/access.cgi
+  % ./ab -n 1000 -c 50  http://www.example.com:81/perl/access/access.cgi
   Complete requests:      1000
   Failed requests:        0
   Requests per second:    133.01
 
-We see that the server is capable of serving 50 concurrent users at an
-amazing 133 requests per second!  Let's find the upper limit.  Using
-C<-n 10000 -c 1000> failed to get results (Broken Pipe?).  Using C<-n
-10000 -c 500> resulted in 94.82 requests per second.  The server's
+We see that the server is capable of serving 50 concurrent users at
+133 requests per second!  Let's find the upper limit.  Using C<-n
+10000 -c 1000> failed to get results (Broken Pipe?).  Using C<-n 10000
+-c 500> resulted in 94.82 requests per second.  The server's
 performance went down with the high load.
 
 The above tests were performed with the following configuration:
@@ -2307,7 +2274,7 @@ use the following configuration:
 
 Simulate 50 users each generating a total of 20 requests:
 
-  % ./ab -n 1000 -c 50 www.example.com:81/perl/access/access.cgi
+  % ./ab -n 1000 -c 50  http://www.example.com:81/perl/access/access.cgi
 
 The benchmark timed out with the above configuration.... I watched the
 output of B<C<ps>> as I ran it, the parent process just wasn't capable
@@ -3330,7 +3297,7 @@ in the normal way (no C<E<lt>PerlE<gt>> section required.
 
 
 
-=head1 TMTOWTDI: Convenience and Habit versus Performance
+=head1 TMTOWTDI: Convenience and Habit vs. Performance
 
 TMTOWTDI (sometimes pronounced I<"tim toady">), or I<"There's More
 Than One Way To Do It"> is the main motto of Perl.  In other words,
@@ -3348,16 +3315,8 @@ comparison we will provide the theoretical difference and then run
 benchmarks to support the theory, since however good the theory its
 the numbers we get in practice that matter.
 
-
-The following SW/HW is used for the benchmarking purposes:
-
-  HW: Dual Pentium II (Deschutes) 400Mhz 512 KB cache 256MB 
-      RAM (DIMM PC100)
-
-  SW: Linux (RH 6.1) Perl 5.005_03
-      Apache/1.3.12 mod_perl/1.22 mod_ssl/2.6.2 OpenSSL/0.9.5
-
-The relevant Apache configuration:
+In the following benchmarks, unless told different the following
+Apache configuration has been used:
 
   MinSpareServers 10
   MaxSpareServers 20
@@ -3365,8 +3324,7 @@ The relevant Apache configuration:
   MaxClients 20
   MaxRequestsPerChild 10000
 
-
-=head2 Apache::Registry versus pure PerlHandler
+=head2 Apache::Registry PerlHandler vs. Custom PerlHandler
 
 At some point you have to decide whether to use C<Apache::Registry>
 and similar handlers and stick to writing scripts for the content
@@ -3374,49 +3332,67 @@ generation or to write pure Perl handlers.
 
 C<Apache::Registry> maps a request to a file and generates a
 subroutine to run the code contained in that file.  If you use a
-S<PerlHandler My::handler> instead of C<Apache::Registry>, you have a
+S<PerlHandler My::Handler> instead of C<Apache::Registry>, you have a
 direct mapping from request to subroutine, without the steps in
 between.  These steps include:
 
 =over
 
-=item stat the $r->filename
+=item 1
 
-=item check that it exists and is executable
+run the stat() on the script's filename ($r->filename)
 
-=item generate a Perl package name based on $r->uri
+=item 1
 
-=item chdir basename $r->filename
+check that the file exists and is executable
 
-=item compare last modified time
+=item 1
 
-=item if modified or not compiled, compile the subroutine
+generate a Perl package name based on the request's URI ($r->uri)
 
-=item chdir $old_cwd
+=item 1
+
+go to the directory the script resides in (chdir basename $r->filename)
+
+=item 1
+
+compare the file's and stored in memory compiled subroutine's last
+modified time (if it was compiled already)
+
+=item 1
+
+if modified or not compiled, compile the subroutine
+
+=item 1
+
+go back to the previous directory (chdir $old_cwd)
 
 =back
 
 If you cut out those steps, you cut out some overhead, plain and
-simple.  Do you I<need> to cut out that overhead?  We don't know, your
-requirements determine that.
+simple.  Do you I<need> to cut out that overhead?  May be yes, may be
+not.  Your requirements determine that.
 
-You should take a look at the sister C<Apache::Registry> modules that
-don't perform all all these steps, so you can still choose to stick to
-using scripts to generate the content.
-
-On the other hand, if you go the pure Perl handler way you will have
-to add a special configuration directives for each handler, something
-that you don't do when you go the "scripts" way.
+You should take a look at the sister C<Apache::Registry> modules (e.g.
+C<Apache::RegistryNG> and C<Apache::RegistryBB>) that don't perform
+all these steps, so you can still choose to stick to using scripts to
+generate the content.  The greatest added value of scripts is that you
+don't have to modify the configuration file to add the handler
+configuration and restarting the server for each newly written content
+handler.
 
 Now let's run benchmarks and compare.
 
-=head3 The Light (Empty) Code
+We want to see the overhead that C<Apache::Registry> adds compared to
+the custom handler and whether it becomes insignificant when used for
+the heavy and time consuming code.  In order to do that we will run
+two benchmarks sets: the first so called a I<light> set will use an
+almost empty script, that only sends a basic header and one word as
+content; the second will be a I<heavy> set which will add some time
+consuming operation to the script's and the handler's code.
 
-First lets see the overhead that C<Apache::Registry> adds. In order to
-do that we will use an almost empty script, that only sends a basic
-header and one word as content.
-
-The I<registry.pl> script running under C<Apache::Registry>:
+For the I<light> set we are going to use the I<registry.pl> script
+running under C<Apache::Registry>:
 
   benchmarks/registry.pl
   ----------------------
@@ -3424,7 +3400,7 @@ The I<registry.pl> script running under C<Apache::Registry>:
   print "Content-type: text/plain\r\n\r\n";
   print "Hello";
 
-The Perl Content handler:
+And the following content generation handler:
 
   Benchmark/Handler.pm
   --------------------
@@ -3439,7 +3415,7 @@ The Perl Content handler:
   }
   1;
 
-with settings:
+We will add this settings to I<httpd.conf>:
 
   PerlModule Benchmark::Handler
   <Location /benchmark_handler>
@@ -3447,238 +3423,137 @@ with settings:
     PerlHandler Benchmark::Handler
   </Location>
 
-so we get C<Benchmark::Handler> preloaded.
+The first directive worries to preload and compile the
+C<Benchmark::Handler> module.  The rest of the lines tell Apache to
+execute the subroutine C<Benchmark::Handler::handler> when a request
+with relative URI I</benchmark_handler> is made.
 
-We will use the C<Apache::RegistryLoader> to preload the script as
-well, so the benchmark will be fair and only the processing time will
-be measured. In the I<startup.pl> we add:
+We will use the usual configuration for C<Apache::Registry> scripts,
+where all the URIs starting with I</perl> are remapped to the files
+residing under I</home/httpd/perl/> directory.
+
+  Alias /perl/ /home/httpd/perl/
+  <Location /perl>
+    SetHandler perl-script
+    PerlHandler +Apache::Registry
+    Options ExecCGI
+    PerlSendHeader On
+  </Location>
+
+We will use the C<Apache::RegistryLoader> to preload and compile the
+script at the server startup as well, so the benchmark will be fair
+through the benchmark and only the processing time will be
+measured. To accomplish the preloading we add the following code to
+the I<startup.pl> file:
 
   use Apache::RegistryLoader ();
   Apache::RegistryLoader->new->handler(
               "/perl/benchmarks/registry.pl",
    "/home/httpd/perl/benchmarks/registry.pl");
 
-And we if we check the I<Compiled Registry Scripts"> section with the help
-of L<Apache::Status|debug/Apache_Status_Embedded_Inter> (
-http://localhost/perl-status?rgysubs ), where we see the listing of
-the already compiled scripts:
-
-  Apache::ROOT::perl::benchmarks::registry_2epl
-
-=head3 The Heavy Code
-
-We we will see that the overhead is insignificant when the code itself
-is significantly heavier and slower. Let's leave the above code
-examples umodified but add some CPU intensive processing operation (it
-can be also an IO operation or a database query.)
+To create the I<heavy> benchmark set let's leave the above code
+examples unmodified but add some CPU intensive processing operation
+(it can be also an IO operation or a database query.)
 
   my $x = 100;
   my $y = log ($x ** 100)  for (0..10000);
 
+This code does lots of mathematical processing and therefore very CPU
+intensive.
 
-=head3 Processing and Results
+Now we are ready to proceed with the benchmark. We will generate 5000
+requests with 15 as a concurrency level using the C<Apache::Benchmark>
+module.
 
-So now we can proceed with the benchmark. We will generate 5000
-request with 10 as a concurrency level (i.e. emulating 10 concurrent
-users):
+Here are the reported results:
 
-  % ab -n 5000 -c 10 http://localhost/perl/benchmarks/registry.pl
-  % ab -n 5000 -c 10 http://localhost/benchmark_handler
+  ------------------------------
+      name        | avtime   rps
+  ------------------------------
+  light handler   |     15   911
+  light registry  |     21   680
+  ------------------------------
+  heavy handler   |    183    81
+  heavy registry  |    191    77
+  ------------------------------
 
-And the results:
+Let's look at the results and answer the previously asked questions.
 
-  Light code:
+First let's compare the results from the I<light> set.  We can see
+that the average overhead added by C<Apache::Registry> (compared to
+the custom handler) is about:
 
-    Type  	RPS 	Av.CTime
-  -------       ---     -------
-  Registry      561          16
-  Handler       707          13
-
-  Heavy code:
-
-    Type  	RPS 	Av.CTime
-  -------       ---     -------
-  Registry       68         146
-  Handler        70         141
-
-  Reports: 
-  -----------------------------------------------
-  RPS       : Requests Per Second
-  Av. CTime : Average request processing time (msec) as seen by client
-
-
-=head3 Conclusions
-
-=over 
-
-=item * The Light Code
-
-We can see that the average overhead added by C<Apache::Registry> is
-about:
-
-  16 - 13 = 3 milli-seconds
+  21 - 15 = 6 milliseconds
 
 per request.
 
-Thus the difference in speed is about 19%.
+Thus the difference in speed is about 40% (15 vs. 21).  Note that this
+doesn't mean that the difference in the real world applications is
+such big. And the results of the I<heavy> set confirm that.
 
-=item * The Heavy Code
+In the I<heavy> set the average processing time is almost the same for
+the C<Apache::Registry> and the custom handler.  You can clearly see
+that the difference between the two is almost the same one that we
+have seen in the I<light> set's results.  It has grown from 6
+milliseconds to 8 milliseconds (191-183).  Which means that the
+identical heavy code that has been added was running for about 168
+milliseconds (183-15).  It doesn't mean that the added code itself has
+been running for 168 milliseconds.  It means that it took 168
+milliseconds for this code to be completed in a multi-process
+environment where each process gets a time slice to use the CPU.  The
+more processes are running the more time the process will have to wait
+to get the next time slice when it can use the CPU.
 
-If we are looking at the average processing time, we see that the time
-delta between the two handlers is almost the same and has grown from
-3 msec to 5 msec. Which means that the identical heavy code that has
-been added was running for 130 msec (146-16). It doesn't mean that the
-added code itself has been running for 130 msec. It means that it took
-130 msec for this code to be completed in a multi-process environment
-where each process gets a time slice to use the CPU.
-
-If we run this extra code under plain Benchmark:
-
-  benchmark.pl
-  ------------
-  use Benchmark;
-  
-  timethis (1_000,
-   sub {
-    my $x = 100;
-    my $y = log ($x ** 100)  for (0..10000);
-  });
-
-  % perl benchmark.pl
-  timethis 1000: 25 wallclock secs (24.93 usr +  0.00 sys = 24.93 CPU)
-
-We see that it takes about 25 CPU seconds to complete.
+We have the second question answered as well. You can see that when
+the code is not just the I<hello> script, the overhead of the extra
+operations done but the C<Apache::Registry> module, is almost
+insignificant. It's a non zero though, so it depends on your
+requirements, and if another 5-10 millisecons overhead are quite
+tolerable, you may choose to use C<Apache::Registry>.
 
 The interesting thing is that when the server under test runs on a
-slow machine the results are completely different. I'll present them
-here for comparison:
+very slow machine the results are completely different. I'll present
+them here for comparison:
 
-  Light code:
+  ------------------------------
+      name        | avtime   rps
+  ------------------------------
+  light handler   |     50   196
+  light registry  |    160    61
+  ------------------------------
+  heavy handler   |    149    67
+  heavy registry  |    822    12
+  ------------------------------
 
-    Type  	RPS 	Av.CTime
-  -------       ---     -------
-  Registry       61         160
-  Handler       196          50
+First of all the difference of 6 milliseconds in the average
+processing time we have seen on the fast machine when running the
+I<light> set, now has grown to 110 milliseconds. Which means that a
+few extra operations, that C<Apache::Registry> does, turn to be very
+expensive on the slow machine.
 
-  Heavy code:
-
-    Type  	RPS 	Av.CTime
-  -------       ---     -------
-  Registry       12         822
-  Handler        67         149
-
-You can see that adding the same CPU intensive code to the two
-handlers under test on the slow machine, enlarges the delta of the
-average processing time between the two handlers. We'd expect to see
-the same delta (of 110 msec) in this case, but that's not what's
-happenning.
+Second, you can see that when the I<heavy> set is used, there is no
+preservation of the 110 milliseconds as we have seen on the fast
+machine, which we obviously would expect to see, since the code that
+was added should take the same time to execute in the handler and the
+script. But instead we see a difference of 673 milliseconds (822-149).
 
 The explanation lies in fact that the difference between the machines
-isn't merely the processor speed. It's possible that there are many
-other things that different. For example the size of the processor
+isn't merely in the CPU speed. It's possible that there are many other
+things that are different. For example the size of the processor
 cache. If one machine has a processor cache large enough to hold the
 whole handler and the other doesn't this can be very significant,
-given that in our benchmark, 99.9% of the CPU activity was dedicated
-to running the handler's code.
+given that in our I<heavy> benchmark set, 99.9% of the CPU activity
+was dedicated to running the calculation code.
 
-
-=back
-
-
-
-=head2 CGI.pm versus Apache::Request
-
-C<CGI.pm> is a pure Perl implementation of the most used functions
-used in CGI coding. Mainly it has two parts -- input processing and
-HTML generation.
-
-C<Apache::Request>'s core is written in C, giving it a significant
-memory and performance benefit.  It has all the functionality of
-C<CGI.pm> except HTML generation functions.
-
-C<use CGI qw(-compile => ':all')> adds about 1Mb size to the server.
-C<CGI.pm> pulls lots of stunts under the covers to provide both a
-method and function interface, etc.  C<Apache::Request> is a very thin
-XS layer on top of a C library and only adds a few kbytes size to the
-server.  this C code is much faster and lighter than the Perl
-equivalent used in C<CGI.pm> or similar (e.g. CGI_Lite).
-
-This difference might not matter much to you, depending on your
-requirements.
-
-Let's write two registry scripts that use C<CGI.pm> and
-C<Apache::Request> to process a form's input and print it out. We
-will use the scripts to benchmark the modules.
-
-  benchmarks/cgi_pm.pl
-  --------------------
-  use strict;
-  use CGI;
-  my $q = new CGI;
-  print $q->header('text/plain');
-  print join "\n", map {"$_ => ".$q->param($_) } $q->param;
-
-  benchmarks/apache_request.pl
-  ----------------------------
-  use strict;
-  use Apache::Request ();
-  my $r = Apache->request;
-  my $q = Apache::Request->new($r);
-  $r->send_http_header('text/plain');
-  print join "\n", map {"$_ => ".$q->param($_) } $q->param;
-
-We preload both the modules that we are going to benchmark in the
-I<startup.pl>:
-
-  use Apache::Request ();
-  use CGI  qw(-compile :all);
-
-We will preload the both scripts as well:
-
-  use Apache::RegistryLoader ();
-  Apache::RegistryLoader->new->handler(
-              "/perl/benchmarks/cgi_pm.pl",
-   "/home/httpd/perl/benchmarks/cgi_pm.pl");
-  Apache::RegistryLoader->new->handler(
-              "/perl/benchmarks/apache_request.pl",
-   "/home/httpd/perl/benchmarks/apache_request.pl");
-
-Now let's benchmark the two:
-
-  % ab -n 1000 -c 10 \
-   'http://localhost/perl/benchmarks/cgi_pm.pl?a=b&c=+k+d+d+f&d=asf&as=+1+2+3+4'
-  
-  Time taken for tests:   23.950 seconds
-  Requests per second:    41.75
-  Connnection Times (ms)
-                min   avg   max
-  Connect:        0     0    45
-  Processing:   204   238   274
-  Total:        204   238   319
-
-  % ab -n 1000 -c 10 \
-   'http://localhost/perl/benchmarks/apache_request.pl?a=b&c=+k+d+d+f&d=asf&as=+1+2+3+4'
-  
-  Time taken for tests:   18.406 seconds
-  Requests per second:    54.33
-  Connnection Times (ms)
-                min   avg   max
-  Connect:        0     0    32
-  Processing:   156   183   202
-  Total:        156   183   234
-
-Apparently the latter script using C<Apache::Request> is about 23%
-faster. If the input is going to be larger the percentage speed up
-grows as well.
-
-In the above example we have benchmarked the CGI input
-processing. When the code is much heavier the overhead of using
-C<CGI.pm> for input parsing becomes insignificant.
-
-
-
-
-
+But this also shows you again, that none of the results and conclusion
+made here should be taken for granted. Certainly, most chances are
+that you will see a similar behavior on your machine, but only after
+you have run the benchmarks and analyzed the received results, you can
+be sure what is the best for you using the setup under test. If you
+later you happen to use a different machine, make sure to run the
+tests again, as they can lead to complete different decision as we
+have just seen when we have tried the same benchmark on a different
+machine.
 
 
 =head2 "Bloatware" modules
@@ -3759,75 +3634,116 @@ at those numbers for a while.
 
 
 
+=head2 Apache::args vs. Apache::Request::param vs. CGI::param
 
+Let's write three C<Apache::Registry> scripts that use
+C<Apache::args>, C<Apache::Request::param> and C<CGI::param> to
+process the form's input and print it out. Notice that C<Apache::args>
+is considered identical to C<Apache::Request::param> only when you
+have a single valued keys, in case of multivalued keys (e.g. when
+using checkbox groups) you will have to write some more code, since if
+you do a simple:
 
-=head2 Apache::args versus Apache::Request::params
-
-Let's write two registry scripts that use C<Apache::args> and
-C<Apache::Request::params> to process the form's input and print it
-out. Notice that C<Apache::args> is considered identical to
-C<Apache::Request::params> only when you have a single valued keys, in
-case of multivalued keys (e.g. when using checkbox groups) you will
-have to write some more code, since if you do a simple:
-
-  %params = $r->args;
+  my %params = $r->args;
 
 only the last value will be stored and the rest will collapse,
 something that you will solve with C<Apache::Request::params> as:
 
-  @values = $q->params('key');
+  my @values = $q->params('key');
 
-In addition C<Apache::Request> has many more functions that ease input
-processing, like handling file uploads.
+In addition C<Apache::Request> and C<CGI.pm> has many more functions
+that ease input processing, like handling file uploads. But
+C<Apache::Request> is much faster since its guts are implemented in C,
+glued with Perl using the XS code.
 
 Therefore assuming that the only functionality that you need is the
 parsing of the key-value pairs, and assuming that every key has a
-single value, we will compare a slightly modified script from the
-previous section (I<apache_request.pl>) and write a new one that uses
-C<args()>:
+single value, we will compare the following almost indentical scripts,
+by trying to pass various query strings.
 
-  benchmarks/apache_request.pl
-  ----------------------------
+The code that we have used:
+
+  processing_with_apache_args.pl
+  ------------------------------
+  use strict;
+  my $r = shift;
+  $r->send_http_header('text/plain');
+  my %args = $r->args;
+  print join "\n", map {"$_ => ".$args{$_} } keys %args;
+
+  processing_with_apache_request.pl
+  ---------------------------------
   use strict;
   use Apache::Request ();
-  my $r = Apache->request;
+  my $r = shift;
   my $q = Apache::Request->new($r);
   $r->send_http_header('text/plain');
-  print join "\n", $q->param;
+  my %args = map {$_ => $q->param($_) } $q->param;
+  print join "\n", map {"$_ => ".$args{$_} } keys %args;
 
-  benchmarks/apache_args.pl
-  -------------------------
+  processing_with_cgi_pm.pl
+  ---------------------------------
   use strict;
-  my $r = Apache->request;
+  use CGI;
+  my $r = shift;
   $r->send_http_header('text/plain');
-  print join "\n", $r->args;
+  my $q = new CGI;
+  my %args = map {$_ => $q->param($_) } $q->param;
+  print join "\n", map {"$_ => ".$args{$_} } keys %args;
 
-Now let's benchmark the two:
+All three scripts were preloaded at the server startup:
 
-  % ab -n 1000 -c 10 \
-  'http://localhost/perl/benchmarks/apache_request.pl?a=b&c=k&d=asf&as=1'
+  <Perl>
+  use Apache::RegistryLoader ();
+  Apache::RegistryLoader->new->handler(
+                            "/perl/processing_with_cgi_pm.pl",
+            "[ROOT_DIR]/httpd/perl/processing_with_cgi_pm.pl"
+  				    );
+  Apache::RegistryLoader->new->handler(
+                            "/perl/processing_with_apache_request.pl",
+            "[ROOT_DIR]/httpd/perl/processing_with_apache_request.pl"
+  				    );
+  Apache::RegistryLoader->new->handler(
+                            "/perl/processing_with_apache_args.pl",
+            "[ROOT_DIR]/httpd/perl/processing_with_apache_args.pl"
+  				    );
+  </Perl>
 
-  Time taken for tests:   16.961 seconds
-  Requests per second:    58.96
-  Connnection Times (ms)
-                min   avg   max
-  Connect:        0     0    20
-  Processing:   150   168   343
-  Total:        150   168   363
+And the results:
 
-  % ab -n 1000 -c 10 \
-  'http://localhost/perl/benchmarks/apache_args.pl?a=b&c=k&d=asf&as=1'
+  -------------------------------------------------------------
+  name           query_length  | avtime completed failed    rps
+  -------------------------------------------------------------
+  apache_args              25  |     69      5000      0    698
+  apache_request           25  |     76      5000      0    632
+  apache_args             337  |     97      5000      0    500
+  cgi_pm                   25  |    115      5000      0    422
+  apache_request          337  |    159      5000      0    308
+  cgi_pm                  337  |    301      5000      0    163
+  --------------------------------------------------------------
+  Non-varying sub-test parameters:
+  --------------------------------------------------------------
+  concurrency : 50
+  connections : 5000
 
-  Time taken for tests:   17.154 seconds
-  Requests per second:    58.30
-  Connnection Times (ms)
-                min   avg   max
-  Connect:        0     2   136
-  Processing:    68   168   202
-  Total:         68   170   338
+We have used two different query strings, generated by:
 
-Apparently the two run at the same speed.
+  my $query = [
+             join("&", map {"$_=".'e' x 10}  ('a'..'b')),
+             join("&", map {"$_=".'e' x 10}  ('a'..'z')),
+            ];
 
+The first one renders into:
+
+  a=eeeeeeeeee&b=eeeeeeeeee
+
+which is 25 characters in length. The other is similar but of 337
+characters in length. Now you can tell what are the numbers in the
+C<query_length> column of the report.
+
+You can see that C<Apache::args> is much faster than the other two
+modules, whereas C<Apache::Request::param> is much faster than
+C<CGI::param>.
 
 
 
@@ -3946,17 +3862,17 @@ B<Conclusion>: Do not blindly follow suggestions, but think what is best for
 you in each case.
 
 
-=head2 Global vs Fully Qualified Variables 
+=head2 Global vs. Fully Qualified Variables 
 
-It's always a good idea to avoid global variables where possible.
+It's always a good idea to avoid global variables where it's possible.
 Some variables must be either global, such as a module's C<@ISA> or
 C<$VERSION> variables or else fully qualified such as
-B<@MyModule::ISA>), so that Perl can see them.
+B<@MyModule::ISA>), so that Perl can see them from different packages.
 
 A combination of C<strict> and C<vars> pragmas keeps modules clean and
-reduces a bit of noise.  However, the C<vars> pragma also creates aliases,
-as does C<Exporter>, which eat up more memory.  When possible, try to
-use fully qualified names instead of C<use vars>.
+reduces a bit of noise.  However, the C<vars> pragma also creates
+aliases, as does C<Exporter>, which eat up more memory.  When
+possible, try to use fully qualified names instead of C<use vars>.
 
 For example write:
 
@@ -3984,8 +3900,8 @@ When possible, avoid importing a module's functions into your name
 space.  The aliases which are created can take up quite a bit of
 memory.  Try to use function interfaces and fully qualified names like
 C<Package::function> or C<$Package::variable> instead.  For benchmarks
-see L<Object Methods Calls Versus Function
-Calls|performance/Object_Methods_Calls_Versus_Func>.
+see L<Object Methods Calls vs. Function
+Calls|performance/Object_Methods_Calls_vs_Functio>.
 
 Note: method interfaces are a little bit slower than function
 calls. You can use the C<Benchmark> module to profile your specific
@@ -3994,7 +3910,7 @@ code.
 
 
 
-=head2 Object Methods Calls Versus Function Calls
+=head2 Object Methods Calls vs. Function Calls
 
 Which subroutine calling form is more efficient: OOP methods or
 functions?
@@ -4121,7 +4037,7 @@ because it does some voodoo work when the function form call is used.
   $q->param('x',5);
   my $x = $q->param('x');
 
-versus
+vs
 
   use CGI qw(:standard);
   param('x',5);
@@ -4347,7 +4263,7 @@ or the more efficient:
   my $mod_time = (-M _) * 24 * 60 * 60;
   print "$filename was modified $mod_time seconds before startup\n";
 
-Two stat() calls saved!
+Two stat() calls were saved!
 
 
 
@@ -4361,66 +4277,73 @@ Perl handlers code is discussed here, so if you don't use these
 modules, feel free to skip this section.
 
 
-=head2 Be carefull with symbolic links
+=head2 Be Careful with Symbolic Links
 
-As you know C<Apache::Registry> caches the scripts based on their URI.
-If you have the same script that can be reached by different URIs,
-which is possible if you have used symbolic links, you will get the
-same script cached twice!
+As you know C<Apache::Registry> caches the scripts in the packages
+whose names are constructed by scripts' URI.  If you have the same
+script that can be reached by different URIs, which is possible if you
+have used symbolic links, you will get the same script stored twice in
+the memory.
 
 For example:
 
   % ln -s /home/httpd/perl/news/news.pl /home/httpd/perl/news.pl
 
-Now the script can be reached through the both URIs C</news/news.pl>
-and C</news.pl>.  It doesn't really matter until you advertise the two
+Now the script can be reached through the both URIs I</news/news.pl>
+and I</news.pl>.  It doesn't really matter until you advertise the two
 URIs, and users reach the same script from both of them.
 
-To detect this, use the
-L</perl-status|debug/Apache_Status_Embedded_Inter> handler to see all
-the compiled scripts and their packages. In our example, when
-requesting: http://localhost/perl-status?rgysubs you would see:
+So let's assume that you have issued the requests to the both URIs:
+
+  http://localhost/perl/news/news.pl
+  http://localhost/perl/news.pl
+
+To spot the duplication you should use the
+L<C<Apache::Status>|debug/Apache_Status_Embedded_Inter> module.
+Amongst other things, it shows all the compiled C<Apache::Registry>
+scripts (using their respective packages):
+
+If you are using the default configuration directives you should
+either use this URI:
+
+  http://localhost/perl-status?rgysubs
+
+or just go to the main menu at:
+
+  http://localhost/perl-status
+
+And click on C<Compiled Registry Scripts> menu item.
+
+META: we need a screen snapshot here!!!
+
+If you the script was accessed through the URI that was remapped to
+the real file and through the URI that was remapped to the symbolic
+link, you will see the following output:
 
   Apache::ROOT::perl::news::news_2epl
   Apache::ROOT::perl::news_2epl
 
-after both the URIs have been requested from the same child process
-that happened to serve your request.  To make the debugging easier see
-L<run the server in single
-mode|control/Running_a_Server_in_Single_Proce>.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+You should run the server in the single mode, to see it immediately.
+If you test it in the normal mode--it's possible that some child
+processes would show only one entry or none at all, since they might
+not serve the same requests as the others.  For more hints see the
+section "L<Run the server in single
+mode|control/Running_a_Server_in_Single_Proce>".
 
 
 
 =head1 Improving Performance by Prevention
 
-
 There are two ways to improve performance: one is by tuning to squeeze
 the most out of your hardware and software; and the other is
-preventing certain bad things from happening, e.g. memory leaks,
-unshared memory, Denial of Service (DoS) attacks, etc.
+preventing certain bad things from happening, like impolite robots
+that crawl your site without pausing between requests, memory
+leakages, getting the memory unshared, making sure that some processes
+won't take up all the CPU etc.
+
+In the following sections we are going to discuss about the tools and
+programming techniques that would help you to keep your service in
+order, even if you are not around.
 
 
 =head2 Memory leakage
@@ -4699,80 +4622,151 @@ callback closure for formatting the rows to print:
 
 You might also want to check the section L<Limiting the Size of the
 Processes|performance/Limiting_the_Size_of_the_Process>
-and L<Limiting the Resources Used by httpd
-children|performance/Limiting_the_Resources_Used_by_h>.
-
-
-
-
-
-
-
-
-=head2 Limiting the Size of the Processes
-
-C<Apache::SizeLimit> allows you to kill off Apache httpd processes if
-they grow too large.  
-
-Configuration:
-
-In your I<startup.pl>:
-
-  use Apache::SizeLimit;
-  $Apache::SizeLimit::MAX_PROCESS_SIZE = 10000; 
-  # in KB, so this is 10MB
-
-In your I<httpd.conf>:
-
-  PerlFixupHandler Apache::SizeLimit
-
-See perldoc C<Apache::SizeLimit> for more details.
-
-By using this module, you should be able to avoid using the Apache
-configuration directive C<MaxRequestsPerChild>, although for some
-folks, using both in combination does the job.
-
+and L<Limiting Other Resources Used by Apache Child
+Processes|performance/Limiting_Other_Resources_Used_by>.
 
 
 =head2 Keeping the Shared Memory Limit
 
-C<Apache::GTopLimit> module allows you to kill off Apache httpd
-processes if they grow too large (just like C<Apache::SizeLimit>) or
-have too little shared memory left. See
-L<Apache::GTopLimit|modules/Apache_GTopLimit_Limit_Apache>.
+As we have discussed already, during the child process' life a part of
+the memory pages becomes unshared as some data structures become
+I<"dirty"> leading to the increased real memory consuming.  As you
+remember to prevent from the process from growing, it should be killed
+and the newly started process will have all its memory shared with the
+parent process.  While it serves requests the unsharing process
+repeats and it has to be replaced again.
+
+As you remember the C<MaxRequestsPerChild> directive allows you to
+specify the number of requests the server should process before it
+gets killed.  So you have to tune this directive, by finding the
+optimal value using which, the process won't get too much unshared
+memory.  But this is very inconvenient solution since chances are that
+your service is undergoing constant changes and you will have to
+re-tune this number again and again to adapt to the ever changing code
+base.
+
+It would be so nice if we could just set some guardian to watch the
+shared size and kill the process based on the actual shared memory
+usage, when it goes below the specified limit, so it's possible that
+the processes will never be killed if there limit is never passed.
+
+That's where the C<Apache::GTopLimit> module comes to help.  If you
+are lucky to have your OS among those that can build the
+L<libgtop|download/libgtop> library, you will be able to build the
+C<GTop> module that provides the Perl API for C<libgtop>, which in
+turn used by C<Apache::GTopLimit> (that's the I<GTop> part in the
+name).
+
+To set the shared memory lower limit of 4MB using the
+C<Apache::GTopLimit> add the following code into the I<startup.pl>
+file:
+
+  use Apache::GTopLimit;
+  $Apache::GTopLimit::MIN_PROCESS_SHARED_SIZE = 4096;
+
+and in I<httpd.conf>:
+
+  PerlFixupHandler Apache::GTopLimit
+
+and don't forget to restart the server for the changes to take the
+effect.
+
+If you don't want to set this limit by default but only for those
+requests that are likely to get the memory unshared. In this case the
+memory size testing would be be done only if you decide that you want
+it. You register the post-processing check by using the
+set_min_shared_size() function. For example:
+
+    use Apache::GTopLimit;
+    if ($need_to_limit){
+      Apache::GTopLimit->set_min_shared_size(4096);
+    }
+
+Since accessing the process info might add a little overhead, you may
+want to only check the process size every N times. And that's where
+the C<$Apache::GTopLimit::CHECK_EVERY_N_REQUESTS> variable comes to
+help.  For example to test the size every other time--put in your
+I<startup.pl>:
+
+  $Apache::GTopLimit::CHECK_EVERY_N_REQUESTS = 2;
+
+If you want to run this module in the debug mode, add the following
+directive in your I<startup.pl>:
+
+  $Apache::GTopLimit::DEBUG = 1;
 
 
+=head2 Limiting the Size of the Processes
 
+So now you know how to prevent processes from consuming more real
+memory when the memory gets unshared. An even more important
+restriction that we want to impose is the absolute size of the
+process. If the process grows after each request, especially if your
+code has memory leaks or you are unfortunate to run an OS with C
+libraries that leak memory, you can easily run out of memory if
+nothing will restrict those processes from growing. The only
+restriction we can impose is killing the processes when they become
+too big.
 
+You can set the C<MaxRequestPerChild> directive to kill the processes
+after only a few requests have been served. But as we have explained
+in the previous section this solution is not as good as the ability to
+control the process size and killing it only when the limit is
+crossed.
 
-=head2 Limiting the Resources Used by httpd Children
+If you have the C<Apache::GTopLimit> we have described in the previous
+section you can control the upper limit by setting the
+C<$Apache::GTopLimit::MAX_PROCESS_SIZE> directive.  For example if you
+want the processes to be killed when they are growing bigger than 10MB
+you should set the following limit in the I<startup.pl> file:
 
-C<Apache::Resource> uses the C<BSD::Resource> module, which in turn
-uses the C function C<setrlimit()> to set limits on system resources
-such as memory and cpu usage.
+    $Apache::GTopLimit::MAX_PROCESS_SIZE = 10240;
 
-Configuration example:
+Just like with the shared memory limiting, you can set the limit for
+the current process using the set_max_size() method in your code:
 
-    # preload the module
-  PerlModule Apache::Resource
-  
-    # set child memory limit (DATA segment) in megabytes
-    # (default is 64 Meg)
-  PerlSetEnv PERL_RLIMIT_DATA 32:48
-    # set child CPU limit in seconds
-    # (default is 360 seconds)
-  PerlSetEnv PERL_RLIMIT_CPU 120:360
-  
-  PerlChildInitHandler Apache::Resource
+    use Apache::GTopLimit;
+    Apache::GTopLimit->set_max_size(10000);
 
-If you configure C<Apache::Status>, it will let you review the
-resources set in this way.
+Another alternative is to use the C<Apache::SizeLimit> module, which
+is available for more platforms than C<Apache::GTopLimit> at the
+moment of this writing. You should check the module's manpage to find
+out what they are.
 
-The following limit values are in megabytes: C<DATA>, C<RSS>,
-C<STACK>, C<FSIZE>, C<CORE>, C<MEMLOCK>; all others are treated as
-their natural unit.  Prepend C<PERL_RLIMIT_> for each one you want to
-use.  Refer to the C<setrlimit> man page on your OS for other possible
-resources.
+To usage is very similar to C<Apache::GTopLimit>, you control the
+upper size limit by setting the
+C<$Apache::SizeLimit::MAX_PROCESS_SIZE> variable in your I<startup.pl>
+file:
+
+  use Apache::SizeLimit;
+  $Apache::SizeLimit::MAX_PROCESS_SIZE = 10240; 
+
+And in your I<httpd.conf> you should add:
+
+  PerlFixupHandler Apache::SizeLimit
+
+Just like with C<Apache::GTopLimit>, you can test the memory every few
+times, by setting the C<$Apache::SizeLimit::CHECK_EVERY_N_REQUESTS>
+variable. For example every fourth time:
+
+  $Apache::SizeLimit::CHECK_EVERY_N_REQUESTS = 4;
+
+And you can set the limit from within your code, rather from the
+global configuration:
+
+  use Apache::SizeLimit;
+  Apache::SizeLimit->setmax(10240);
+
+=head2 Limiting Other Resources Used by Apache Child Processes
+
+In addition to the absolute and shared memory sizes limiting, you
+might need to prevent the processes from excessive consumption of the
+system resources. Like limiting the CPU usage, the number of files
+that can be opened, or memory segment usage and more.
+
+The C<Apache::Resource> module allows this all by deploying the
+C<BSD::Resource> module, which in turn uses the C function
+C<setrlimit()> to set limits on system resources.
 
 A resource limit is specified as a soft limit and a hard limit.  When
 a soft limit is exceeded a process may receive a signal (for example,
@@ -4782,17 +4776,66 @@ resource limit).  The rlimit structure is used to specify the hard and
 soft limits on a resource. (See the manpage for I<setrlimit> for your
 OS specific information.)
 
-
 If the value of the variable is of the form C<S:H>, C<S> is treated as
 the soft limit, and C<H> is the hard limit.  If it is just a single
-number, it is used for both soft and hard limits.
+number, it is used for both soft and hard limits. So if you set
+C<10:20>, the soft limit is 10 and the hard limit is 20. If you set
+just C<10>--both the soft and the hard limits are set to 20.
+
+The mostly spread usage of this module is to limit the CPU usage.  The
+environment variable C<PERL_RLIMIT_CPU> defines the maximum amount of
+CPU time the process can use. If it runs for longer than this, it gets
+killed, no matter what it does, either processing a new request or
+just waiting.  This is very useful when you have a code with a bug and
+the process starts to spin in an endless loop or alike using a lot of
+CPU and never completing the request. 
+
+META: verify this.
+
+The value is measured in seconds.  The following example sets the soft
+limit of the CPU usage to 120 seconds (the default is 360).
+
+  PerlModule Apache::Resource
+  PerlSetEnv PERL_RLIMIT_CPU 120
+
+Of course you should tell mod_perl to use this module, which is done
+by adding the following directive to I<httpd.conf>:
+
+  PerlChildInitHandler Apache::Resource
+
+There are other resources that you might want to limit. For example
+you can limit the memory data and stack segment sizes
+(C<PERL_RLIMIT_DATA> and C<PERL_RLIMIT_STACK>), the maximum process
+file size (C<PERL_RLIMIT_FSIZE>), the core file size
+(C<PERL_RLIMIT_CORE>), the address space (virtual memory) limit
+(C<PERL_RLIMIT_AS>), etc. Refer to the setrlimit(2) man page on your
+OS for other possible resources. Remember to prepend C<PERL_> before
+the resource types you will see in the man page.
+
+If you configure C<Apache::Status>, it will let you review the
+resources set in this way. Remember that C<Apache::Status> must be
+loaded before C<Apache::Resource> in order to enable the resources
+display menu.
+
+If you want to set the debug mode set the C<$Apache::Resource::Debug>
+before loading the module, for example by using the Perl sections in
+I<httpd.conf>.
+
+  <Perl>
+    $Apache::Resource::Debug = 1;
+    require Apache::Resource;
+  </Perl>
+  PerlChildInitHandler Apache::Resource
+
+Now open in the I<error_log> file using tell and watch the debug
+messages showing up, when the requests are served.
 
 =head3 OS Specific notes
 
 Note that under Linux malloc() uses mmap() instead of brk().  This is
 done to conserve virtual memory - that is, when you malloc a large
 block of memory, it isn't actually given to your program until you
-initialize it.  The old-style brk() syscall obeyed resource limits on
+initialize it.  The old-style brk() system call obeyed resource limits on
 data segment size as set in setrlimit() - mmap() doesn't.
 
 C<Apache::Resource>'s defaults put caps on data size and stack size.
@@ -4816,24 +4859,14 @@ C<Apache::Resource> -- simply add a line to I<httpd.conf>:
 
   PerlSetEnv PERL_RLIMIT_AS  67108864
 
-This example sets a hard and soft limit of 64Mb of total address
+This example sets a hard and soft limit of 64MB of total address
 space.
 
+Refer to the C<Apache::Resource> and C<setrlimit(2)> manpages for more
+information.
 
-=head3 Debug
 
-To debug add:
 
-  <Perl>
-    $Apache::Resource::Debug = 1;
-    require Apache::Resource;
-  </Perl>
-  PerlChildInitHandler Apache::Resource
-
-and look in the I<error_log> to see what it's doing.
-
-Refer to C<perldoc Apache::Resource> and C<man 2 setrlimit> for more
-info.
 
 
 
@@ -4844,9 +4877,14 @@ simultaneously be serving the (nearly) same resource, you should take
 a look at the L<C<mod_throttle_access>|download/mod_throttle_access>
 module.
 
+
 It solves the problem of too many concurrent request accessing the
-same URI, if for example it's very CPU intensive. For example you have
-three base URIs:
+same URI, if for example the handler that serves this URI uses some
+resource that has a limitation on the maximum number of possible users
+or the handlers code is very CPU intensive and you cannot afford more
+than a certain number of concurrent requests to this specific URI.
+
+Imagine that your service provides the three following URIs:
 
   /perl/news/
   /perl/webmail/
@@ -4855,21 +4893,23 @@ three base URIs:
 The first two URIs are response critical as people want to read news
 and their email. The third URI is very CPU and RAM intensive image
 morphing service, provided as a bonus to your users. Since you don't
-want users to abuse this service, you better set some limits on the
+want users to abuse this service, you have to set some limits on the
 number of concurrent requests for this resource, since if you
 don't--the other two critical resources can be hurt.
 
-The following setting:
+When you compile in and enable the Apache mod_throttle_access module,
+the C<MaxConcurrentReqs> directive becomes available. For example, the
+following setting:
 
   <Location "/perl/morphing">
-    <Limit PUT GET>
+    <Limit PUT GET POST>
       MaxConcurrentReqs 10
     </Limit>
   </Location> 
 
-will allow only 10 concurrent requests under the URI I</perl/morphing>
-and of methods PUT and GET to be processed at one time.
-
+will allow only 10 concurrent PUT, GET or POST requests under the URI
+I</perl/morphing> to be processed at one time. The other two URIs
+remain unlimited.
 
 =head2 Limiting the Request Rate Speed (Robot Blocking)
 

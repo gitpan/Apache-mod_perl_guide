@@ -1,17 +1,11 @@
-package Apache::correct_headers;
-
-$VERSION = sprintf "%d.%02d", q$Revision: 1.11 $ =~ /(\d+).(\d+)/;
-
-__END__
-
-=head1 Correct Headers - A quick guide for mod_perl users
+=head1 Issuing Correct HTTP Headers
 
 =head1 SYNOPSIS
 
 As there is always more than one way to do it, I'm tempted to
 believe one must be the best.  Hardly ever am I right.
 
-=head1 The origin of this chapter
+=head1 The Origin of this Chapter
 
 This chapter has been contributed to the Guide by Andreas Koenig.  You
 will find the references and other related info at the bottom of this
@@ -25,7 +19,7 @@ other matter please contact the mod_perl mailing list.
 
 =head1 DESCRIPTION
 
-=head1 1) Why headers
+=head1 1) Why Headers
 
 Dynamic Content is dynamic, after all, so why would anybody care about
 HTTP headers?  Header composition is a task often neglected in the CGI
@@ -57,7 +51,7 @@ caching.
 I have grouped the headers into three groups: date headers,
 content headers, and the special Vary header.
 
-=head2 2.1) Date related headers
+=head2 2.1) Date Related Headers
 
 =head2 2.1.1) Date
 
@@ -122,7 +116,7 @@ this argument first.
   use Date::Parse;
   # Date::Parse parses RCS format, Apache::Util::parsedate doesn't
   $Mtime ||=
-    Date::Parse::str2time(substr q$Date: 2000/05/26 22:13:55 $, 6);
+    Date::Parse::str2time(substr q$Date: 2000/06/28 20:19:10 $, 6);
   $r->set_last_modified($Mtime);
 
 =head2 2.1.3) Expires and Cache-Control
@@ -206,7 +200,7 @@ Currently (mod_perl v1.22?) to avoid caching altogether:
 works with the major browsers.
 
 
-=head2 2.2) Content related headers
+=head2 2.2) Content Related Headers
 
 =head2 2.2.1) Content-Type
 
@@ -495,22 +489,22 @@ I<no> question mark such that the first semicolon is interpreted as a
 question mark and everything after that as the query string.  You can
 now exchange the request:
 
-  http://foo.com/query?BGCOLOR=blue;FGCOLOR=red
+  http://example.com/query?BGCOLOR=blue;FGCOLOR=red
 
 with:
 
-  http://foo.com/query;BGCOLOR=blue;FGCOLOR=red
+  http://example.com/query;BGCOLOR=blue;FGCOLOR=red
 
 Thus it allows the co-existence of queries from ordinary forms that
 are being processed by a browser and predefined requests for the same
 resource.  It has one minor bug: Apache doesn't allow percent-escaped
 slashes in such a query string.  So instead of:
 
-  http://foo.com/query;BGCOLOR=blue;FGCOLOR=red;FONT=%2Ffont%2Fbla
+  http://example.com/query;BGCOLOR=blue;FGCOLOR=red;FONT=%2Ffont%2Fbla
 
 you have to use:
 
-  http://foo.com/query;BGCOLOR=blue;FGCOLOR=red;FONT=/font/bla
+  http://example.com/query;BGCOLOR=blue;FGCOLOR=red;FONT=/font/bla
 
 
 =head2 3.4) Conditional GET
@@ -552,7 +546,7 @@ the origin server (which is the server you're programming) needs to
 handle conditional C<GET>s as well even if a Squid accelerator is
 running.
 
-=head2 3.) Avoiding dealing with them
+=head1 4.) Avoiding Dealing with Headers
 
 There is another approach to dynamic content that is possible with
 mod_perl.  This approach is appropriate if the content changes
@@ -577,7 +571,7 @@ would use the out of date C<finfo> when generating the response
 header.
 
 
-=head1 References and other literature
+=head1 References
 
 =head2 [1]
 
@@ -604,20 +598,6 @@ Lincoln Stein, Doug MacEachern: Writing Apache Modules with Perl and
 C, O'Reilly, 1-56592-567-X. Selected chapters available online at
 http://www.modperl.com . Amazon page at
 http://www.amazon.com/exec/obidos/ASIN/156592567X/writinapachemodu/
-
-=head1 VERSION
-
-You're reading revision $Revision: 1.11 $ of this document, written on
-$Date: 2000/05/26 22:13:55 $
-
-=head1 AUTHOR
-
-Andreas Koenig with helpful corrections, addition, comments from Ask
-Bjoern Hansen <ask@netcetera.dk>, Frank D. Cringle
-<fdc@cliwe.ping.de>, Eric Cholet <cholet@logilune.com>, Mark Kennedy
-<mark.kennedy@gs.com>, Doug MacEachern <dougm@pobox.com>, Tom Hukins
-<tom@eborcom.com>, Wham Bang <wham_bang@yahoo.com> and many others.
-
 
 =cut
 

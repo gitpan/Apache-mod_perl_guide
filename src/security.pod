@@ -39,7 +39,7 @@ but restrict her from accessing another resource, which in turn is
 accessible only for user B<bar>. The process of checking access rights
 is called B<Authorization>. For B<Authorization> all you need is an
 authenticated username or some other attribute which you can authorize
-against. For example, you can authorize upon IP number, allowing only
+against. For example, you can authorize against IP number, allowing only
 your local users to use some service. But be warned that IP numbers or
 session_ids can be spoofed (forged), and that is why you should not do
 B<Authorization> without B<Authentication>.
@@ -77,7 +77,7 @@ to the organization's generic username. Scripts can test the
 C<REMOTE_USER> environment variable to determine whether to allow
 unrestricted access or else to require authentication.
 
-Once user passes the authentication stage, either bypassing it because
+Once a user passes the authentication stage, either bypassing it because
 of his IP address or after entering a correct login/password pair, the
 C<REMOTE_USER> variable is set. Then we can talk about authorization.
 
@@ -166,7 +166,7 @@ password.
 
 =head2 Forcing re-authentication
 
-To force authenticated user to reauthenticate just send the following
+To force an authenticated user to reauthenticate just send the following
 header to the browser:
 
   WWW-Authenticate: Basic realm="My Realm"
@@ -180,7 +180,7 @@ also be discarded. If she hits the B<OK> button, the authentication
 window will be brought up again with the previous username already in
 place.
 
-In the Perl API you would use note_basic_auth_failure() method to
+In the Perl API you would use the note_basic_auth_failure() method to
 force reauthentication.
 
 This may not work!  The browser's behaviour is in no way guaranteed.
@@ -197,7 +197,7 @@ an equivalent C<$ENV{REMOTE_USER}> variable will be available.
 The password is available only through the Perl API with the help of
 the get_basic_auth_pw() method.
 
-If there is a failure, unless it's the first time the C<AUTH_REQUIRED>
+If there is a failure, unless it's the first time, the C<AUTH_REQUIRED>
 flag will tell the browser to pop up an authentication window, to try
 again. For example:
 
@@ -229,8 +229,54 @@ C<$r-E<gt>custom_response>. It looks something like this:
   return FORBIDDEN if $suspended;
 
 
+=head1 Apache:Auth* modules
+
+=over 
+
+=item * PerlAuthenHandler's
+
+  Apache::AuthAny           Authenticate with any username/password 
+  Apache::AuthenCache       Cache authentication credentials        
+  Apache::AuthCookie        Authen + Authz via cookies              
+  Apache::AuthenDBI         Authenticate via Perl's DBI             
+  Apache::AuthExpire        Expire Basic auth credentials           
+  Apache::AuthenGSS         Generic Security Service (RFC 2078)     
+  Apache::AuthenIMAP        Authentication via an IMAP server       
+  Apache::AuthenPasswdSrv   External authentication server          
+  Apache::AuthenPasswd      Authenticate against /etc/passwd        
+  Apache::AuthLDAP          LDAP authentication module              
+  Apache::AuthPerLDAP       LDAP authentication module (PerLDAP)    
+  Apache::AuthenNIS         NIS authentication                      
+  Apache::AuthNISPlus       NIS Plus authentication/authorization   
+  Apache::AuthenRaduis      Authentication via a Radius server      
+  Apache::AuthenSmb         Authenticate against NT server          
+  Apache::AuthenURL         Authenticate via another URL            
+  Apache::DBILogin          Authenticate to backend database        
+  Apache::DCELogin          Obtain a DCE login context              
+  Apache::PHLogin           Authenticate via a PH database          
+  Apache::TicketAccess      Ticket based access/authentication      
+
+=item  * PerlAuthzHandler's
+
+  Apache::AuthCookie        Authen + Authz via cookies              
+  Apache::AuthzAge          Authorize based on age                  
+  Apache::AuthzDCE          DFS/DCE ACL based access control        
+  Apache::AuthzDBI          Group authorization via Perl's DBI      
+  Apache::AuthzGender       Authorize based on gender               
+  Apache::AuthzNIS          NIS authorization                       
+  Apache::AuthzPasswd       Authorize against /etc/passwd           
+  Apache::AuthzSSL          Authorize based on client cert          
+  Apache::RoleAuthz         Role-based authorization                
+
+=item * PerlAccessHandler's
+
+  Apache::AccessLimitNum    Limit user access by number of requests 
+  Apache::BlockAgent        Block access from certain agents        
+  Apache::DayLimit          Limit access based on day of week       
+  Apache::IPThrottle        Limit bandwith consumption by IP        
+  Apache::RobotLimit        Limit access of robots                  
+  Apache::SpeedLimit        Control client request rate             
+
+=back
 
 =cut
-
-
-

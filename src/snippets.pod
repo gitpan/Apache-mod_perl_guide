@@ -618,7 +618,7 @@ comes to your rescue.  Given that one of the handlers stored some data
 in a hash C<%my_data>, then before it terminates:
 
    # First handler:
-   my %my_data = qw(foo => 1, bar => 2);
+   my %my_data = (foo => 1, bar => 2);
    $r->pnotes('my_data' => \%my_data);
 
 All the subsequent handlers will be able to retrieve the stored data with:
@@ -1102,6 +1102,50 @@ Example:
 
 
 
+=head1 An example of using Apache::Session::DBI with cookies
+
+META: should be annotated at some point. (an example posted to the
+mod_perl list)
+
+  use strict;
+  use DBI;
+  use Apache::Session::DBI;
+  use CGI;
+  
+  # [...]
+  
+  # Initiate a session ID
+  my $session = ();
+  my $opts = {  autocommit => 0, 
+                lifetime   => 3600 };     # 3600 is one hour
+  
+  # Read in the cookie if this is an old session
+  my $r = Apache->request;
+  my $no_cookie = '';
+  my $cookie = $r->header_in('Cookie');
+  {
+      # eliminate logging from Apache::Session::DBI's use of `warn'
+      local $^W = 0;      
+  
+      if (defined($cookie) && $cookie ne '') {
+          $cookie =~ s/SESSION_ID=(\w*)/$1/;
+          $session = Apache::Session::DBI->open($cookie, $opts);
+          $no_cookie = 'Y' unless defined($session);
+      }
+      # Could have been obsolete - get a new one
+      $session = Apache::Session::DBI->new($opts) unless defined($session);
+  }
+  
+  # Might be a new session, so let's give them a cookie back
+  if (! defined($cookie) || $no_cookie) {
+      local $^W = 0;
+  
+      my $session_cookie = "SESSION_ID=$session->{'_ID'}";
+      $r->header_out("Set-Cookie" => $session_cookie);
+  }
+  
+
+
 =head1 Using DESTROY to Finalize Output
 
 Well, as always with Perl -- TMTOWTDI (There's More Than One Way To Do
@@ -1322,6 +1366,10 @@ mysql-3.22.30+
 
 These are kinda dirty scripts, but they work... if you come up with 
 cleaner scripts, please contribute them... thanks
+
+Update: there is now a "mysqlhotcopy" utility distributed with MySQL
+that can make an atomic snapshot of a database. (by Tim Bunce) So you
+may consider using it instead.
 
 
 =cut
