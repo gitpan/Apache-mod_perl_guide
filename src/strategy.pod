@@ -368,8 +368,6 @@ about 5 times faster then Apache (especially under a heavy load),
 since it is very simple and uses almost no memory (260K) and does not
 spawn child processes.
 
-Meta: Hey, No personal experience here, only rumours. Please let me
-know if I have missed some pros/cons here. Thanks!
 
 The Advantages:
 
@@ -420,7 +418,7 @@ Linux-kernel as a module (device-driver).  kHTTPd handles only static
 information to a regular userspace-webserver such as Apache. For more
 information see http://www.fenrus.demon.nl/.
 
-
+Also check out the Boa webserver: http://www.boa.org/
 
 
 
@@ -465,7 +463,7 @@ faster.
 =item *
 
 And the extra functionality provided by the http-acceleration mode,
-which make the proxy server act as a sort of output buffer for the
+which makes the proxy server act as a sort of output buffer for the
 dynamic content.  The mod_perl server sends the entire response to the
 proxy and is then free to deal with other requests.  The proxy server
 is responsible for sending the response to the browser.  So if the
@@ -477,16 +475,16 @@ going to show a simple example from the real world.
 
 First let's explain the abbreviation used in the networking world. If
 someone claims to have a 56 kbps connection -- it means that the
-connection is of 56 killo-bits per second (~56000 bits/sec). It's not
-56 killo-bytes per second, but 7 killo-bytes per second, because 1
+connection is of 56 kilo-bits per second (~56000 bits/sec). It's not
+56 kilo-bytes per second, but 7 kilo-bytes per second, because 1
 byte equals to 8 bits. So don't let the merchants fool you--your modem
-gives you 7 killo-bytes per second connection at most and not 56
-killo-bytes per second as one might think.
+gives you 7 kilo-bytes per second connection at most and not 56
+kilo-bytes per second as one might think.
 
 Another convention used in computer literature is that if you see 10Kb
-it usually means 10 killo-bits and 10KB is 10 killo-bytes. So if you
+it usually means 10 kilo-bits and 10KB is 10 kilo-bytes. So if you
 see upper case C<B> it generally refers to bytes, and lower case C<b>
-to bits (and C<K> of course means killo and equals to 1024 or to 1000
+to bits (and C<K> of course means kilo and equals to 1024 or to 1000
 depending on the field it's used in). Remember that the latter
 convention is not followed everywhere, so use this knowledge with
 care. This document is following this convention.
@@ -499,7 +497,7 @@ script that generates this response in 0.5 second. How many responses
 this script could produce during the time it took for the output to be
 delivered to user? A simple calculation reveals pretty scary numbers:
 
-  42KB / 0.5s * 7KB/s = 12
+  42KB / (0.5s * 7KB/s) = 12
 
 12 other dynamic requests could be served at the same time, if we
 could put mod_perl to do only what it's best at: generating responses.

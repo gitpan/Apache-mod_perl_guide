@@ -192,10 +192,15 @@ before, but two things happened in the background:
 Firstly, the file I</tmp/db.out> was written, with a complete trace of
 the code that was executed.
 
-Secondly, I<error_log> now contains the real code that was actually
-executed.  This is produced as a side effect of reporting the
-I<Variable "$counter" will not stay shared at...> warning that we saw
-earlier.
+Secondly, if you have loaded the C<Carp> module already, I<error_log>
+now contains the real code that was actually executed.  This is
+produced as a side effect of reporting the I<Variable "$counter" will
+not stay shared at...> warning that we saw earlier. To load the Carp
+module, you can add:
+
+  use Carp;
+
+in your I<startup.pl> file or in the executed code.
 
 Here is the code that was actually executed:
 
@@ -248,11 +253,11 @@ declaration of the C<handler> subroutine. If you put your code into a
 library or module, which the main script require()'s or use()'s, this
 effect doesn't occur.
 
-For example if we move wrap the code from the script into the
-subroutine I<thecode>, place the both subroutines into the the
-I<mylib.pl> file, save it in the same directory as the script itself
-and require() it, there will be no problem at all. (Don't forget the
-C<1;> at the end of the library or the require() might fail.)
+For example if we move the code from the script into the subroutine
+I<run>, place the subroutines into the I<mylib.pl> file, save it in
+the same directory as the script itself and require() it, there will
+be no problem at all. (Don't forget the C<1;> at the end of the
+library or the require() might fail.)
 
   mylib.pl:
   ---------
@@ -782,10 +787,7 @@ contain multiple packages that all use pseudo-hashes.
 
 =head3 Availability
 
-This module is available from L<CPAN|download/CPAN_Downloads>. In one
-of the next mod_perl releases, it should become a part of the CORE
-distribution.
-
+This module is available from L<CPAN|download/CPAN_Downloads>. 
 
 
 
@@ -2509,7 +2511,8 @@ like this:
 
 
 Note that you can always use the code in the else part of the above
-example, no matter whether the C<PerlSendHeader> directive is On or Off.
+example, no matter whether the C<PerlSendHeader> directive is On or
+Off.
 
 If you use C<CGI.pm>'s C<header()> function to generate HTTP headers,
 you do not need to activate this directive because C<CGI.pm> detects
@@ -2525,8 +2528,8 @@ script outputs, in order to pass them to C<$r-E<gt>send_http_header>.
 This happens in C<src/modules/perl/Apache.xs> (C<print>) and
 C<Apache/Apache.pm> (C<send_cgi_header>).  There is a shortcut in
 there, namely the assumption that each print statement contains one or
-more complete headers.  If for example you generate a
-C<Set-Cookie> header by multiple C<print()> statements, like this:
+more complete headers.  If for example you generate a C<Set-Cookie>
+header by multiple C<print()> statements, like this:
 
    print "Content-type: text/plain\n";
    print "Set-Cookie: iscookietext\; ";
@@ -2824,7 +2827,16 @@ used to emulate plain perl's C<END{}> block behavior.
 The last paragraph is very important for handling the case of L<'User
 Pressed the Stop Button'|debug/Handling_the_User_pressed_Stop_>.
 
+If you only want something to run once in the parent on shutdown or
+restart you can use  C<$r-E<gt>register_cleanup()> in the I<startup.pl>.
 
+  #PerlRequire startup.pl
+  warn "parent pid is $$\n";
+  Apache->server->register_cleanup
+    (sub { warn "server cleanup in $$\n"});
+
+This is usually useful when some server wide cleanup should be
+performed when the server is stopped or restarted.
 
 =head1 CHECK Blocks
 
@@ -3080,7 +3092,7 @@ If you want to have C<-M> report the time relative to the current
 request, you should reset the C<$^T> variable just as with any other
 perl script. Add:
 
-  local $^T=time;
+  local $^T = time;
 
 at the beginning of the script.
 
@@ -3096,6 +3108,9 @@ and then in the I<httpd.conf>:
 
   PerlFixupHandler Apache::PerlBaseTime
 
+This technique is better performance-wise as it skips the time()
+system call, and uses the already available time of the request has
+been started at via C<$r-E<gt>request_time> method.
 
 
 
@@ -3537,11 +3552,11 @@ Now we are going to modify the script itself. We copy the content to
 the file I<Cookie.pm> and place it into one of the directories listed
 in C<@INC>. For example if I</home/httpd/perl> is a part of C<@INC>
 and since we want to call this package C<Test::Cookie>, we can put
-I</Cookie.pm> into the I</home/httpd/perl/Test/> directory.
+I<Cookie.pm> into the I</home/httpd/perl/Test/> directory.
 
 So this is the new code. Notice that all the subroutines were left
-unmodified from the original script, so to make the differences
-clear we do not repeat them here.
+unmodified from the original script, so to make the differences clear
+we do not repeat them here.
 
   Test/Cookie.pm
   --------------

@@ -224,7 +224,13 @@ whilst keeping their ISP happy.
 
 =back
 
-=head2 Other resources related to mod_perl hosting to look at
+=head2 Virtual Servers Technologies
+
+As we have just seen one of the obstacles of using mod_perl in ISP
+environments, is the problem of isolating customers using the same
+machine from each other. A number of virtual servers (don't confuse
+with virtual hosts) technologies (both commercial and Open Source)
+exist today. Here are some of them:
 
 =over
 
@@ -249,12 +255,43 @@ So if you want to completely protect one user from another and
 yourself from your users this might be yet another alternative to the
 solutions suggested at the beginning of this chapter.
 
-=item *
+=item * VMWare Technology
 
+Allows running a few instances of the same or different OSs on the
+same machine. This technology comes in two flavors:
 
-=item *
+open source: http://www.freemware.org/ also known as plex86
 
+commercial: http://www.vmware.com/
 
+So you may want to run a separate OS for each of your clients
+
+=item * freeVSD Technology
+
+freeVSD (http://www.freevsd.org), an open source project sponsored by
+Idaya Ltd. The software enables ISPs to securely partition their
+physical servers into many I<virtual servers>, each capable of running
+popular hosting applications such as Apache, Sendmail and MySQL.
+
+=item * S/390 IBM server
+
+Quoting from: http://www.s390.ibm.com/linux/vif/
+
+"The S/390 Virtual Image Facility enables you to run tens to hundreds
+of Linux server images on a single S/390 server. It is ideally suited
+for those who want to move Linux and/or UNIX workloads deployed on
+multiple servers onto a single S/390 server, while maintaining the
+same number of distinct server images. This provides centralized
+management and operation of the multiple image environment, reducing
+complexity, easing administration and lowering costs."
+
+In two words, this a great solution to huge ISPs, as it allows you to
+run hundreds of mod_perl servers while having only one box to
+maintain. The drawback is the price :)
+
+Check out this scalable mailing list thread for more details from
+those who know:
+http://archive.develooper.com/scalable@arctic.org/msg00235.html
 
 =back
 

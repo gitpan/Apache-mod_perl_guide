@@ -9,10 +9,10 @@ storage mechanisms C<Apache::Session::DBI>, C<Apache::Session::Win32>,
 C<Apache::Session::File>, C<Apache::Session::IPC>.  Read the man page
 of the mechanism you want to use for a complete reference.
 
-C<Apache::Session> provides persistence to a data structure. 
-The data structure has an ID number, and you can retrieve it by using
-the ID number.  In the case of Apache, you would store the ID number in
-a cookie or the URL to associate it with one browser, but the method of
+C<Apache::Session> provides persistence to a data structure.  The data
+structure has an ID number, and you can retrieve it by using the ID
+number.  In the case of Apache, you would store the ID number in a
+cookie or the URL to associate it with one browser, but the method of
 dealing with the ID is completely up to you.  The flow of things is
 generally:
 
@@ -28,24 +28,23 @@ generally:
   Use whatever data you put in the hash.
   End of Request 2.
 
-
 Using C<Apache::Session> is easy: simply tie a hash to the session
 object, stick any data structure into the hash, and the data you put
-in automatically persists until the next invocation.  Here is a quick
+in automatically persists until the next invocation.  Here is an
 example which uses cookies to track the user's session.
 
-  #  Pull in the required packages
+  # pull in the required packages
   use Apache::Session::DBI;
   use Apache;
   
   use strict;
   
-  # Read in the cookie if this is an old session
+  # read in the cookie if this is an old session
   my $r = Apache->request;
   my $cookie = $r->header_in('Cookie');
   $cookie =~ s/SESSION_ID=(\w*)/$1/;
   
-  # Create a session object based on the cookie we got from the
+  # create a session object based on the cookie we got from the
   # browser, or a new session if we got no cookie
   my %session;
   tie %session, 'Apache::Session::DBI', $cookie,
@@ -54,18 +53,20 @@ example which uses cookies to track the user's session.
        Password   => $db_pass
       };
   
-  # Might be a new session, so lets give them their cookie back
+  # might be a new session, so lets give them their cookie back
   my $session_cookie = "SESSION_ID=$session{_session_id};";
   $r->header_out("Set-Cookie" => $session_cookie);
 
-After setting this up, you can stick anything you want into %session
-(except file handles and code references), and it will still be there
-when the user invokes the next page.
+After setting this up, you can stick anything you want into
+C<%session> (except file handles and code references and using
+I<_session_id>), and it will still be there when the user invokes the
+next page.
 
 It is possible to write an Apache authentication handler using
 C<Apache::Session>.  You can put your authentication token into the
 session.  When a user invokes a page, you open their session, check to
-see if they have a valid token, and authenticate or forbid based on that.
+see if they have a valid token, and authenticate or forbid based on
+that.
 
 By way of comparison note that IIS's sessions are only valid on the
 same web server as the one that issued the session.
@@ -81,9 +82,9 @@ proprietary.  C<Apache::Session> is open-source.
 C<Apache::Session::DBI> can issue 400+ session requests per second on
 light Celeron 300A running Linux.  IIS?
 
-An alternative to C<Apache::Session> is Apache::ASP, which has session
-tracking abilities.  HTML::Embperl hooks into C<Apache::Session> for
-you.
+An alternative to C<Apache::Session> is C<Apache::ASP>, which has
+session tracking abilities.  C<HTML::Embperl> hooks into
+C<Apache::Session> for you.
 
 
 
@@ -270,7 +271,7 @@ Oriented interface.
   PerlModule Apache::RegistryNG
   <Location /perl>
     SetHandler perl-script
-    PerlHandler ApacheRegistryNG->handler
+    PerlHandler Apache::RegistryNG->handler
   </Location>
 
 C<Apache::RegistryNG> inherits from C<Apache::PerlRun>, but the
@@ -291,7 +292,7 @@ One situation where C<Apache::RegistryNG> may definitely be required
 is if you are rewriting URIs (using either mod_rewrite or your own
 handler) in certain ways.
 
-For instance  if you  have a rewrite rule  of the form:
+For instance if you have a rewrite rule of the form:
 
   XYZ123456.html  ==> /perl/foo.pl?p1=XYZ&p2=123456
 
@@ -305,20 +306,18 @@ unique URL -- C<Apache::RegistryNG> should be used instead.
 =head1 Apache::RegistryBB -- Apache::Registry Bare Bones 
 
 It works just like C<Apache::Registry>, but does not test the x bit
-(-x) only compiles the file once (no stat() call is made per
-requsest), skips the OPT_EXECCGI checks and does not C<chdir()> into
-the script parent directory.  It uses the Object Oriented interface.
+(-x file test for executable mode), only compiles the file once (no
+stat() call is made per request), skips the C<OPT_EXECCGI> checks and
+does not C<chdir()> into the script parent directory.  It uses the
+Object Oriented interface.
 
 Configuration:
 
   PerlModule Apache::RegistryBB
   <Location /perl>
     SetHandler perl-script
-    PerlHandler ApacheRegistryBB->handler
+    PerlHandler Apache::RegistryBB->handler
   </Location>
-
-See L<Apache::RegistryNG|modules/Apache_RegistryNG_Apache_Re> for more
-info.
 
 
 
@@ -346,12 +345,12 @@ The syntax goes like this:
 
 The modules are listed in the reverse order of their execution -- here
 the C<Apache::PassHtml> module simply picks a file's content and sends
-it to STDOUT ... then it's processed by C<Apache::SSIChain>, which
-sends its output to STDOUT again ... then it's processed by
+it to STDOUT, then it's processed by C<Apache::SSIChain>, which sends
+its output to STDOUT again. Then it's processed by
 C<Apache::OutputChain>, which finally sends the result to the browser.
 
 An alternative to this approach is C<Apache::Filter>, which has a more
-natural "forward" configuration order and is easier to interface with 
+natural I<forward> configuration order and is easier to interface with
 other modules.
 
 It works with C<Apache::Registry> as well, for example:
@@ -368,6 +367,12 @@ modules in the PerlHandler line.
 
 (L<Apache::GzipChain|modules/Apache_GzipChain_compress_HTM> allows to
 compress the output on the fly.)
+
+
+=head1 Apache::Filter - Alter the output of previous handlers
+
+META: to be written (actually summarized the info from Apache::Filter
+manpage)
 
 
 
@@ -406,11 +411,11 @@ addition pass through the Embperl module, you would write:
     PerlHandler Apache::OutputChain Apache::GzipChain Apache::EmbperlChain Apache::PassFile
   </Location>
 
-Hint: Watch the C<access_log> file to see how many bytes were actually
+Hint: Watch the I<access_log> file to see how many bytes were actually
 sent, and compare that with the bytes sent using a regular
 configuration.
 
-(See also C<perldoc Apache::GzipChain>).
+(See also C<Apache::GzipChain>).
 
 Notice that the rightmost PerlHandler must be a content producer.
 Here we are using C<Apache::PassFile> but you can use any module which
@@ -418,15 +423,9 @@ creates output.
 
 
 
-=head1 Apache::Filter - Alter the output of previous handlers
-
-META: to be written (actually summarized the info from Apache::Filter
-manpage)
-
 =head1 Apache::Gzip - Auto-compress web files with Gzip
 
-Similar to L<Apache::GzipChain|modules/Apache_GzipChain_compress_HTM>
-but works with C<Apache::Filter>.
+Similar to C<Apache::GzipChain> but works with C<Apache::Filter>.
 
 This configuration:
 
@@ -450,8 +449,9 @@ And this one:
     PerlHandler Apache::RegistryFilter Apache::Gzip
   </Location>
 
-Will compess the output of the C<Apache::Registry> scripts. Yes, you
-should write C<Apache::RegistryFilter> and not C<Apache::Registry>.
+will compess the output of the C<Apache::Registry> scripts. Yes, you
+should use C<Apache::RegistryFilter> instead of C<Apache::Registry>
+for it to work.
 
 You can use as many filters as you want:
 
@@ -465,7 +465,7 @@ You can use as many filters as you want:
 You can test that it works by either looking at the size of the
 response in the I<access.log> or by telnet:
 
-  telnet localhost 8000
+  panic% telnet localhost 8000
   Trying 127.0.0.1
   Connected to 127.0.0.1
   Escape character is '^]'.
@@ -597,13 +597,11 @@ and do some manual header sending, like this:
   $r->send_http_header();
 
 
-
-
 =head1 Apache::SubProcess
 
-The output of C<system()>, C<exec()>, and C<open(PIPE,"|program")> calls
-will not be sent to the browser unless your Perl was configured with
-C<sfio>.
+The output of C<system()>, C<exec()>, and C<open(PIPE,"|program")>
+calls will not be sent to the browser unless your Perl was configured
+with C<sfio>.
 
 One workaround is to use backticks:
 
@@ -615,50 +613,77 @@ work correctly under mod_perl.
 
 Let's see a few examples:
 
-  use strict;
-  use Apache::SubProcess qw(system exec);
-  
+  use Apache::SubProcess qw(system);
   my $r = shift;
   $r->send_http_header('text/plain');
   
-  # override built-in system() function
   system "/bin/echo hi there";
+
+overrides built-in system() function and sends the output to the
+browser.
+
+  use Apache::SubProcess qw(exec);
+  my $r = shift;
+  $r->send_http_header('text/plain');
   
-  # send the output of a program
+  exec "/usr/bin/cal"; 
+  
+  print "NOT REACHED\n";
+
+overrides built-in exec() function and sends the output to the
+browser. As you can see the print statement after the exec() call will
+be never executed.
+
+  use Apache::SubProcess ();
+  my $r = shift;
+  $r->send_http_header('text/plain');
+  
   my $efh = $r->spawn_child(\&env);
   $r->send_fd($efh);
   
-  # pass arguments to a program and sends its output
+  sub env {
+      my $r = shift;
+      $r->subprocess_env(HELLO => 'world');
+      $r->filename("/bin/env");
+      $r->call_exec;
+  }
+
+env() is a function that sets an environment variable that can be seen
+by the main and sub-processes, then it executes I</bin/env> program
+via call_exec(). The main code spawn a process, and tells it to
+execute the env() function. This call returns an output filehandler
+from the spawned child process. Finally it takes the output generated
+by the child process and sends it to the browser via send_fd(), that
+expects the filehandler as an argument.
+
+  use Apache::SubProcess ();
+  my $r = shift;
+  $r->send_http_header('text/plain');
+  
   my $fh = $r->spawn_child(\&banner);
   $r->send_fd($fh);
   
-  # pipe data to a program and send its output
+  sub banner {
+      my $r = shift;
+      # /usr/games/banner on many Unices
+      $r->filename("/usr/bin/banner");
+      $r->args("-w40+Hello%20World");
+      $r->call_exec;
+  }
+
+This example is very similar to the previous, but shows how can you
+pass arguments to the external process. It passes the string to print
+as a banner to via a subprocess.
+
+  use Apache::SubProcess ();
+  my $r = shift;
+  $r->send_http_header('text/plain');
+  
   use vars qw($String);
   $String = "hello world";
   my($out, $in, $err) = $r->spawn_child(\&echo);
   print $out $String;
   $r->send_fd($in);
-  
-  # override the built-in exec() function
-  exec "/usr/bin/cal"; 
-  
-  print "NOT REACHED\n";
-  
-  sub env {
-      my $r = shift;
-      #$r->subprocess_env->clear;
-      $r->subprocess_env(HELLO => 'world');
-      $r->filename("/bin/env");
-      $r->call_exec;
-  }
-  
-  sub banner {
-      my $r = shift;
-      # /usr/games/banner on many Unices
-      $r->filename("/usr/bin/banner"); 
-      $r->args("-w40+Hello%20World");  
-      $r->call_exec;
-  }
   
   sub echo {
       my $r = shift;
@@ -666,13 +691,25 @@ Let's see a few examples:
       $r->filename("/tmp/pecho");
       $r->call_exec;
   }
-  # where /tmp/pecho is:
-  # --------------------
-  #!/usr/bin/perl 
-  #read STDIN, $buf, $ENV{CONTENT_LENGTH}; 
-  #print "STDIN: `$buf' ($ENV{CONTENT_LENGTH})\n";
 
+The last example shows how you can have a full access to STDIN, STDOUT
+and STDERR streams of the spawned sub process, so you can pipe data to
+a program and send its output to the browser. The echo() function is
+similar to the earlier example's env() function. The I</tmp/pecho> is
+as follows:
 
+  !/usr/bin/perl 
+  read STDIN, $buf, $ENV{CONTENT_LENGTH}; 
+  print "STDIN: `$buf' ($ENV{CONTENT_LENGTH})\n";
+
+So in the last example a string is defined as a global variable, so
+it's length could be calculated in the echo() function. The subprocess
+reads from STDIN, to which the main process writes the string (I<hello
+world>). It reads only a number of bytes specified by 
+C<CONTENT_LENGTH> passed to the external program via environment
+variable. Finally the external program prints the data that it read to
+STDOUT, the main program intercepts it and sends to the client's
+socket (browser in most cases).
 
 =cut
 

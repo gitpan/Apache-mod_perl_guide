@@ -2,17 +2,13 @@
 
 =head1 A Must Read!
 
-This document was born because some users are reluctant to learn
-Perl, prior to jumping into mod_perl.  I will try to cover some of
-the most frequent pure Perl questions being asked at the list.
-
-Update: I'm moving most of the pure Perl related topics from
-everywhere in the Guide to this chapter.  From now on other chapters
-will refer to sections in this chapter if required.
+This document was born because some users are reluctant to learn Perl,
+prior to jumping into mod_perl.  I will try to cover some of the most
+frequent pure Perl questions being asked at the list.
 
 Before you decide to skip this chapter make sure you know all the
-information provided here.  The rest of the Guide assumes that you have
-read this chapter and understood it.
+information provided here.  The rest of the Guide assumes that you
+have read this chapter and understood it.
 
 
 
@@ -28,10 +24,11 @@ Books are good, but an easily accessible and searchable Perl reference
 at your fingertips is a great time saver. It always has the up-to-date
 information for the version of perl you're using.
 
-Of course you can use online Perl documentation at the Web. I prefer
-http://theoryx5.uwinnipeg.ca/CPAN/perl/ to the official URL:
-http://www.perl.com/pub/v/documentation is very slow :( . The
-C<perldoc> utility provides you with access to the documentation
+Of course you can use online Perl documentation at the Web. The two
+major sites are http://www.perldoc.com and
+http://theoryx5.uwinnipeg.ca/CPAN/perl/.
+
+The C<perldoc> utility provides you with access to the documentation
 installed on your system.  To find out what Perl manpages are
 available execute:
 
@@ -1062,10 +1059,7 @@ a literal, e.g. I<increment_counter(5)>).
   
   } # end of sub run
 
-The approach given above is generally not recommended because most
-Perl programmers will not expect C<$counter> to be changed by the
-function; the example where we used C<\$counter>,
-i.e. pass-by-reference would be preferred.
+The approach given above should be properly documented of course.
 
 Here is a solution that avoids the problem entirely by splitting the
 code into two files; the first is really just a wrapper and loader,

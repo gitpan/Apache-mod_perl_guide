@@ -2,7 +2,111 @@
 		### mod_perl Guide CHANGES file ###
 		###################################
 
-01.01.2001 ver 1.28
+04.26.2001 ver 1.29
+
+* dbm.pod:
+
+  o updated "Flawed Locking Methods Which Must Not Be Used" with notes
+    about lock upgrading (David Harris)
+
+* strategy.pod:
+
+  o added a ref to a light and fast Boa webserver
+
+* scenario.pod:
+
+  o cleared out the section on open proxying with mod_proxy (Eric Cholet)
+
+* multiuser.pod:
+
+  o extended the "Virtual Servers Technologies" section with freevsd,
+    freevmware, vmware and S/390 references.
+
+* snippets.pod:
+
+  o removed the cache control section -- it's covered in the HTTP
+    headers chapter.
+
+  o subrequests and notes working together (Darren Chamberlain)
+
+* performance.pod:
+ 
+  o "Interpolation vs List" update: wrongly used the 'concatenation'
+    term instead of interpolation (Mark Summerfield)
+
+  o "Interpolation, Concatenation or List" was rewritten
+
+  o new: "Architecture Specific Compile Options" (Tim Bunce, Perrin
+    Harkins, Greg Cope, Owen Williams, Vivek Khera, Steve Fink, James
+    W Walden)
+
+* modules.pod:
+
+  o Extended the docs of Apache::SubProcess module
+
+* porting.pod: 
+
+  o "using register_cleanup in startup.pl to register cleanup action
+    at the server shutdown or restart" (Doug)
+
+* config.pod: 
+
+  o Cleared the item which was falsely stating that the globals
+    defined in startup.pl cannot be seen by child process. (Richard
+    Chen)
+
+* install.pod:
+
+  o updated "Discovering Whether Some Option Was Configured": added
+    Apache::MyConfig
+
+  o debian/apt install notes updates (Neil Conway)
+
+  o some callback hooks aren't enabled by ALL_HOOKS=1 (Neil Conway)
+
+* download.pod
+
+  o update the location of mod_proxy_add_forward.c (Ask Bjorn Hansen)
+
+* help.pod
+
+  o added a link to Andrew Ford's Apache and mod_perl pocket books.
+
+  o added a link to take23.org
+
+  o added a XS resources section 
+
+  o added a link to the scalable list archive
+
+  o remove the mailing list post address, to make it easier of Ask to
+    filter SPAM.
+
+* troubleshooting.pod
+
+  o new: "exit signal Segmentation fault (11)" with mysql: (Matt
+    Sergeant)
+
+  o improved the docs of fixing a broken /dev/null
+
+* debug.pod
+
+  o updated "gdb says there are no debugging symbols" -- a simpler
+    technique to have the binary unstripped during make install.
+ 
+* Minor corrections:
+
+  o debug.pod (Alexander Farber)
+  o performance.pod (Marc Lehmann, Kees Vonk)
+  o snippets.pod (Ime Smits)
+  o porting.pod (Michele Beltrame)
+  o config.pod (Surat Singh Bhati, Paul Cotter )
+  o control.pod (Aaron Johnson, Cliff Rayman, Yann Kerhervé)
+  o modules.pod (Daniel Bohling)
+  o install.pod (Kevin Swope, Jamie)
+  
+
+
+01.11.2001 ver 1.28
 
 * Makefile.PL: fixed to generate a correct Makefile on Solaris:
   removed space/extra new line after some manually created targets

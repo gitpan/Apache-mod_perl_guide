@@ -395,6 +395,7 @@ like this:
     };
     return OK;
   }
+  1;
 
 and put it in a directory that is in the server's C<@INC>, to disable all
 the scripts in Location C</perl> you would replace:
@@ -1655,7 +1656,7 @@ your I<httpd.conf> file:
 
   sub UNIVERSAL::AUTOLOAD {
     my $class = shift;
-    warn "$class can't \$UNIVERSAL::AUTOLOAD!\n";
+    warn "$class can't \$UNIVERSAL::AUTOLOAD=$UNIVERSAL::AUTOLOAD!\n";
   }
 
 You can either put it in your startup.pl, or in a <Perl></Perl> section in

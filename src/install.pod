@@ -28,16 +28,14 @@ If you have stumbled upon a problem at any of the above steps, don't
 despair, the next sections will explain in detail each and every step.
 
 Of course there is a way of installing mod_perl in only a couple of
-minutes if you are using a Linux distribution that uses RPM or deb
-files:
+minutes if you are using a Linux distribution that uses RPM packages:
 
   % rpm -i apache-xx.xx.rpm
   % rpm -i mod_perl-xx.xx.rpm
 
-or
+or apt system:
 
-  % dpkg -i apache-xx.xx.deb
-  % dpkg -i mod_perl-xx.xx.deb
+  % apt-get install libapache-mod-perl
 
 These should set up both Apache and mod_perl correctly for your
 system. Using a packaged distribution can make installing and
@@ -305,6 +303,7 @@ The possible parameters for the appropriate hooks are:
   PERL_POST_READ_REQUEST
   PERL_TRANS
   PERL_INIT
+  PERL_RESTART (experimental)
 
   PERL_HEADER_PARSER
   PERL_AUTHEN
@@ -326,7 +325,7 @@ The possible parameters for the appropriate hooks are:
 As with any parameters that are either defined or not, use
 C<PERL_hookname=1> to enable them (e.g. C<PERL_AUTHEN=1>).
 
-To enable all callback hooks use:
+To enable all, but the last 4 callback hooks use:
 
   ALL_HOOKS=1
 
@@ -399,13 +398,13 @@ first to be ignored by the configuration process.
 
 =head4 APACHE_PREFIX
 
-If you want to use a non-default Apache installation directory, use
-the C<APACHE_PREFIX> parameter, e.g.:
+Alternatively to:
 
-  % perl Makefile.PL APACHE_PREFIX=/usr/local/ [...]
+  APACI_ARGS='--prefix=/usr/local/httpd_perl'
 
-This should be used together with the L<APACI_ARGS|install/APACI_ARGS>
-option.
+from the previous section you can use the C<APACHE_PREFIX> parameter.
+When C<USE_APACI> is enabled, this attribute will specify the
+I<--prefix> option just like the above setting does.
 
 In addition when the C<APACHE_PREFIX> option is used C<make install>
 be executed in the Apache source directory, which makes these two
@@ -424,7 +423,6 @@ equivalent:
   % make && make test && make install
 
 Now you can pick your favorite installation method.
-
 
 =head3 Environment Variables
 
@@ -499,31 +497,52 @@ C<mod_perl_x.xx/apaci/mod_perl.config>.
 
 
 
-=head3 Discovering whether some option was configured
+=head3 Discovering Whether Some Option Was Configured
 
-To find out whether some parameter was included in the server, you can
-take a look at the symbols inside the httpd executable with help of
-C<nm> or a similar utility.  For example if you want to see whether
-you enabled C<PERL_AUTH=1> while building mod_perl, you do:
+mod_perl version 1.25 has introduced C<Apache::Myconfig>, which
+provides access to the various hooks and features set when mod_perl is
+built.  This circumvents the need to set up a live server just to find
+out if a certain callback hook is available.
 
-  % nm httpd | grep perl_authenticate
+To see whether some feature was built in or not, check the
+C<%Apache::MyConfig::Setup> hash. For example after installing
+mod_perl with the following options:
 
-But this will only work if you have an unstripped httpd binary.  By
-default, C<make install> strips the binary before installing it.
+  panic% perl Makefile.PL EVERYTHING=1
 
-Another approach is to configure L</perl-status
-location|debug/Apache_Status_Embedded_Inter> and run
-http://localhost/perl-status?hooks to check the enabled hooks.
+but on the next day we don't remember what callback hooks were
+enabled, and we want to know whether C<PERL_LOG> callback hook is
+enabled. One of the ways to find this out is to run the following
+code:
 
-Yet another approach is to try to use this parameter in the
-configuration file.  If it wasn't enabled Apache will tell you when
-you start the server, by reporting an unknown directive.
+  panic% perl -MApache::MyConfig \
+  -e 'print $Apache::MyConfig::Setup{PERL_LOG}'
+  1
 
-Similarly, for example, when you attempt to use C<PerlAuthenHandler>
-without building Apache with the C<PERL_AUTHEN=1> parameter, Apache
-will give an error message.
+which prints '1'--meaning that C<PERL_LOG> callback hook was
+enabled. (That's because C<EVERYTHING=1> enables them all.)
 
+Another approach is to configure C<Apache::Status> as explain on page
+XXX of Chapter YYY and run http://localhost/perl-status?hooks to check
+for enabled hooks.
 
+You also may try to look at the symbols inside the httpd executable
+with help of C<nm(1)> or a similar utility.  For example if you want
+to see whether you enabled C<PERL_LOG=1> while building mod_perl, we
+can search for a symbol with the same name but in lowercase:
+
+  panic% nm httpd | grep perl_log
+  08071724 T perl_logger
+
+Indeed we can see that in our example C<PERL_LOG=1> was enabled.  But
+this will only work if you have an unstripped httpd binary.  By
+default, C<make install> strips the binary before installing it. Use
+the C<--without-execstrip> C<./Configure> option to prevent stripping
+during I<make install> phase.
+
+Yet another approach that will work in most of the cases is to try to
+use the feature in question. If it wasn't configured Apache will give
+an error message
 
 
 =head3 Using an Alternative Configuration File
@@ -807,9 +826,9 @@ For all RedHat fans, before you build Apache yourself, do:
 
 to remove the pre-installed RPM package first!
 
-Debian users would do:
+Users with apt systems would do:
 
-  % dpkg -r apache
+  % apt-get remove apache
 
 instead.
 
@@ -1011,18 +1030,17 @@ The second step is to install the Perl-side of mod_perl into the Perl
 hierarchy and prepare the C<src/modules/perl/> subdirectory inside the
 Apache source tree:
 
- $ cd mod_perl-x.xx
- $ perl Makefile.PL \
-     APACHE_SRC=../apache_x.x.x/src \
-     NO_HTTPD=1 \
-     USE_APACI=1 \
-     PREP_HTTPD=1 \
-     EVERYTHING=1 \
-     [...]
- $ make
- $ make test
- $ make install
- $ cd ..
+  $ cd mod_perl-x.xx
+  $ perl Makefile.PL \
+      APACHE_SRC=../apache_x.x.x/src \
+      NO_HTTPD=1 \
+      USE_APACI=1 \
+      PREP_HTTPD=1 \
+      EVERYTHING=1 \
+      [...]
+  $ make
+  $ make install
+  $ cd ..
 
 The C<APACHE_SRC> option sets the path to your Apache source tree, the
 C<NO_HTTPD> option forces this path and only this path to be used, the
@@ -1051,14 +1069,13 @@ Finally it's time to build the Apache package and thus also the
 Apache-side of mod_perl and any other third-party modules you've
 prepared:
 
- $ cd apache_x.x.x
- $ ./configure \
-     --prefix=/path/to/install/of/apache \
-     --activate-module=src/modules/perl/libperl.a \
-     [...]
- $ make
- $ make test
- $ make install
+  $ cd apache_x.x.x
+  $ ./configure \
+      --prefix=/path/to/install/of/apache \
+      --activate-module=src/modules/perl/libperl.a \
+      [...]
+  $ make
+  $ make install
 
 The C<--prefix> option is needed if you want to change the default
 target directory of the Apache installation and the
@@ -1768,8 +1785,6 @@ Build mod_perl.
   % perl Makefile.PL APACHE_SRC=../apache_x.x.xx/src NO_HTTPD=1 \
     USE_APACI=1 PREP_HTTPD=1 EVERYTHING=1
   % make
-  % make test
-  % make install
 
 =item 1
 
@@ -1783,7 +1798,7 @@ Build mod_php.
 
 =item 1
 
-Complete the Apache installation.
+Build Apache:
 
   % cd ../apache_x.x.xx
   % ./configure --prefix=/usr/local/etc/httpd \
@@ -1791,6 +1806,22 @@ Complete the Apache installation.
      --activate-module=src/modules/php3/libphp3.a \
      --enable-module=stats \
      --enable-module=rewrite
+  % make
+
+=item 1
+
+Test and install mod_perl
+
+  % cd ../mod_perl-x.xx
+  % make test
+  # make install.
+
+=item 1
+
+Complete the Apache installation.
+
+  % cd ../apache_x.x.xx
+  # make install
 
 =back
 

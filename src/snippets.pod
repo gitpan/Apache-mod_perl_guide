@@ -136,7 +136,7 @@ The following code must be added to the script:
   		  Please try again!<P>
   		  Thank you!
   		 };
-  
+
     } else {
   
       $message = qq{
@@ -170,7 +170,7 @@ The following code must be added to the script:
     $orig_why
   
       |;
-  
+
         # send error reports to admin 
       send_mail($admin_email,$admin_email,$subject,$body);
       print STDERR "[".scalar localtime()."] [SIGDIE] Sending Error Email\n";
@@ -195,124 +195,78 @@ method to print the errors and won't die() unless you want it to.
 
 
 
-=head1 Emulating the Authentication Mechanism
-
-You can provide your own mechanism to authenticate users, instead of
-the standard one.  If you want to make Apache think that the user was
-authenticated by the standard mechanism, set the username with:
-
-  $r->connection->user('username');
-
-Now you can use this information for example during the logging, so 
-that you can have your "username" passed as if it was transmitted to 
-Apache through HTTP authentication.
-
-
-
-=head1 Caching POSTed Data
+=head1 Reusing Data from POST request
 
 What happens if you need to access the POSTed data more than once,
 say to reuse it on subsequent requests?  POSTed data comes directly 
 from the socket, and at the low level data can only be read from a 
 socket once.  So you have to store it to make it available for reuse.  
 
-There is an experimental option for C<Makefile.PL> called 
-C<PERL_STASH_POST_DATA>.  If you turn it on, you can get at it again 
-with C<$r-E<gt>subprocess_env("POST_DATA")>.  This is not on by default
-because it adds overhead.
+There is an experimental option for C<Makefile.PL> called
+C<PERL_STASH_POST_DATA>.  If you turn it on, you can get at it again
+with C<$r-E<gt>subprocess_env("POST_DATA")>.  This is not I<enabled>
+by default because it adds a processing overhead for each POST
+request.
 
-And what do we do with large multipart file uploads?  Because C<POST> 
-data is not all read in one clump, it's a problem that's not easy to 
-solve in a general way.  You might try the following approach:
+But what do we do with large multipart file uploads?  Because C<POST>
+data is not all read in one clump, it's a problem that's not easy to
+solve in a general way. A transparent way to do this is to switch the
+request method from POST to GET, and store the POST data in the query
+string. This handler does exactly this:
 
-In httpd.conf:
-
-  <Limit POST>
-     PerlFixupHandler    My::fixup_handler
-  </Limit>
-
-In your script:
-
-  use Apache::Constants;
-  sub My::fixup_handler {
-    my $r = shift;
-    return DECLINED unless $r->method eq "POST";
-    $r->args(scalar $r->content);
-    $r->method("GET");
-    $r->method_number(M_GET);
-    $r->headers_in->unset('Content-length');
-    OK;
-  }
-
-Now when C<CGI.pm>, C<Apache::Request> or whatever parses the client
-data, it can do so more than once since C<$r-E<gt>args> doesn't go
-away (unless you make it go away).
-
-
-
-
-
-
-
-
-=head1 Cache Control for Regular and Error Modes
-
-To disable caching you should use the headers:
-
-  Pragma: no-cache
-  Cache-control: no-cache
-
-For normally generated response use:
-
-  $r->header_out("Pragma","no-cache");
-  $r->header_out("Cache-control","no-cache");
-  $r->no_cache(1);
-
-If for some reason you need to use them in Error control code use:
-
-  $r->err_header_out("Pragma","no-cache");
-  $r->err_header_out("Cache-control","no-cache");
-
-META: $r->no_cache(1); ?
-
-
-=head1 Convert a POST Request into a GET Request
-
-Remember that B<you can only read POST data from the socket once>.  If
-you need to use it more than once, you need to save it somewhere.
-
-A transparent way to do this is to switch the request method from POST
-to GET, and store the POST data in the query string:
-
+  Apache/POST2GET.pm
+  ------------------
   package Apache::POST2GET;
-  use Apache::Constants qw(M_GET);
+  use Apache::Constants qw(M_GET OK DECLINED);
   
   sub handler {
     my $r = shift;
-    if ($r->method eq 'POST') { 
-       my $content = $r->content;
-       $r->args($content);
-       $r->method('GET');
-       $r->method_number(M_GET);
-       $r->headers_in->unset('Content-length');
-    }
+    return DECLINED unless $r->method eq "POST";
+    $r->args(scalar $r->content);
+    $r->method('GET');
+    $r->method_number(M_GET);
+    $r->headers_in->unset('Content-length');
+    return OK;
   }
+  1;
   __END__
 
-Then add this directive to I<httpd.conf>:
+In I<httpd.conf> add:
 
   PerlInitHandler Apache::POST2GET
 
+or even this:
+
+  <Limit POST>
+    PerlInitHandler Apache::POST2GET
+  </Limit>
+
+To save a few more cycles, so the handler will be called only for POST
+requests.
+
+Effectively, this trick turns the POST request into a GET request
+internally.  Now when C<CGI.pm>, C<Apache::Request> or whatever module
+parses the client data, it can do so more than once since
+C<$r-E<gt>args> doesn't go away (unless you make it go away by
+resetting it).
 
 
 
-=head1 Redirect a POST Request, Forwarding the Content
 
-With mod_perl you can easily redirect a POST request to some other
-location.  All you have to do is read in the contents, set the method
-to C<GET>, populate C<args()> with the content to be forwarded and
-finally do the redirect:
 
+
+
+
+
+=head1 Redirecting POST Requests
+
+Under mod_cgi it's not easy to redirect POST requests to some other
+location.  With mod_perl you can easily redirect POST requests.  All
+you have to do is read in the content, set the method to C<GET>,
+populate C<args()> with the content to be forwarded and finally do the
+redirect:
+
+  use Apache::Constants qw(M_GET);
   my $r = shift;
   my $content = $r->content;
   $r->method("GET");
@@ -324,40 +278,18 @@ finally do the redirect:
 Of course that last line can be any other kind of redirect.
 
 
-
-
-
-=head1  Reading POST Data, then Redirecting or Doing Something Else
-
-If you read POST data, then redirect, you need to do this before the
-redirect or apache will hang:
-
-  $r->method_number(M_GET);
-  $r->method('GET');
-  $r->headers_in->unset('Content-length');
-  $r->header_out('Location' => $ENV{SCRIPT_NAME});
-  $r->status(REDIRECT);
-  $r->send_http_header;
-
-After the first time you read POST data, you need the code above to
-prevent somebody else from trying to read post data that's already
-been read.
-
-
-
-
-
 =head1 Redirecting While Maintaining Environment Variables
 
 Let's say you have a module that sets some environment variables.
 
 If you redirect, that's most likely telling the web browser to fetch
-the new page.  This makes it a totally new request, so no environment 
+the new page.  This makes it a totally new request, so no environment
 variables are preserved.
 
-However, if you're using internal_redirect(), then subprocess_env()
-should do the trick, but the C<%ENV> keys will be prefixed with
-C<REDIRECT_>.
+However, if you're using internal_redirect(), you can make the
+environment variables seen in the sub-process via
+subprocess_env(). The only nuance is that the C<%ENV> keys will be
+prefixed with C<REDIRECT_>.
 
 
 
@@ -550,13 +482,14 @@ package. One way is to do something like this:
 
 =head1 Handling Cookies
 
-Unless you use some well known module like C<CGI.pm>, handle cookies yourself.
+Unless you use some well known module like C<CGI::Cookie> or
+C<Apache::Cookie>, you need to handle cookies yourself.
 
-Cookies come in the C<$ENV{HTTP_COOKIE}> variable.  You can print the raw
-cookie string as C<$ENV{HTTP_COOKIE}>.
+Cookies come in the C<$ENV{HTTP_COOKIE}> variable.  You can print the
+raw cookie string as C<$ENV{HTTP_COOKIE}>.
 
-Here is a fairly well-known bit of code to take cookie values and put them
-into a hash:
+Here is a fairly well-known bit of code to take cookie values and put
+them into a hash:
 
   sub get_cookies {
       # cookies are seperated by a semicolon and a space, this will
@@ -588,11 +521,11 @@ Or a slimmer version:
 =head1 Sending Multiple Cookies with the Perl API
 
 Given that you have prepared your cookies in C<@cookies>, the
-following would do:
+following code will submit all the cookies:
 
-  for(@cookies){
+  for (@cookies){
    $r->headers_out->add( 'Set-Cookie' => $_ );
- }
+  }
 
 
 
@@ -601,7 +534,9 @@ following would do:
 You should use err_headers_out() and not headers_out() when you want
 to send cookies in the C<REDIRECT> response.
 
+  use Apache::Constants qw(REDIRECT OK);
   my $r = shift;
+  # prepare the cookie in $cookie
   $r->err_headers_out->add('Set-Cookie' => $cookie);
   $r->headers_out(Location => $location);
   $r->status(REDIRECT);
@@ -614,19 +549,24 @@ to send cookies in the C<REDIRECT> response.
 =head1 Passing and Preserving Custom Data Structures Between Handlers
 
 Let's say that you wrote a few handlers to process a request, and they
-all need to share some custom Perl data structure.  The pnotes() method
-comes to your rescue.  Given that one of the handlers stored some data 
-in a hash C<%my_data>, then before it terminates:
+all need to share some custom Perl data structure.  The pnotes()
+method comes to your rescue.
 
-   # First handler:
-   my %my_data = (foo => 1, bar => 2);
+   # a handler that gets executed first
+   my %my_data = (foo => 'mod_perl', bar => 'rules');
    $r->pnotes('my_data' => \%my_data);
 
-All the subsequent handlers will be able to retrieve the stored data with:
+The handler prepares the data in hash C<%my_data> and calls pnotes()
+method to store the data internally for other handlers to re-use.  All
+the subsequently called handlers can retrieve the stored data in this
+way:
 
-   # Later handler:
    my $info = $r->pnotes('my_data');
    print $info->{foo};
+
+prints:
+
+  mod_perl
 
 The stored information will be destroyed at the end of the request.
 
@@ -638,37 +578,64 @@ The stored information will be destroyed at the end of the request.
 
 =head1 Passing Notes Between mod_perl and other (non-Perl) Apache Modules
 
-the notes() method can be used to make various Apache modules talk to
-each other.  In this snippet the php application calls the mod_perl 
-application by marking up a bunch of notes in its own request and
-then issuing a sub-request to a mod_perl page.  The mod_perl request
-handler that gets this internal sub-request reads those notes and
-writes its replies in the same place.
-
-First you read the request with (the following code is in PHP):
+The notes() method can be used to make various Apache modules talk to
+each other.  In the following snippet the PHP module talks to the
+mod_perl code (PHP code):
 
   if (isset($user) && substr($user,0,1) == "+") {
-    apache_note("imp_euser", substr($user,1));
+    apache_note("user", substr($user,1));
     virtual("/internal/getquota");
-    $quota      = apache_note("imp_quota");
-    $quota_pp   = apache_note("imp_quota_pp");
-    $usage_pp   = apache_note("imp_usage_pp");
-    $percent_pp = apache_note("imp_percent_pp");
+    $quota      = apache_note("quota");
+    $usage_pp   = apache_note("usage_pp");
+    $percent_pp = apache_note("percent_pp");
     if ($quota)
       $message .= " | Using $percent_pp% of $quota_pp limit";
   }
 
-and then you read and write the notes with C<$r-E<gt>main-E<gt>notes>
-from mod_perl.
+The PHP code sets the I<user> and the username pair using the notes
+mechanism. Then issuing a sub-request to a perl handler:
 
+  use Apache::Constants qw(REDIRECT OK);
+  my $r = shift;
+  my $notes = $r->main->notes();
+  my ($quota,usage_pp,percent_pp) = getquota($notes->{user}||'');
+  $r->notes('quota',$quota);
+  $r->notes('usage_pp',$usage_pp);
+  $r->notes('percent_pp',$percent_pp);
+  return OK;
 
+which retrieves the username from the notes (using
+C<$r-E<gt>main-E<gt>notes>), uses some getquota() function to get the
+quota related data and then sets the acquired data in the notes for
+the PHP code. Now the PHP code reads the data from the notes and
+proceeds with setting C<$message> if C<$quota> is set.
 
+So any Apache modules can communicate with each other over the Apache
+notes() mechanism.
 
+You can use notes along with the sub-request methods lookup_uri() and
+lookup_filename() too. To make it work, you need to set a note in the
+sub-request. For example if you want to call a php sub-request from
+within mod_perl and pass it a note, you can do it in the following
+way:
+
+    my $subr = $r->lookup_uri('wizard.php3');
+    $subr->notes('answer' => 42);
+    $subr->run;
+
+As of the time of this writing you cannot access the parent request
+tables from a PHP handler, therefore you must set this note for the
+sub-request. Whereas if the sub-request is running in the mod_perl
+domain, you can always keep the notes in the parent request notes
+table and access them via the method main():
+
+  $r->main->notes('answer');
 
 
 =head1 Passing Environment Variables Between Handlers
 
-A simple example of passing environment variables between handlers:
+This is a simple example of passing environment variables between
+handlers:
 
 Having a configuration:
 
@@ -698,14 +665,16 @@ access_log works fine too.
 
 =head1 CGI::params in the mod_perl-ish Way
 
-Extracting request parameters in the mod_perl-ish way:
+You can retrieve the request parameters in a similar to C<CGI::params>
+way using this technique:
 
   my $r = shift;  # or $r = Apache->request
   my %params = $r->method eq 'POST' ? $r->content : $r->args;
 
+assuming that all your variables are single key-value pairs.
 
-Also take a look at C<Apache::Request> which has the same API for 
-extracting and setting parameters.
+Also take a look at C<Apache::Request> which has the same API as
+C<CGI.pm> for extracting and setting request parameters.
 
 
 
@@ -733,7 +702,7 @@ To subclass a package you simply modify @ISA, for example:
         my ($self, $key) = @_;
         my $apr = $self->{_r};
         # Here we are calling the Apache::Request object's param method
-        $apr->param($key) . '42';
+        $apr->param($key);
   }
   
   sub sum {
@@ -760,20 +729,19 @@ To subclass a package you simply modify @ISA, for example:
 
 =head1 Sending Email from mod_perl
 
-There is nothing special about sending email from mod_perl, it's
-just that we do it a lot.  There are a few important issues.  The 
-most widely used approach is starting a C<sendmail> process and
-piping the headers and the body to it.  The problem is that 
-C<sendmail> is a very heavy process and it makes mod_perl 
-processes less efficient.
+There is nothing special about sending email from mod_perl, it's just
+that we do it a lot.  There are a few important issues.  The most
+widely used approach is starting a C<sendmail> process and piping the
+headers and the body to it.  The problem is that C<sendmail> is a very
+heavy process and it makes mod_perl processes less efficient.
 
-If you don't want your process to wait until delivery is complete, you 
-can tell C<sendmail> not to deliver the email straight away, but either 
-do it in the background or just queue the job until the next queue run.  
-This can significantly reduce the delay for the mod_perl process which 
-would otherwise have to wait for the C<sendmail> process to complete.  
-This can be specified for all deliveries in I<sendmail.cf> or on each 
-invocation on the sendmail command line:
+If you don't want your process to wait until delivery is complete, you
+can tell C<sendmail> not to deliver the email straight away, but
+either do it in the background or just queue the job until the next
+queue run.  This can significantly reduce the delay for the mod_perl
+process which would otherwise have to wait for the C<sendmail> process
+to complete.  This can be specified for all deliveries in
+I<sendmail.cf> or on each invocation on the sendmail command line:
 
 =over
 
@@ -791,17 +759,18 @@ C<-odd> (queue, and also defer the DNS/NIS lookups).
 
 =back
 
-Some people prefer using lighter mail delivery programs like
-C<qmail>.
+The trend is to move away from sendmail(1) and switch to using lighter
+mail delivery programs like qmail(1) or postfix(1). You should check
+the manpage of your favorite mailer application for equivalent
+configuration presented for sendmail(1).
 
-The most efficient approach is to talk directly to the SMTP 
-server.  Luckily C<Net::SMTP> modules makes this very easy.
-The only problem is when <Net::SMTP> fails to deliver the mail,
-because the destination peer server is temporarily down.  But from the
-other side C<Net::SMTP> allows you to send email much much faster,
-since you don't have to invoke a dedicated process.  Here is
-an example of a subroutine that sends email.
-
+The most efficient approach is to talk directly to the SMTP server.
+Luckily C<Net::SMTP> modules makes this very easy.  The only problem
+is when <Net::SMTP> fails to deliver the mail, because the destination
+peer server is temporarily down.  But from the other side C<Net::SMTP>
+allows you to send email much much faster, since you don't have to
+invoke a dedicated process.  Here is an example of a subroutine that
+sends email.
 
   use Net::SMTP ();
   use Carp qw(carp verbose);
@@ -886,33 +855,26 @@ The invocation:
 
 
 
+=head1 mod_rewrite in Perl
 
+We can easily implement everything mod_rewrite does in Perl. We do
+this with help of PerlTransHandler, which is invoked at the beginning
+of request processing. For example consider that we need to perform a
+redirect based on query string and URI, the following handler does
+that.
 
-
-
-=head1 mod_rewrite Based On Query String and URI Implemented in Perl
-
-The task: we need to perform a redirect based on the query string 
-and the logical path (URI).
-
-The solution: we write a PerlTransHandler that does what mod_rewrite
-does.  You can get the query string from C<$r-E<gt>args> and send
-redirect headers.
-
-  package Apache::Redirect::Based::On::Query::String::Plus::URI;
-  use Apache::Constants 'OK','REDIRECT';
-  use constant DEFAULT_URI => 'http://www.boston.com'; # shameless plug!
+  package Apache::MyRedirect;
+  use Apache::Constants qw(OK REDIRECT);
+  use constant DEFAULT_URI => 'http://www.example.org';
   
   sub handler {
     my $r    = shift;
     my %args = $r->args;
     my $path = $r->uri;
   
-    # $uri holds something like 'http://www.mysite.com/news/' if the initial
-    # request was 'http://www.yoursite.com/news/?uri=http://www.mysite.com/'
     my $uri = (($args{'uri'}) ? $args{'uri'} : DEFAULT_URI) . $path;
   
-    $r->header_out->add('Location' => $uri);
+    $r->header_out(Location => $uri);
     $r->status(REDIRECT);
     $r->send_http_header;
   
@@ -921,12 +883,24 @@ redirect headers.
 
 Set it up in I<httpd.conf> as:
 
-  PerlTransHandler Apache::Redirect::Based::On::Query::String::Plus::URI
+  PerlTransHandler Apache::MyRedirect
+
+The code consists of three parts: request data retrieval, deciding
+what to do based on this data and finally setting the headers and the
+status and issuing redirect.
+
+So if a client submits a request of this kind:
+
+  http://www.example.com/news/?uri=http://www.example-2.com/
+
+C<$uri> will hold I<http://www.example-2.com/news/> and that's where
+the request will be redirected.
 
 
-=head1 PerlTransHandler example
 
-Suppose that before a content handler is invoked you want make this
+=head1 URI Rewrite in PerlTransHandler 
+
+Suppose that before a content handler is invoked you want to make this
 translation:
 
   /articles/10/index.html  =>  /articles/index.html?id=10
@@ -952,47 +926,54 @@ and in I<httpd.conf>:
   PerlModule My::Trans 
   PerlTransHandler My::Trans
 
-Notice the technique to set the I<args>.  By the time the
-apache-request object has been created, args are handled in a separate
-slot, so you cannot just push them into the original URI.
+The handler code retrieves the request object and the URI. Then it
+retrieves the I<id> using the regular expression. Finally it sets the
+new value of the URI and the arguments string.  The handler returns
+C<DECLINED> so the default Apache transhandler will take care of URI
+to filename remapping.
 
-Also notice that the handler returns C<DECLINED> so the default Apache
-transhandler will take care of URI to filename remapping.
-
+Notice the technique to set the arguments.  By the time the
+Apache-request object has been created, arguments are handled in a
+separate slot, so you cannot just push them into the original
+URI. Therefore the args() method should be used.
 
 
 =head1 Setting PerlHandler Based on MIME Type
 
-Q: Is there a way to set a PerlHandler for a specific MIME type?
-Something like I<"PerlTypeHandler text/html HTML::Template">?  (One
-can use a C<E<lt>FilesE<gt>> section.  Not quite as slick, and that mucks up
-C<$r-E<gt>location>.)
-
-A: There's no built-in configuration directive like that, though you
-could do magic with directive handlers. Otherwise, something like this
-should work:
+It's very easy to implement a dispatching module based on the MIME
+type of request. So a different content handler will be called for a
+different MIME type. This is an example of such a dispatcher:
 
   package My::MimeTypeDispatch;
-
+  use Apache::Constants qw(DECLINED);
+  
   my %mime_types = (
-    'text/html' => \&HTML::Template::handler,
+    'text/html'  => \&HTML::Template::handler,
+    'text/plain' => \&My::Text::handler,
   );
-
+  
   sub handler {
     my $r = shift;
     if (my $h = $mime_types{$r->content_type}) {
       $r->push_handlers(PerlHandler => $h);
       $r->handler('perl-script');
     }
+  return DECLINED;
   }
+  1;
   __END__
 
-And in I<httpd.conf>:
+And in I<httpd.conf> we add:
 
   PerlFixupHandler My::MimeTypeDispatch
 
-
-
+After declaring the package name and importing constants, we set a
+translation table of MIME types and corresponding handlers to be
+called. Then comes the handler, where the request object is retrieved
+and if its MIME type is found in our translation table we set the
+handler that should handle this request. Otherwise we do nothing.  At
+the end we return C<DECLINED> so some other fixup handler could take
+over.
 
 
 
@@ -1070,7 +1051,7 @@ dynamically figure out the front-end server name in the back-end
 server.  mod_proxy and mod_rewrite provide the solution.
 
 Compile apache with both mod_proxy and mod_rewrite, then use a
-directive something like this
+directive something like this:
 
   RewriteEngine On
   RewriteLog /somewhere/rewrite.log
@@ -1081,16 +1062,16 @@ directive something like this
 This will have all the urls starting with I</some/url> proxied off to
 the other server at the same url.  It will append the C<REMOTE_HOST>
 header as a query string argument.  (QSA = Query String Append, P =
-Proxy).  There is probably a way to remap it as an X-Header of some 
-sort, but if query string is good enough for you, then this should 
+Proxy).  There is probably a way to remap it as an X-Header of some
+sort, but if query string is good enough for you, then this should
 work really nicely.
 
 
 
 =head1 Authentication Snippets
 
-Getting the authenticated username: C<$r-E<gt>connection-E<gt>user()>, or
-C<$ENV{REMOTE_USER}> if you're in a CGI emulation.
+Getting the authenticated username: C<$r-E<gt>connection-E<gt>user()>,
+or C<$ENV{REMOTE_USER}> if you're in a CGI emulation.
 
 Example:
 
@@ -1100,6 +1081,21 @@ Example:
   return $res if $res; #decline if not Basic
   
   my $user = $r->connection->user;
+
+
+=head1 Emulating the Authentication Mechanism
+
+You can provide your own mechanism to authenticate users, instead of
+the standard one.  If you want to make Apache think that the user was
+authenticated by the standard mechanism, set the username with:
+
+  $r->connection->user('username');
+
+Now you can use this information for example during the logging, so 
+that you can have your "username" passed as if it was transmitted to 
+Apache through HTTP authentication.
+
+
 
 
 

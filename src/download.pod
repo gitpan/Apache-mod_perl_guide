@@ -76,7 +76,7 @@ Ask Bjoern Hansen has written the C<mod_proxy_add_forward.c> module
 for Apache that sets the C<X-Forwarded-For> field when doing a
 ProxyPass, similar to what Squid does.  His module is available from
 one of these URLs: http://modules.apache.org/search?id=124,
-ftp://ftp.netcetera.dk/pub/apache/mod_proxy_add_forward.c or
+http://develooper.com/code/mpaf/mod_proxy_add_forward.c or
 http://www.cpan.org/authors/id/ABH/mod_proxy_add_forward.c, complete
 with instructions on how to compile it and whatnot.
 

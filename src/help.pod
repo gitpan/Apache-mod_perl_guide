@@ -58,12 +58,10 @@ one (or more) of us will answer it on the list.  Thank you!>
 
 http://perl.apache.org
 
-=item * mod_perl Source Garden project
+=item * News and Resources
 
-http://modperl.sourcegarden.org
-
-
-
+Take23: News and Resources for the mod_perl world 
+http://take23.org
 
 =item * mod_perl Books
 
@@ -85,14 +83,28 @@ favourite on-line bookseller.  O'Reilly lists this book as:
   1-56592-567-X, Order Number: 567X
   746 pages, $34.95
 
-=item * 'Enabling web services with mod_perl' Book
+=item * 'Managing and Programming mod_perl' Book
 
 http://www.modperlbook.com is the home site of the new mod_perl book,
 that Eric Cholet and Stas Bekman are co-authoring.  We expect
-the book to be published in fall 2000.
+the book to be published in 2001.
 
 Ideas, suggestions and comments are welcome. Please send them to
 info@modperlbook.com .
+
+=item * mod_perl Quick Reference Card
+
+I<mod_perl Pocket Reference> by Andrew Ford was published by O'Reilly
+and Associates http://www.oreilly.com/catalog/modperlpr/
+
+You should probably get also the I<Apache Pocket Reference> by the
+same author and the same publisher:
+http://www.oreilly.com/catalog/apachepr/
+
+See also Andrew's collection of reference card for Apache and other
+programs: http://www.refcards.com.
+
+
 
 =back
 
@@ -120,11 +132,6 @@ at http://perl.apache.org/dist/cgi_to_mod_perl.html .
 
 at http://perl.apache.org/dist/mod_perl_traps.html .
 
-=item * mod_perl Quick Reference Card
-
-http://www.refcards.com (Reference cards for Apache and other 
-programs are available from this link)
-
 
 =item * Articles
 
@@ -134,8 +141,12 @@ programs are available from this link)
 
 http://perlmonth.com
 
-=item *  Basic knowledge about Apache stages and
-mod_perl handlers article in German 
+=item * ApacheToday
+
+http://apachetoday.com
+
+=item * Basic knowledge about Apache stages and mod_perl handlers
+article in German
 
 http://www.heise.de/ix/artikel/2000/01/156/
 
@@ -152,8 +163,7 @@ The Apache/Perl mailing list I<is available for mod_perl users and
 developers to share ideas, solve problems and discuss things related
 to mod_perl and the Apache::* modules.>  To subscribe to this list,
 send email to modperl-subscribe@apache.org .  To unsubscribe send
-email to modperl-unsubscribe@apache.org .  Send email to 
-modperl@apache.org to post to the list.
+email to modperl-unsubscribe@apache.org . 
 
 To subscribe to the digest list send email to
 modperl-digest-subscribe@apache.org .
@@ -254,6 +264,29 @@ http://www.tpj.com/
 http://world.std.com/~swmcd/steven/perl/module_mechanics.html - This
 page describes the mechanics of creating, compiling, releasing and
 maintaining Perl modules.
+
+=item * XS tutorials
+
+Perl manpages: I<perlguts>, I<perlxs>, and I<perlxstut> manpages.
+
+Dean Roehrich's XS CookBookA and CookBookB
+http://search.cpan.org/search?dist=CookBookA
+http://search.cpan.org/search?dist=CookBookB
+
+a series of articles at PerlMonth.com by Steven McDougall:
+http://www.perlmonth.com/columns/modules/modules.html?issue=6
+http://www.perlmonth.com/columns/modules/modules.html?issue=7
+http://www.perlmonth.com/columns/modules/modules.html?issue=8
+http://www.perlmonth.com/columns/modules/modules.html?issue=9
+http://www.perlmonth.com/columns/modules/modules.html?issue=10
+
+I<Advanced Perl Programming> By Sriram Srinivasan. Published by
+O'Reilly & Associates. ISBN: 1-56592-220-4. Chapters 18-20.
+
+perl-xs mailing list on perl.org (mail perl-xs-subscribe@perl.org)
+
+Take a look also at Inline.pm (CPAN) and SWIG (http://www.swig.org/)
+
 
 =item * perl5-porters mailing list
 
@@ -525,6 +558,7 @@ http://www.sourcegear.com/CVS/Docs/blandy
 
 The list's address: scalable@arctic.org.
 Subscribe by sending a message to scalable-subscribe@arctic.org.
+Archive: http://archive.develooper.com/scalable@arctic.org/
 
 =item *
 

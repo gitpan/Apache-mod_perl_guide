@@ -135,14 +135,14 @@ using the configuration from a mod_perl server.
   RegistryLoader: Translation of uri [/home/httpd/perl/test.pl] to filename 
 		  failed [tried: /home/httpd/docs/home/httpd/perl/test.pl]
 
-This warning shows up when C<RegistryLoader> fails to translate the
-URI into the corresponding filesystem path. Most failures happen when
-one passes a file path instead of URI. (A reminder:
+This error shows up when C<Apache::RegistryLoader> fails to translate
+the URI into the corresponding filesystem path. Most failures happen
+when one passes a file path instead of URI. (A reminder:
 I</home/httpd/perl/test.pl> is a file path, while I</perl/test.pl> is
 a URI). In most cases all you have to do is to pass something that
-C<RegistryLoader> expects to get - the URI, but there are more complex
-cases. C<RegistryLoader>'s man page shows how to handle these cases as
-well (look for the trans() sub).
+C<Apache::RegistryLoader> expects to get - the URI, but there are more
+complex cases. C<Apache::RegistryLoader>'s man page shows how to
+handle these cases as well (look for the trans() sub).
 
 
 
@@ -239,8 +239,8 @@ C<PERL_STACKED_HANDLERS=1> or more simply C<EVERYTHING=1>.
 
 Most often you will find that you really do have a syntax error.
 However the other reason might be that a script running under
-C<Apache::Registry> is using <__DATA__> or <__END__> tokens.  See
-L<Learn why|porting/_END_and_DATA_tokens>
+C<Apache::Registry> is using C<__DATA__> or C<__END__> tokens. L<Learn
+why|porting/_END_and_DATA_tokens>.
 
 
 
@@ -295,6 +295,17 @@ This problem is only known to be caused by installing gnu ld under Solaris.
 
 
 =head1 Runtime
+
+=head2 "exit signal Segmentation fault (11)" with mysql
+
+If you build mod_perl and php in the same binary, you might get
+Segmentation fault followed by this error:
+
+  exit signal Segmentation fault (11)
+
+Solution: re-compile PHP without the built-in MySQL support (you can
+still connect to MySQL).
+
 
 
 =head2 foo ... at /dev/null line 0
@@ -469,10 +480,9 @@ vs.
   $param = $q->param('test') || '';
   print $param;
 
-In the second case, C<$param> will always be C<defined>, either with
-C<$q-E<gt>param('test')>'s return value, or if the parameter doesn't
-exist or is C<undef>ined then the empty string, C<''>, will be
-assigned to C<$param>.
+In the second case, C<$param> will always be I<defined>, either with
+C<$q-E<gt>param('test')>'s return value or the default value (C<''>
+empty string in our example).
 
 Also read about L<Finding the Line Which Triggered the Error or
 Warning|debug/Finding_the_Line_Which_Triggered>.
@@ -558,7 +568,14 @@ See L<Choosing MaxClients|performance/Choosing_MaxClients>.
 
 There is a chance that your C</dev/null> device is broken. Try:
 
-  % sudo echo > /dev/null
+  % echo > /dev/null
+
+Alternatively you should try to remove this special file and recreate
+it:
+
+  # rm /dev/null
+  # mknod /dev/null c 1 3
+  # chmod a+rw /dev/null
 
 
 =head2 Can't call method "register_cleanup" (CGI.pm)

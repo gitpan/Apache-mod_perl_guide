@@ -1676,6 +1676,7 @@ specific modules in their respective manpages. We will present a few
 examples of widely used modules where the code can be initialized.
 
 
+
 =head4 Initializing DBI.pm
 
 The first example is the C<DBI> module. As you know C<DBI> works with
@@ -1708,11 +1709,13 @@ child process, therefore we will use this setting in I<httpd.conf>:
   MaxClients 1
   MaxRequestsPerChild 100
 
-We are going to run memory benchmarks on five different versions of
-the I<startup.pl> file.  We always preload these modules:
+We always preload these modules:
 
   use Gtop();
   use Apache::DBI(); # preloads DBI as well
+
+We are going to run memory benchmarks on five different versions of
+the I<startup.pl> file. 
 
 =over
 
@@ -1752,6 +1755,10 @@ gets spawned!
                              }
                             )
   or die "Cannot connect to database: $DBI::errstr";
+
+=item option 5
+
+Options 2 and 4: using connect_on_init() and install_driver().
 
 =back
 
@@ -1795,9 +1802,9 @@ Here is the C<Apache::Registry> test script that we have used:
   printf "%8s %8s %8s\n", qw(Size Shared Diff);
   printf "%8d %8d %8d (bytes)\n",$size,$share,$diff;
 
-The script opens a connection to the database I<'test'> and issues a
-query to learn what tables the databases has.  When the data is
-collected and printed the connection would be closed in the regular
+The script opens a opens a connection to the database I<'test'> and
+issues a query to learn what tables the databases has.  When the data
+is collected and printed the connection would be closed in the regular
 case, but C<Apache::DBI> overrides it with empty method.  When the
 data is processed a familiar to you already code to print the memory
 usage follows.
@@ -1813,26 +1820,26 @@ by the I<Diff> column:
 
 After the first request:
 
-  Version     Size   Shared     Diff        Test type
-  --------------------------------------------------------------------
-        1  3465216  2621440   843776  install_driver
-        2  3461120  2609152   851968  install_driver & connect_on_init
-        3  3465216  2605056   860160  preload driver
-        4  3461120  2494464   966656  nothing added
-        5  3461120  2482176   978944  connect_on_init
+  Test type                              Size   Shared     Diff
+  --------------------------------------------------------------
+  install_driver (2)                   3465216  2621440   843776
+  install_driver & connect_on_init (5) 3461120  2609152   851968
+  preload driver (3)                   3465216  2605056   860160
+  nothing added (1)                    3461120  2494464   966656
+  connect_on_init (4)                  3461120  2482176   978944
 
 =item 2
 
 After the second request (all the subsequent request showed the same
 results):
 
-  Version     Size   Shared    Diff         Test type
-  --------------------------------------------------------------------
-        1  3469312  2609152   860160  install_driver
-        2  3481600  2605056   876544  install_driver & connect_on_init
-        3  3469312  2588672   880640  preload driver
-        4  3477504  2482176   995328  nothing added
-        5  3481600  2469888  1011712  connect_on_init
+  Test type                              Size   Shared     Diff
+  --------------------------------------------------------------
+  install_driver (2)                   3469312  2609152   860160
+  install_driver & connect_on_init (5) 3481600  2605056   876544
+  preload driver (3)                   3469312  2588672   880640
+  nothing added  (1)                   3477504  2482176   995328
+  connect_on_init (4)                  3481600  2469888  1011712
 
 =back
 
@@ -1843,15 +1850,15 @@ memory usage might and will be different).
 
 But both tables show the same pattern of memory usage.  We can clearly
 see that the real winner is the I<startup.pl> file's version where the
-MySQL driver was installed (1).  Since we want to have a connection
+MySQL driver was installed (2).  Since we want to have a connection
 ready for the first request made to the freshly spawned child process,
-we generally use the second version (2) which uses somewhat more
-memory, but has almost the same number of shared memory pages.  The
-third version only preloads the driver which results in smaller shared
-memory.  The last two versions having nothing initialized (4) and
-having only the connect_on_init() method used (5).  The former is a
-little bit better than the latter, but both significantly worse than
-the first two versions.
+we generally use the version (5) which uses somewhat more memory, but
+has almost the same number of shared memory pages.  The version (3)
+only preloads the driver which results in smaller shared memory.  The
+last two versions having nothing initialized (1) and having only the
+connect_on_init() method used (4).  The former is a little bit better
+than the latter, but both significantly worse than the first two
+versions.
 
 To remind you why do we look for the smallest value in the column
 I<diff>, recall the real memory usage formula:
@@ -1862,9 +1869,9 @@ I<diff>, recall the real memory usage formula:
 Notice that the smaller the diff is, the bigger the number of
 processes you can have using the same amount of RAM.  Therefore every
 100K difference counts, when you multiply it by the number of
-processes. If we take the number from the version version (1) vs. (4)
-and assume that we have 256M of memory dedicated to mod_perl processes
-we will get the following numbers using the formula derived from the
+processes. If we take the number from the version (2) vs. (4) and
+assume that we have 256M of memory dedicated to mod_perl processes we
+will get the following numbers using the formula derived from the
 above formula:
 
                RAM - largest_shared_size
@@ -1872,11 +1879,11 @@ above formula:
                         Diff
 
                 268435456 - 2609152
-  (ver 1)  N =  ------------------- = 309
+  (ver 2)  N =  ------------------- = 309
                       860160
 
                 268435456 - 2469888
-  (ver 5)  N =  ------------------- = 262
+  (ver 4)  N =  ------------------- = 262
                      1011712
 
 So you can tell the difference (17% more child processes in the first
@@ -2308,7 +2315,7 @@ everywhere, however. It proved to work at least on Linux OS.
 Note that you cannot localize this setting with C<local()>.  If you
 do, it won't have the desired effect.
 
-[META: Anyone can explain why localization doesn't work?]
+[META: Can anyone explain why localization doesn't work?]
 
 So now the code would look like this:
 
@@ -2420,8 +2427,8 @@ loading the C<POSIX> and C<Apache::SubProcess> modules and importing
 of the setsid() symbol from the C<POSIX> package.
 
 The HTTP header is sent next, with the I<Content-type> of
-I<text/plain>. The gets ready to ignore the child, to avoid zombies
-and the fork is called.
+I<text/plain>. The parent process gets ready to ignore the child, to
+avoid zombies and the fork is called.
 
 The program gets its personality split after fork and the if
 conditional evaluates to a true value for the parent process, and to a
@@ -3108,7 +3115,7 @@ Let's roll some calculations:
 With no sharing in place
 
                  500
- MaxClients = --------- = 50
+  MaxClients = --------- = 50
                  10
 
 With sharing in place you can have 64% more servers without buying
@@ -3119,10 +3126,10 @@ If you improve sharing and keep the sharing level, let's say:
   Total_RAM            = 500Mb
   Max_Process_Size     =  10Mb
   Shared_RAM_per_Child =   8Mb
-
-              500 - 8
- MaxClients = --------- = 246
-               10 - 8
+ 
+               500 - 8
+  MaxClients = --------- = 246
+                10 - 8
 
 392% more servers! Now you can feel the importance of having as much
 shared memory as possible.
@@ -3334,7 +3341,7 @@ the other two directives don't matter if C<KeepAlive> is C<Off>.
 You might want to consider enabling this option if the client's
 browser needs to request more than one object from your server for a
 single HTML page.  If this is the situation the by setting
-C<KeepAlive> C<Off> then for each page you save the HTTP connection
+C<KeepAlive> C<On> then for each page you save the HTTP connection
 overhead for all requests but the first one.
 
 For example if you have a page with 10 ad banners, which is not
@@ -4343,6 +4350,23 @@ variable:
   % perl -MGTop -MMyPackage3 -le 'print GTop->new->proc_mem($$)->size'
   2023424
 
+Imported symbols act just like global variables, they can add up quick:
+
+  % perlbloat.pl 'use POSIX ()'
+  use POSIX () added  316k
+
+  % perlbloat.pl 'use POSIX'
+  use POSIX added  696k
+
+That's 380k worth of aliases.  Now let's say 6 different
+C<Apache::Registry> scripts C<'use POSIX;'> for strftime() or some
+other function: 6 * 380k = 2.3Mb
+
+One could save 2.3Mb per single process with C<'use POSIX ();'> and
+using fully qualifying C<POSIX::> function calls.
+
+
+
 
 =head2 Object Methods Calls vs. Function Calls
 
@@ -4603,13 +4627,15 @@ functions.
 
 
 
+=head2 Interpolation, Concatenation or List
 
+Somewhat overlapping with the previous section we want to revisit the
+various approaches of mungling with strings, and compare the speed of
+using lists of strings compared to interpolatoin. We will add a string
+concatenation angle as well.
 
-
-=head2 Concatenation or List
-
-When the strings are small, it's almost doesn't matter whether
-a concatination or a list is used:
+When the strings are small, it almost doesn't matter whether
+interpolation or a list is used. Here is a benchmark:
 
   use Benchmark;
   use Symbol;
@@ -4619,20 +4645,29 @@ a concatination or a list is used:
   my($one, $two, $three, $four) = ('a'..'d');
   
   timethese(1_000_000,
-	  {
-	   concat => sub {
-	     print $fh "$one$two$three$four";
-	   },
-	   list => sub {
-	     print $fh $one, $two, $three, $four;
-	   },
-	  });
+      {
+       interp => sub {
+         print $fh "$one$two$three$four";
+       },
+       list => sub {
+         print $fh $one, $two, $three, $four;
+       },
+       conc => sub {
+         print $fh $one.$two.$three.$four;
+       },
+      });
 
-Benchmark: timing 1000000 iterations of concat, list...
-    concat:  5 wallclock secs ( 4.76 usr +  0.00 sys =  4.76 CPU)
-      list:  4 wallclock secs ( 4.30 usr +  0.00 sys =  4.30 CPU)
+ Benchmark: timing 1000000 iterations of conc, interp, list...
+      conc:  3 wallclock secs ( 3.38 usr +  0.00 sys =  3.38 CPU)
+    interp:  3 wallclock secs ( 3.45 usr + -0.01 sys =  3.44 CPU)
+      list:  2 wallclock secs ( 2.58 usr +  0.00 sys =  2.58 CPU)
 
-When the strings are big lists are faster:
+The concatenation technique is very similar to interpolation.  The
+list technique is a little bit faster than interpolation. But when the
+strings are large, lists are significantly faster. We have seen this
+in the previous section and here is another benchmark to increase our
+confidence in our conclusion. This time we use 1000 character long
+strings:
 
   use Benchmark;
   use Symbol;
@@ -4642,30 +4677,52 @@ When the strings are big lists are faster:
   my($one, $two, $three, $four) = map { $_ x 1000 } ('a'..'d');
   
   timethese(500_000,
-	  {
-	   concat => sub {
-	     print $fh "$one$two$three$four";
-	   },
-	   list => sub {
-	     print $fh $one, $two, $three, $four;
-	   },
-	  });
+      {
+       interp => sub {
+         print $fh "$one$two$three$four";
+       },
+       list => sub {
+         print $fh $one, $two, $three, $four;
+       },
+       conc => sub {
+         print $fh $one.$two.$three.$four;
+       },
+      });
 
-  Benchmark: timing 500000 iterations of concat, list...
-      concat: 10 wallclock secs ( 9.04 usr +  0.53 sys =  9.57 CPU)
-        list:  6 wallclock secs ( 5.72 usr +  0.56 sys =  6.28 CPU)
+  Benchmark: timing 500000 iterations of interp, list...
+      conc:  5 wallclock secs ( 4.47 usr +  0.27 sys =  4.74 CPU)
+    interp:  4 wallclock secs ( 4.25 usr +  0.26 sys =  4.51 CPU)
+      list:  4 wallclock secs ( 2.87 usr +  0.16 sys =  3.03 CPU)
 
-A list is almost 50% faster than concatenation.
+In this case using a list is about 30% faster than
+interpolation. Concatenation is a little bit slower than
+interpolation.
 
-Also when you use I<"string"> you use interpolation (since C<""> is an
-operator in Perl), which turns into concatination, which uses more
-memory and is slower than using a list. When you use I<'string'> there
-is no interpolation, therefore it's faster and you have to use a list
-if you need to pass more than one argument.
+Let's look at this code:
 
-There will be exceptions, like I<"string\n"> where you cannot use
-single quotes. But if you do I<'string',"\n"> readability gets
-hurt. And we want want our code to be readable and maintainable.
+    $title = 'My Web Page';
+    print "<h1>$title</h1>";         # Interpolation (slow)
+    print '<h1>' . $title . '</h1>'; # Concatenation (slow)
+    print '<h1>', $title, '</h1>';   # List (fast for long strings)
+
+When you use I<"E<lt>h1E<gt>$titleE<lt>/h1E<gt>"> Perl does
+interpolation (since C<""> is an operator in Perl), which must parse
+the contents of the string and replace any variables or expressions it
+finds with their respective values. This uses more memory and is
+slower than using a list. Of course if there are no variables to
+interpolate it makes no difference whether to use C<"string"> or
+C<'string'>.
+
+Concatenation is also potentially slow since Perl might create a
+temporary string which it then prints.
+
+Lists are fast because Perl can simply deal with each element in
+turn. This is true if you don't run join() on the list at the end to
+create a single string from the elements of list. This operation might
+be slower than direct append to the string whenever a new string
+springs into existance.
+
+
 
 [ReaderMETA]: Please send more mod_perl relevant Perl performance
 hints
@@ -4892,7 +4949,7 @@ the DB--refer to C<perldoc DBI> for a complete reference to the C<DBI>
 module):
 
   $sth->execute;
-  while(@row_ary  = $sth->fetchrow_array;) {
+  while(@row_ary  = $sth->fetchrow_array) {
 	# do DB accumulation into some variable
   }
   # print the output using the the data returned from the DB
@@ -6078,8 +6135,58 @@ much of a win under linux, but makes a B<huge> difference under
 Solaris.
 
 
+=head1 Architecture Specific Compile Options
 
+When you build Apache and Perl you can optimize the compiled
+applications to take the benefits of your machine's architecture.
 
+Everything depends on the kind of compiler that you use, the kind of
+CPU and 
 
+For example if you use gcc(1) you might want to use:
+
+=over
+
+=item *
+
+I<-march=pentium> if you have a pentium CPU
+
+=item *
+
+I<-march=pentiumpro> for pentiumpro and above (but the binary won't
+run on i386)
+
+=item *
+
+I<-fomit-frame-pointer> makes extra register available but disables
+debugging
+
+=item *
+
+you can try these options were reported to improve the performance:
+I<-ffast-math>, I<-malign-double>, I<-funroll-all-loops>,
+I<-fno-rtti>, I<-fno-exceptions>.
+
+see the gcc(1) manpage for the details about these
+
+=item *
+
+and of course you may want to change the usually default C<-02> flag
+with a higher number like I<-O3>. I<-OX> (where X is a number between
+1 and 6) defines a collection of various optimization flags, the
+higher the number the more flags are bundled. The gcc man page will
+tell you what flags are used for each number.
+
+=back
+
+Test your applications thoroughly when you change the default
+optimization flags, especially when you go beyond C<-02>.  It's
+possible that the optimization will make the code work incorrectly
+and/or cause segmentation faults.
+
+See your preferred compiler's man page for detailed information about
+optimization.
+
+Also see: http://members.nbci.com/Alex_Maranda/gnuintel/GNUintel.htm
 
 =cut

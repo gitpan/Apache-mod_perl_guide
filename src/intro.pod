@@ -375,7 +375,7 @@ http://perl.apache.org/dist/mod_perl_traps.html .
 =item *
 
 B<mod_perl mailing list emails>. Answers to some of the questions posted
-to modperl@apache.org Apache/Perl mailing list.
+to Apache/Perl mailing list. (To send email to modperl-subscribe@apache.org)
 
 =item *
 

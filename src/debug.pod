@@ -468,6 +468,24 @@ errors.
 
 But in general case, you don't need to use the above setting.
 
+If you use this setting and you would like to log when a request was
+cancelled by a SIGPIPE in your Apache I<access_log>, you must define a
+custom C<LogFormat> in your I<httpd.conf>, like so:
+
+  PerlFixupHandler Apache::SIG
+  LogFormat "%h %l %u %t \"%r\" %s %b %{SIGPIPE}e"
+
+If the server has noticed that the request was cancelled via a
+C<SIGPIPE>, then the log line will end with C<1>, otherwise it will
+just be a dash. e.g.:
+
+  127.0.0.1 - - [09/Jan/2001:10:27:15 +0100] 
+  "GET /perl/stopping_detector.pl HTTP/1.0" 200 16 1
+  127.0.0.1 - - [09/Jan/2001:10:28:18 +0100] 
+  "GET /perl/test.pl HTTP/1.0"              200 10 -
+
+
+
 =head2 Detecting Aborted Connections
 
 Let's use the knowledge we have acquired to trace the execution of the
@@ -596,43 +614,6 @@ logging:
   write(17, "127.0.0.1 - - [30/Oct/1999:13:52"..., 81) = 81
 
 where 17 is a file descriptor of the opened I<access_log> file
-
-Let's see how can we make the code more general-purpose:
-
-C<Apache::SIG> helps us, use this configuration setting in
-I<httpd.conf>:
-
-  PerlFixupHandler Apache::SIG
-
-Now the following script doesn't need to check for aborted
-connections.
-
-  my $r = shift;
-  $r->send_http_header('text/plain');
-  
-  print "PID = $$\n";
-  $r->rflush;
-  while(1){
-    $r->print("\0");
-    $r->rflush;
-    $i++;
-    sleep 1;
-  }
-
-C<Apache::SIG> installs the C<SIGPIPE> handler, which stops the
-script's execution for us when it sees the broken pipe.  This setting
-affects all processes of course.
-
-If you would like to log when a request was cancelled by a SIGPIPE in
-your Apache I<access_log>, you must define a custom C<LogFormat> in
-your I<httpd.conf>, like so:
-
-  PerlFixupHandler Apache::SIG
-  LogFormat "%h %l %u %t \"%r\" %s %b %{SIGPIPE}e"
-
-If the server has noticed that the request was cancelled via a
-C<SIGPIPE>, then the log line will end with C<1>, otherwise it will
-just be a dash.
 
 =head2 The Importance of Cleanup Code
 
@@ -2943,7 +2924,7 @@ request, either because there is a bug in your code (e.g. the code is
 stuck in a while loop), it gets blocked by some system call or because
 of a resource deadlock) or for some other reason. In order to fix the
 problem we need to learn what circumstances the process hangs in
-(detection), so we can reproduce the problem and after than to
+(detection), so we can reproduce the problem and after that to
 discover why there is problem (diagnostics).
 
 
@@ -3171,7 +3152,7 @@ and whether or not the restart was successful.
 
 If you get such reports constantly something is wrong with your web
 service and you should revise your code.  Note that it's possible that
-your server is being overloaded by more requests that it can handle,
+your server is being overloaded by more requests than it can handle,
 so the requests are being queued and not processed for a while, which
 triggers the watchdog's alarm.  If this is a case you may need to add
 more servers or more memory, or perhaps split your single machine
@@ -3632,14 +3613,21 @@ will:
 
 =over
 
-=item 1 Add `-g' to EXTRA_CFLAGS
+=item 1 
 
-=item 1 Turn on PERL_TRACE
+Add `-g' to EXTRA_CFLAGS
 
-=item 1 Set PERL_DESTRUCT_LEVEL=2
+=item 1 
 
-=item 1 Link against C<libperld> if -e
-$Config{archlibexp}/CORE/libperld$Config{lib_ext}
+Turn on PERL_TRACE
+
+=item 1 
+
+Set PERL_DESTRUCT_LEVEL=2
+
+=item 1 
+
+Link against C<libperld> if -e $Config{archlibexp}/CORE/libperld$Config{lib_ext}
 
 =back
 
@@ -3750,15 +3738,29 @@ Of course you can use the command line environment setting:
 
 =head1 gdb says there are no debugging symbols
 
+During I<make install> Apache strips all the debugging symbols. To
+prevent this you should use I<--without-execstrip> C<./configure>
+option. So if you configure Apache via mod_perl, you should do:
+
+  panic% perl Makefile.PL USE_APACI=1 \
+    APACI_ARGS='--without-execstrip' [other options]
+
+Alternatively you can copy the unstripped binary manually. For example
+we did:
+
+  panic# cp apache_1.3.17/src/httpd /home/httpd/httpd_perl/bin/httpd_perl
+
 As you know you need an unstripped executable to be able to debug it.
 While you can compile mod_perl with C<-g> (or C<PERL_DEBUG=1>), the
 Apache C<install> strips the symbols.
 
-Makefile.tmpl contains a line:
+I<Makefile.tmpl> contains a line:
 
   IFLAGS_PROGRAM  = -m 755 -s 
 
-Removing the -s does the trick.
+Removing the -s does the trick (If you cannot find it in
+I<Makefile.tmpl> do it directly in I<Makefile>). Alternatively you
+rerun C<make> and copy the unstripped httpd binary away.
 
 
 
