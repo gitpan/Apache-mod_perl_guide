@@ -1,3 +1,483 @@
+###########################################
+
+From: "Joseph R. Junkin" <jjunkin@datacrawler.com>
+To: Stas Bekman <sbekman@stason.org>
+Subject: Re: [summary+rfc] When One Machine is not Enough...
+
+
+I doubt it will help, but you are free to look at a talk I gave:
+
+Analysis of the Open Source Application Platform
+http://www.datacrawler.com/talk/tech/platform/
+
+It addresses the scalability issues you have already covered.
+
+
+###########################################
+
+die() issue:
+
+merge the 
+porting.html#die_and_mod_perl
+snippets.html#Redirecting_Errors_to_the_Client
+
+add notes from Matt's email: 
+Warning: $SIG{__DIE__} considered dangerous
+regarding of eval {} if $@ try/catch use
+
+###########################################
+
+===>
+
+===>
+
+===>
+
+===>
+
+===>
+
+===>
+
+===>
+
+===>
+
+===>
+
+===>
+
+===>
+
+===>
+
+===>
+
+===>
+
+===>
+
+===>
+
+
+===>
+
+===>
+
+###########################################
+
+Check whether this one is documented somewhere else too:
+
+install: What Compiler Should Be Used to Build mod_perl?
+
+I'm not sure, but Ged says it is.
+
+###########################################
+
+CREDITS! CREDITS! CREDITS! put all the credits in place, especially
+Ged!!!
+
+###########################################
+
+Mention the Apache::Watchdog::RunAway in the debug.pod where you have
+a META to fill.
+
+###########################################
+
+There are lots of META tags in the Guide, it's a time to go and fill
+in the missing details
+
+
+###########################################
+
+
+
+
+> Are you familiar with Apache::Resource and setrlimit? If so what do the
+> soft and hard limits mean? Is soft is the one that can be temperarely
+> be lower that the current usage of something? And the hard limit is the
+> one that if reached it triggers the killoff?
+
+>From BSD's man page for setrlimit:
+
+     A resource limit is specified as a soft limit and a hard limit.  When a
+     soft limit is exceeded a process may receive a signal (for example, if
+     the cpu time or file size is exceeded), but it will be allowed to contin-
+     ue execution until it reaches the hard limit (or modifies its resource
+     limit).  The rlimit structure is used to specify the hard and soft limits
+     on a resource,
+     ...
+     The system refuses to extend the data or stack space when the limits
+     would be exceeded in the normal way: a brk(2) call fails if the data
+     space limit is reached.  When the stack limit is reached, the process re-
+     ceives a segmentation fault (SIGSEGV); if this signal is not caught by a
+     handler using the signal stack, this signal will kill the process.
+
+     A file I/O operation that would create a file larger that the process'
+     soft limit will cause the write to fail and a signal SIGXFSZ to be gener-
+     ated; this normally terminates the process, but may be caught.  When the
+     soft cpu time limit is exceeded, a signal SIGXCPU is sent to the offend-
+     ing process.
+
+###########################################
+
+control.pod: 
+
+> > META: Stas: I would not have renamed apachectl to httpd_perl if I had
+> > META: Stas: renamed httpd to httpd_perl.  This will be confusing for a
+> > META: Stas: beginner.  How about 'httpd_perl_ctl start' etc?
+> >
+> > Neither symbolic links nor httpd_perl/docs themselves are visiable from
+> > PATH. Do you want to change the symlink name?
+>
+> I don't know if I've misunderstood you, or if I've failed to make my
+> point well.  It wasn't about PATH.  My thought was that if our reader
+> creates a binary called `/usr/whatever/httpd_perl' and also renames a
+> script from `/etc/init.d/apachectl' to `/etc/init.d/httpd_perl' he has
+> *two* files called httpd_perl and that could confuse him, at a time
+> when he's already likely to be confused about many other things.  The
+> symlinks are OK because they all have a `S87...' (or whatever) prefix.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+###########################################
+
+
+===>
+
+===>
+
+===>
+
+===>
+
+===>
+
+===>
+
+===>
+
+===>
+
+
+===>
+
+===>
+
+===>
+
+
+===>
+
+===>
+
+###########################################
+
+Jeffrey W. Baker said:
+
+How about mod_backhand?  http://www.backhand.org/.  It is capable of not
+only buffering, but also load balancing and failover.
+
+If all you want is buffering, it would be very easy to write a small
+program that accepted http requests and forwarded them to another
+daemon, then buffered the response.  Perhaps this would be a good
+weekend project for one of us.
+
+I've been tinkering with the idea of writing an httpd.  As much as I
+like Apache, there are many things I don't like about it, and a ton of
+functionality that I won't ever need.  All I really want is a web server
+that:
+
+1) Is multithreaded or otherwise highly parallel.
+2) Has a request stage interface like Apache's
+3) Uses async I/O
+
+Number 3 would releive us of this squid hack that we are all using. 
+That doesn't seem too hard.
+
+
+###########################################
+
+Server split issue:
+
+(Greg Stark)
+
+I've learned the hard way that a proxy does not completely replace the need to
+put images and other other static components on a separate server. There are
+two reasons that you really really want to be serving images from another
+server (possibly running on the same machine of course).
+
+1) Netscape/IE won't intermix slow dynamic requests with fast static requests
+   on the same keep-alive connection
+
+2) static images won't be delayed when the proxy gets bogged down waiting on
+   the backend dynamic server.
+
+Both of these result in a very slow user experience if the dynamic content
+server gets at all slow -- even out of proportion to the slowdown. 
+
+Eg, if the dynamic content generation becomes slow enough to cause a 2s
+backlog of connections for dynamic content, then a proxy will not protect the
+static images from that delay. Netscape or IE may queue those requests after
+another dynamic content request, and even if they don't the proxy server will
+eventually have every slot taken up waiting on the dynamic server. 
+
+So *every* image on the page will have another 2s latency, instead of just a
+2s latency for the entire page. This is worst in Netscape of course course
+where the page can't draw until all the images sizes are known.
+
+This doesn't mean having a proxy is a bad idea. But it doesn't replace putting
+your images on pics.mydomain.foo even if that resolves to the same address and
+run a separate apache instance for them.
+
+===>
+
+
+> > I think if you can avoid hitting a mod_perl server for the images,
+> > you've won more than half the battle, especially on a graphically
+> > intensive site.
+> 
+> I've learned the hard way that a proxy does not completely replace the need
+to
+> put images and other other static components on a separate server. There are
+> two reasons that you really really want to be serving images from another
+> server (possibly running on the same machine of course).
+
+I agree that it is correct to serve images from a lightweight server
+but I don't quite understand how these points relate.  A proxy should
+avoid the need to hit the backend server for static content if the
+cache copy is current unless the user hits the reload button and
+the browser sends the request with 'pragma: no-cache'.
+
+> 1) Netscape/IE won't intermix slow dynamic requests with fast static requests
+>    on the same keep-alive connection
+
+I thought they just opened several connections in parallel without regard
+for the type of content.
+
+> 2) static images won't be delayed when the proxy gets bogged down waiting on
+>    the backend dynamic server.
+
+Is this under NT where mod_perl is single threaded?  Serving a new request
+should not have any relationship to delays handling other requests on
+unix unless you have hit your child process limit.
+
+> Eg, if the dynamic content generation becomes slow enough to cause a 2s
+> backlog of connections for dynamic content, then a proxy will not protect the
+> static images from that delay. Netscape or IE may queue those requests after
+> another dynamic content request, and even if they don't the proxy server will
+> eventually have every slot taken up waiting on the dynamic server. 
+
+A proxy that already has the cached image should deliver it with no
+delay, and a request back to the same server should be serviced
+immediately anyway.
+
+> So *every* image on the page will have another 2s latency, instead of just a
+> 2s latency for the entire page. This is worst in Netscape of course course
+> where the page can't draw until all the images sizes are known.
+
+Putting the sizes in the IMG SRC tag is a good idea anyway.
+
+> This doesn't mean having a proxy is a bad idea. But it doesn't replace
+putting
+> your images on pics.mydomain.foo even if that resolves to the same address
+and
+> run a separate apache instance for them.
+
+This is a good idea because it is easy to move to a different machine
+if the load makes it necessary.  However, a simple approach is to
+use a non-mod_perl apache as a non-caching proxy front end for the
+dynamic content and let it deliver the static pages directly.  A
+short stack of RewriteRules can arrange this if you use the 
+[L] or [PT] flags on the matches you want the front end to serve
+and the [P] flag on the matches to proxy.
+
+===>
+
+> I agree that it is correct to serve images from a lightweight server
+> but I don't quite understand how these points relate.  A proxy should
+> avoid the need to hit the backend server for static content if the
+> cache copy is current unless the user hits the reload button and
+> the browser sends the request with 'pragma: no-cache'.
+
+I'll try to expand a bit on the details:
+
+> > 1) Netscape/IE won't intermix slow dynamic requests with fast static
+requests
+> >    on the same keep-alive connection
+> 
+> I thought they just opened several connections in parallel without regard
+> for the type of content.
+
+Right, that's the problem. If the two types of content are coming from the
+same proxy server (as far as NS/IE is concerned) then they will intermix the
+requests and the slow page could hold up several images queued behind it. I
+actually suspect IE5 is cleverer about this, but you still know more than it
+does.
+
+By putting them on different hostnames the browser will open a second set of
+parallel connections to that server and keep the two types of requests
+separate.
+
+> > 2) static images won't be delayed when the proxy gets bogged down waiting
+on
+> >    the backend dynamic server.
+
+Picture the following situation: The dynamic server normally generates pages
+in about 500ms or about 2/s; the mod_perl server runs 10 processes so it can
+handle 20 connections per second. The mod_proxy runs 200 processes and it
+handles static requests very quickly, so it can handle some huge number of
+static requests, but it can still only handle 20 proxied requests per second.
+
+Now something happens to your mod_perl server and it starts taking 2s to
+generate pages. The proxy server continues to get up to 20 requests per second
+for proxied pages, for each request it tries to connect to the mod_perl
+server. The mod_perl server can now only handle 5 requests per second though.
+So the proxy server processes quickly end up waiting in the backlog queue. 
+
+Now *all* the mod_proxy processes are in "R" state and handling proxied
+requests. The result is that the static images -- which under normal
+conditions are handled quicly -- become delayed until a proxy process is
+available to handle the request. Eventually the backlog queue will fill up and
+the proxy server will hand out errors.
+
+> This is a good idea because it is easy to move to a different machine
+> if the load makes it necessary.  However, a simple approach is to
+> use a non-mod_perl apache as a non-caching proxy front end for the
+> dynamic content and let it deliver the static pages directly.  A
+> short stack of RewriteRules can arrange this if you use the 
+> [L] or [PT] flags on the matches you want the front end to serve
+> and the [P] flag on the matches to proxy.
+
+That's what I thought. I'm trying to help others avoid my mistake :)
+
+Use a separate hostname for your pictures, it's a pain on the html authors but
+it's worth it in the long run.
+
+=====>
+
+> > > 1) Netscape/IE won't intermix slow dynamic requests with fast static
+requests
+> > >    on the same keep-alive connection
+> > 
+> > I thought they just opened several connections in parallel without regard
+> > for the type of content.
+> 
+> Right, that's the problem. If the two types of content are coming from the
+> same proxy server (as far as NS/IE is concerned) then they will intermix the
+> requests and the slow page could hold up several images queued behind it. I
+> actually suspect IE5 is cleverer about this, but you still know more than it
+> does.
+
+They have a maximum number of connections they will open at once
+but I don't think there is any concept of queueing involved. 
+
+> > > 2) static images won't be delayed when the proxy gets bogged down waiting
+on
+> > >    the backend dynamic server.
+> 
+> Picture the following situation: The dynamic server normally generates pages
+> in about 500ms or about 2/s; the mod_perl server runs 10 processes so it can
+> handle 20 connections per second. The mod_proxy runs 200 processes and it
+> handles static requests very quickly, so it can handle some huge number of
+> static requests, but it can still only handle 20 proxied requests per second.
+> 
+> Now something happens to your mod_perl server and it starts taking 2s to
+> generate pages.
+
+
+The 'something happens' is the part I don't understand.  On a unix
+server, nothing one httpd process does should affect another
+one's ability to serve up a static file quickly, mod_perl or
+not.  (Well, almost anyway). 
+
+> The proxy server continues to get up to 20 requests per second
+> for proxied pages, for each request it tries to connect to the mod_perl
+> server. The mod_perl server can now only handle 5 requests per second though.
+> So the proxy server processes quickly end up waiting in the backlog queue. 
+
+If you are using squid or a caching proxy, those static requests
+would not be passed to the backend most of the time anyway. 
+
+> Now *all* the mod_proxy processes are in "R" state and handling proxied
+> requests. The result is that the static images -- which under normal
+> conditions are handled quicly -- become delayed until a proxy process is
+> available to handle the request. Eventually the backlog queue will fill up
+and
+> the proxy server will hand out errors.
+
+But only if it doesn't cache or know how to serve static content itself.
+
+> Use a separate hostname for your pictures, it's a pain on the html authors
+but
+> it's worth it in the long run.
+
+That depends on what happens in the long run. If your domain name or
+vhost changes, all of those non-relative links will have to be
+fixed again.
+
+==>
+
+> Welcome to the real world however where "something" can and does happen.
+> Developers accidentally put untuned SQL code in a new page that takes too
+long
+> to run. Database backups slow down normal processing. Disks crash slowing
+down
+> the RAID array (if you're lucky). Developers include dependencies on services
+> like mail directly in the web server instead of handling mail asynchronously
+> and mail servers slow down for no reason at all. etc.
+
+Of course.  I have single httpd processes screw up all the time.  They
+don't affect the speed of other httpd processes unless they consume
+all of the machine's resources or lock something in common.  I suppose
+if you have a small limit on the number of backend programs you
+could get to a point where they are all busy doing something wrong. 
+
+> > If you are using squid or a caching proxy, those static requests
+> > would not be passed to the backend most of the time anyway. 
+> 
+> Please reread the analysis more carefully. I explained that. That is
+> precisely the scenario I'm describing faults in.
+
+I read it, but just wasn't convinced.  I'd like to understand this
+better, though.  What did you do to show that there is a difference
+when netscape accesses different hostnames for fast static content
+as opposed to the same one where a cache responds quickly but
+dynamic content is slow?  I thought Netscape would open 6 or so
+separate connections regardless and would only wait if all 6
+were used.  That is, it should not make anything wait unless you
+have dynamically-generated images (or redirects) tying up the
+other connections besides the one supplying the main html.  Do
+you have some reason to think it will open fewer connections 
+if they are all to the same host? 
+
+
+###########################################
+
+
+Makefile.PL: build.pl gets called twice when running from CPAN
+shell. Because it does 'make' and 'make install' and both call
+'manifypods'. Need to add a source change control, so if manifypods
+was called once for make, it won't be called for 'make install'
+
+
+###########################################
+
+
+###########################################
 
 When you do use locking, be very very careful if you use Apache::DBI or
 similar persistent connections. MySQL threads keep tables locked until
@@ -22,30 +502,12 @@ Apache::DB/ httpd -X -D DEBUG
 > it's easy to debug.
 ###########################################
 
-add mod_info to config.pod
-
-#
-# Allow remote server configuration reports, with the URL of
-#  http://servername/server-info (requires that mod_info.c be loaded).
-# Change the ".your_domain.com" to match your domain to enable.
-#
-#<Location /server-info>
-#    SetHandler server-info
-#    Order deny,allow
-#    Deny from all
-#    Allow from .your_domain.com
-#</Location>
 
 ###########################################
 
-Check that you code examples/snippets don't include Y2K bugs! search
-for localtime
 
 ###########################################
 
-Add: Low-Cost Unix Database Differences
-http://www.toodarkpark.org/computers/dbs.html
-to the databases
 
 ###########################################
 (merge of status.pod and debug.pod)
@@ -88,9 +550,6 @@ http://www.apache.org/docs/misc/perf.html
 
 #####################################################################
 
-move "How can I tell whether mod_perl is running" from install.pod to
-control.pod!
-
 #####################################################################
 
 add benchmarks with keep-alive and without them!
@@ -102,7 +561,11 @@ Notice this package in debug section.
 
 Devel::Symdump - dump symbol names or the symbol table
 
+Apache::Symdump - shows 
+
 Apache::Status uses it to show the process' internals
+
+
 
 #####################################################################
 
@@ -823,10 +1286,6 @@ than it does to compress or uncompress 5 megs of data.
 
 #################################################
 
-pick the mails from the mail: - extend subsection - opening
-subprocesses/forks...
-
-Move it to performance section!
 
 #################################################
 
@@ -843,71 +1302,6 @@ guidelines of contributions (diff against pod...)
 
 
 #################################################
-
-Add to the perl reference chapter:
-
-
-What's a closure?
-
-Closures are documented in the perlref manpage. 
-
-Closure is a computer science term with a precise but hard-to-explain meaning
-. Closures are implemented in Perl as anonymous subroutines with lasting
-references to lexical variables outside their own scopes. These lexicals magi
-cally refer to the variables that were around when the subroutine was defined
-(deep binding). 
-
-Closures make sense in any programming language where you can have the return
- value of a function be itself a function, as you can in Perl. Note that some
-languages provide anonymous functions but are not capable of providing proper
- closures; the Python language, for example. For more information on closures
-,
-check out any textbook on functional programming. Scheme is a language that n
-ot only supports but encourages closures. 
-
-Here's a classic function-generating function: 
-
-    sub add_function_generator {
-      return sub { shift + shift };
-    }
-
-    $add_sub = add_function_generator();
-    $sum = $add_sub->(4,5);                # $sum is 9 now.
-
-The closure works as a function template with some customization slots left o
-ut to be filled later. The anonymous subroutine returned by
-add_function_generator() isn't technically a closure because it refers to no 
-lexicals outside its own scope. 
-
-Contrast this with the following make_adder() function, in which the returned
- anonymous function contains a reference to a lexical variable outside the
-scope of that function itself. Such a reference requires that Perl return a p
-roper closure, thus locking in for all time the value that the lexical had wh
-en the
-function was created. 
-
-    sub make_adder {
-        my $addpiece = shift;
-        return sub { shift + $addpiece };
-    }
-
-    $f1 = make_adder(20);
-    $f2 = make_adder(555);
-
-Now &$f1($n) is always 20 plus whatever $n you pass in, whereas &$f2($n) is a
-lways 555 plus whatever $n you pass in. The $addpiece in the
-closure sticks around. 
-
-Closures are often used for less esoteric purposes. For example, when you wan
-t to pass in a bit of code into a function: 
-
-    my $line;
-    timeout( 30, sub { $line = <STDIN> } );
-
-If the code to execute had been passed in as a string, '$line = <STDIN>', the
-re would have been no way for the hypothetical timeout() function to
-access the lexical variable $line back in its caller's scope. 
-
 
 #################################################
 

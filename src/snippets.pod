@@ -882,8 +882,137 @@ And in the I<httpd.conf>:
   PerlFixupHandler My::MimeTypeDispatch
 
 
+=head1 Using DESTROY to Finalize Output
 
+Well, as it's always with Perl -- TMTOWTDI (There Is More Than One Way
+To Do It), one of the readers is using C<DESTROY> to finalize output,
+as a cheap means of buffering.
 
+  package buffer;
+  use Apache;
+  
+  sub new {
+     my $class = shift;
+     my $self = bless {
+         'r' => shift,
+         'message' => ""
+     }, $class;
+     $self->{apr} = Apache::Request->new($self->{r},
+                                         POST_MAX=>(32*1024));
+     $self->content_type('text/plain');
+     $self->{r}->no_cache(1);
+  }
+  
+  sub message {
+        my $self = shift;
+        $self->{message} .= join("\n", @_);
+  }
+  
+  sub DESTROY {
+        my $self = shift;
+        $self->{apr}->send_http_header;
+        $self->{apr}->print($self->{message});
+  }
+  1;
+
+Now you can have perl scripts like:
+
+  use buffer;
+  my $b = new buffer(shift);
+  
+  $b->message(p("Hello World"));
+  # end
+
+and save a bunch of duplicate code across otherwise inconvenient
+gaggles of small scripts.
+
+But suppose you also want to redirect the client under some
+circumstances, and send a 302 HTTP result. You might try to code:
+
+  sub redir {
+        my $self = shift;
+        $self->{redirect} = shift;
+        exit;
+  }
+
+and re-code C<DESTROY> as:
+
+  sub DESTROY {
+        my $self = shift;
+        if ($self->{redirect}) {
+                $self->{apr}->status{REDIRECT};
+                $self->{apr}->header_out("Location", $self->{redirect});
+                $self->{apr}->send_http_header;
+                $self->{apr}->print($self->{redirect});
+        } else {
+                $self->{apr}->send_http_header;
+                $self->{apr}->print($self->{message});
+        }
+  }
+
+But you'll find that, while the browser redirects itself, mod_perl
+logs the result code as 200.  It turns out that status() only touches
+the Apache response, and the log message is determined by the Apache
+return code.
+
+Aha! So we'll change the exit() in redir() to exit(REDIRECT). This
+fixes the log code, but causes a bogus I<"[error] 302"> line in the
+I<error_log>.  That comes from C<Apache::Registry>:
+
+  my $errsv = "";
+  if($@) {
+      $errsv = $@;
+      $@ = ''; #XXX fix me, if we don't do this Apache::exit() breaks
+      $@{$uri} = $errsv;
+  }
+  
+  if($errsv) {
+      $r->log_error($errsv);
+      return SERVER_ERROR unless $Debug && $Debug & 2;
+      return Apache::Debug::dump($r, SERVER_ERROR);
+  }
+
+So you see that any time the return code causes C<$@> to return true,
+we'll get an error line. Not wanting this, what can we do?
+
+We can hope that a future version of mod_perl will allow us to set the
+HTTP result code independent from the handler return code (perhaps a
+log_status() method? or at least an C<Apache::LOG_HANDLER_RESULT>
+config variable?).
+
+In the meantime, there's
+L<Apache::RedirectLogFix|modules/Apache__RedirectLogFix>. Place:
+
+  PerlLogHandler Apache::RedirectLogFix
+
+in your I<httpd.conf> and take a look at the source code. Note that it
+requires us to return 200.
+
+  package Apache::RedirectLogFix;
+  
+  use Apache::Constants qw(OK DECLINED REDIRECT);
+  
+  sub handler {
+     my $r = shift;
+     return DECLINED unless $r->handler && ($r->handler eq "perl-script");
+  
+     if(my $loc = $r->header_out("Location")) {
+         if($r->status == 200 and substr($loc, 0, 1) ne "/") {
+             $r->status(REDIRECT);
+             return OK
+         }
+     }
+     return DECLINED;
+  }
+  
+  1;
+
+Now, if we wanted to do the same sort of thing for an error-500
+handler, we could write another C<PerlLogHandler> (call it
+C<ServerErrorLogFix>). But we'll leave that as an exercise to the
+reader, and hope that it won't be needed in the next mod_perl
+release. After all, it's a little awkward to need a C<LogHandler> to
+clean up after ourselves....
 
 
 
@@ -910,44 +1039,11 @@ course).
 Prepare the backup script and store it in file, e.g:
 I</usr/local/sbin/mysql/mysql.backup.pl>
 
-  #!/usr/bin/perl -w
-  
-  # this script should be run from the crontab every night or in shorter
-  # intervals. This scripts does a few things.
-  # 1. dump all the tables into a separate dump files (these dump files 
-  # are ready for DB restore)
-  # 2. backups the last update log file and create a new log file
-  
-  
-  use strict;
-  my $data_dir = "/var/lib/mysql";
-  my $update_log = "$data_dir/www.bar.com";
-  my $dump_dir  = "$data_dir/dump";
-  my $gzip_exec = "/bin/gzip";
-  my @db_names = qw(bugs mysql bonsai);
-  my $mysql_admin_exec = "/usr/bin/mysqladmin ";
-  
-      # convert unix time to date + time
-  my ($sec,$min,$hour,$mday,$mon,$year) = localtime(time);
-  my $time  = sprintf("%0.2d:%0.2d:%0.2d",$hour,$min,$sec);
-  my $date  = sprintf("%0.2d.%0.2d.%0.4d",++$mon,$mday,$year+1900);
-  my $timestamp = "$date.$time";
-  
-  # dump all the DBs we want to backup
-  foreach my $db_name (@db_names) {
-    my $dump_file = "$dump_dir/$timestamp.$db_name.dump";
-    my $dump_command = "/usr/bin/mysqldump -c -e -l -q --flush-logs $db_name > $dump_file";
-    system $dump_command;
-  }
-  
-  # move update log to backup for later restore if needed
-  rename $update_log, "$dump_dir/$timestamp.log" if -e $update_log;
-  
-  # restart the update log to log to a new file!
-  `/usr/bin/mysqladmin refresh`;
-  
-  # compress all the created files
-  system "$gzip_exec $dump_dir/$timestamp.*";
+=code mysql-3.22.29_backup.pl This is the original code 
+
+=code mysql-3.22.30+_backup.pl This is the code modified to work with
+mysql-3.22.30+ 
+
 
 You might need to change the executable paths according to your
 system. And list the names of the databases you want to backup, using
@@ -968,79 +1064,10 @@ it, without loosing a single bit of information. We restore it with
 the following script, which I put in:
 I</usr/local/sbin/mysql/mysql.restore.pl>
 
-  #!/usr/bin/perl -w
-  
-  # this scripts restores the DBs
-  
-  # Usage: mysql.restore.pl update.log.gz dump.db1.gz [... dump.dbn.gz]
-  # all files dump* are compressed as we expect them to be created by 
-  # mysql.backup utility
-  
-  # example: 
-  # % mysql.restore.pl myhostname.log.gz 12.10.1998.16:37:12.*.dump.gz
-  
-  # .dump.gz extension.
-  
-  use strict;
-  
-  use FindBin qw($Bin);
-  
-  my $data_dir   = "/var/lib/mysql";
-  my $dump_dir   = "$data_dir/dump";
-  my $gzip_exec  = "/bin/gzip";
-  my $mysql_exec = "/usr/bin/mysql -f ";
-  my $mysql_backup_exec = "$Bin/mysql.backup.pl";
-  my $mysql_admin_exec  = "/usr/bin/mysqladmin ";
-  
-  my $update_log_file = '';
-  my @dump_files = ();
-  
-  # split input files into an update log and the dump files
-  foreach (@ARGV) {
-    push(@dump_files, $_),next unless /\.log\.gz/;
-    $update_log_file = $_;
-  }
-  
-  die "Usage: mysql.restore.pl update.log.gz dump.db1.gz [... dump.dbn.gz]\n" 
-    unless defined @dump_files and @dump_files > 0;
-  
-  # load the dump files
-  foreach (@dump_files) {
-  
-      # check the file exists
-    warn("Can't locate $_"),next unless -e $_;
-  
-      # extract the db name from the dump file
-    my $db_name = $1 if /\d\d\.\d\d.\d\d.\d\d:\d\d:\d\d\.(\w+)\.dump\.gz/;
-  
-    warn("Can't extract DB name from the file name,
-          probably an error in the file format"),
-            next unless defined $db_name and $db_name;
-  
-      # we want to drop the table since restore will rebuild it!
-      # force to drop the db without confirmation
-    my $drop_command = "$mysql_admin_exec -f drop $db_name";
-    system $drop_command;
-  
-    $drop_command = "$mysql_admin_exec create $db_name";
-    system $drop_command;
-  
-      # build the command and execute it
-    my $restore_command = "$gzip_exec -cd $_ | $mysql_exec $db_name";
-    system $restore_command;
-  }
-  
-  # now load the update_log file (update the db with the changes since
-  # the last dump
-  warn("Can't locate $update_log_file"),next unless  -e $update_log_file;
-  
-  my $restore_command = 
-    "$gzip_exec -cd $update_log_file |$mysql_exec";
-  system $restore_command;
-  
-  # rerun the mysql.backup.pl since we have reloaded the dump files
-  # and update log , and we must rebuild backups!
-  system $mysql_backup_exec;
+=code mysql-3.22.29_restore.pl This is the original code
+
+=code mysql-3.22.30+_restore.pl This is the code modified to work with
+mysql-3.22.30+
 
 These are kinda dirty scripts, but they work... if you come up with a
 more clean scripts, please contribute... thanks

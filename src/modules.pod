@@ -101,6 +101,114 @@ Databases|databases/Apache_DBI_Initiate_a_persist>
 
 
 
+=head1 Apache::Watchdog::RunAway - Hanging Processes Monitor and Terminator
+
+This module monitors hanging Apache/mod_perl processes. You define the
+time in seconds after which the process to be counted as I<hanging> or
+I<run away>.
+
+When the process is considered as I<hanging> it will be killed and the
+event logged into a log file.
+
+Generally you should use the C<amprapmon> program that bundled with
+this module's distribution package, but you can write your own code
+using the module as well. See the I<amprapmon> manpage for more info
+about it.
+
+Note that it requires an C<Apache::Scoreboard> module to work.
+
+Referer to the C<Apache::Watchdog::RunAway> manpage for the
+configuration details.
+
+
+
+
+
+
+=head1 Apache::VMonitor - Visual System and Apache Server Monitor
+
+(META: Move it here)
+
+L<Apache::VMonitor -- Visual System and Apache Server
+Monitor|debug/Apache_VMonitor_Visual_Syste>
+
+
+
+
+=head1 Apache::GTopLimit - Limit Apache httpd processes
+
+This module allows you to kill off Apache httpd processes if they grow
+too large or have too little of shared memory.  You can choose to set
+up the process size limiter to check the process size on every
+request:
+
+
+
+
+    # in your startup.pl:
+    use Apache::GTopLimit;
+
+    # Control the life based on memory size
+    # in KB, so this is 10MB
+    $Apache::GTopLimit::MAX_PROCESS_SIZE = 10000;
+
+    # Control the life based on Shared memory size
+    # in KB, so this is 4MB
+    $Apache::GTopLimit::MIN_PROCESS_SHARED_SIZE = 4000;
+
+    # watch what happens  
+    $Apache::GTopLimit::DEBUG = 1;
+
+    # in your httpd.conf:   
+    PerlFixupHandler Apache::GTopLimit
+    # you can set this up as any Perl*Handler that handles
+    # part of the request, even the LogHandler will do.
+
+Or you can just check those requests that are likely to get big or
+unshared.  This way of checking is also easier for those who are
+mostly just running Apache::Registry scripts:
+
+    # in your CGI:
+    use Apache::GTopLimit;  
+      # Max Process Size in KB
+    Apache::GTopLimit->set_max_size(10000);
+
+and/or:
+
+    use Apache::GTopLimit;
+       # Min Shared process Size in KB
+    Apache::GTopLimit->set_min_shared_size(4000);
+
+Since accessing the process info might add a little overhead, you may
+want to only check the process size every N times.  To do so, put this
+in your I<startup.pl> or your code:
+
+    $Apache::GTopLimit::CHECK_EVERY_N_REQUESTS = 2;
+
+This will only check the process size every other time the process size
+checker is called.
+
+This module was written in response to questions on the mod_perl mailing
+list on how to tell the httpd process to exit if:
+
+=over 4
+
+=item *
+
+its memory size goes beyond a specified limit
+
+=item *
+
+its shared memory size goes below a specified limit
+
+=back
+
+Note: This module will run on platforms supported by B<GTop.pm> a Perl
+interface to libgtop (which in turn needs B<libgtop> : See
+http://home-of-linux.org/gnome/libgtop/ ).
+
+Referer to the C<Apache::GTopLimit> manpage for more information.
+
 
 
 
@@ -346,7 +454,6 @@ and do some manual header sending, like:
 
   $r->status(304);
   $r->send_http_header();
-
 
 
 

@@ -652,11 +652,17 @@ accessed from C</server_status> location, or an C<Apache::VMonitor>
 module. Both tools provide counters of processed requests per Apache
 process. So what you can do is to watch the report for about 5-10
 minutes spotting which process number has the same number of processed
-requests while its status is 'W' (Which means that it hangs), but when
-you have about 50 processes, it's quite hard to spot such a process. So
-let's write a watchdog to do the work for us:
+requests while its status is 'W' (Which means that it hangs or "runs
+away")
 
-.....META??? Apache::SafeHang code
+But when you have about 50 and more processes, it's quite hard to spot
+such a process. So let's use a watchdog to do the work for us. I've
+put together the
+L<Apache::Watchdog::RunAway|modules/Apache_Watchdog_RunAway_Hang>
+module which includes the C<amprapmon> utility whose name stands for
+I<Apache mod_perl Run Away Processes Monitor>. This utility monitors
+your server all the time and kills the processes that serve a single
+request for too long. You define the threshold time for the kill-off.
 
 When you've got a real problem and the processes hang one after the
 other, the moment comes when the number of hanging processes becomes
@@ -1665,9 +1671,9 @@ The most important part of the code is to flush the modifications.
   close $fh;
 
 Now it's safe to unlock the dbm file. Please refer to L<Locking dbm
-handlers|dbm/Locking_dbm_handlers> to learn why you should use a dbm's
-file descriptor to lock itself. To make long explanations short -- it
-may get your dbm file corrupted.
+handlers|dbm/Locking_dbm_handlers> to learn why you should NOT 
+use a dbm's file descriptor to lock itself. To make long explanations
+short -- it may get your dbm file corrupted.
 
     # printout the contents of the the dbm file
   print map {"$_ => $hash{$_}\n"} sort keys %hash;
@@ -2503,15 +2509,16 @@ after we call localtime():
     my ($day,$month,$year) = (localtime)[3..5];
     $month++;
 
-
-META: continue (unfinished)!!!
-
 Now let's see some code including conditional and loop
 statements.
 
   for my $i (1..31)
   if( $day > 20) {
   }
+
+
+META: continue (unfinished)!!!
+
 
 =head2 Using print() and Data::Dumper for Debugging
 
@@ -3323,7 +3330,7 @@ we use a C<PerlFixupHandler> so handlers in the response phase will
 bring up the debugger prompt:
 
   <IfDefine PERLDB>
-
+  
     <Perl>
       use Apache::DB ();
       Apache::DB->init;

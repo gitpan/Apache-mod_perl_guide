@@ -38,10 +38,9 @@ If you didn't move Apache directories around, the installation program
 already has configured everything for you. Just start the server and
 test it working. To start the server use the C<apachectl> utility
 which comes bundled with Apache distribution and resides in the same
-directory with C<httpd> (the Apache server itself). Go to this
-directory and execute:
+directory with C<httpd> (the Apache server itself). Execute:
 
-  apachectl start
+  /usr/local/apache/bin/apachectl start
 
 Now you can test the server, by trying to access it from
 http://localhost .
@@ -344,12 +343,12 @@ C<mod_perl>. C<ScriptAlias> is being used for C<mod_cgi>.
 
 Alias defines the start of the URL path to the script you are
 referencing.  For example, using the above configuration, fetching
-I<http://www.nowhere.com/perl/test.pl>, will cause the server to look
+I<http://www.example.com/perl/test.pl>, will cause the server to look
 for the file I<test.pl> at I</usr/local/myproject/cgi>, and execute it
 as an C<Apache::Registry> script if we define C<Apache::Registry> to
 be the handler of I</perl> location (see below).
 
-The URL I<http://www.nowhere.com/perl/test.pl> will be mapped to
+The URL I<http://www.example.com/perl/test.pl> will be mapped to
 I</usr/local/myproject/cgi/test.pl>.  This means that you can have all
 your CGIs located at the same place in the file-system, and call the
 script in any of three modes simply by changing the directory name
@@ -496,7 +495,7 @@ was replaced by C<Apache::PerlRun>.
 =head2 PerlModule and PerlRequire Directives
 
 As we saw earlier the module should be loaded before allowed to be
-used, the C<PerlModule> and C<PerlRequire> are the two mod_perl
+used, C<PerlModule> and C<PerlRequire> are the two mod_perl
 directives equivalent to the Perl's use() and require() respectively.
 Since they are equivalent, the same rules apply to their
 arguments. You pass C<Apache::DBI> as an argument for C<PerlModule>,
@@ -1319,7 +1318,23 @@ if you want to prevent the code in the file from being executed.
 
 
 
+=head1 Enabling Remote Server Configuration Reports
 
+A nifty mod_info module displays a complete server configuration in
+the browser. In order to use it you have compile it in or load as an
+object if the server was compiled with DSO mode enabled. Then
+uncomment the already prepared section in the I<httpd.conf> file:
+
+  <Location /server-info>
+    SetHandler server-info
+    Order deny,allow
+    Deny from all
+    Allow from www.example.com
+  </Location>
+
+Now restart the server and issue the request:
+
+  http://www.example.com/server-info
 
 
 

@@ -501,7 +501,7 @@ An example of such a case would be:
   }
 
 To make sure you don't miss these bugs always test your CGI in
-L<single process mode|control/Running_server_in_a_single_mode>.
+L<single process mode|control/Running_a_Server_in_Single_Proce>.
 
 To solve this particular B</o> modifier problem refer to L<Compiled
 Regular Expressions|perl/Compiled_Regular_Expressions>.
@@ -671,7 +671,7 @@ value.
 
 To make sure that you have set C<@INC> correctly, configure
 L</perl-status location|debug/Apache_Status_Embedded_inter>, fetch
-http://www.nowhere.com/perl-status?inc and look at the bottom of the
+http://www.example.com/perl-status?inc and look at the bottom of the
 page, where the contents of C<@INC> will be shown.
 
 
@@ -1664,7 +1664,7 @@ Both scripts call C<use Foo;>. Only the first one called will know
 about C<Foo>. When you call the second script it will not know about
 C<Foo> at all--it's like you've forgotten to write C<use Foo;>. Run
 the server in L<single server
-mode|control/Running_server_in_a_single_mode> to detect this kind of
+mode|control/Running_a_Server_in_Single_Proce> to detect this kind of
 bug immediately.
 
 You will see the following in the error_log file:
@@ -1933,7 +1933,7 @@ You can use backticks as a possible workaround:
 But you're throwing performance out the window either way. It's best
 not to fork at all if you can avoid it. See the "L<Forking or
 Executing subprocesses from
-mod_perl|performance/Forking_or_Executing_Subprocesse>" section
+mod_perl|performance/Forking_and_Executing_Subprocess>" section
 to learn about implications of forking.
 
 Also read about L<Apache::SubProcess|modules/Apache__SubProcess> for
@@ -2043,9 +2043,10 @@ Here is an example of assigning of the postprocessing handler:
 The above is the code that is used by the C<Apache::SizeLimit> module
 which terminates processes that grow bigger than a value you choose.
 
-C<Apache::GTopLimit> (based on libgtop) is a similar module. It does
-the same thing, plus you can configure it to terminate processes when
-their shared memory shrinks below some specified size.
+L<Apache::GTopLimit|modules/Apache_GTopLimit_Limit_Apache> (based on
+I<libgtop> and C<GTop.pm>) is a similar module. It does the same
+thing, plus you can configure it to terminate processes when their
+shared memory shrinks below some specified size.
 
 As mentioned before, it is unnecessary to postpone the execution of
 child_terminate(). You can call it anywhere in the code, it won't

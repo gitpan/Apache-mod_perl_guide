@@ -455,6 +455,12 @@ sub pod2html {
 		    process_back();
 		} elsif (/^=for\s+(\S+)\s+(.*)/si) {# =for
 		    process_for($1,$2);
+		} elsif (/^=example\s+(\S+)\s+(.*)/si) {# =example
+		    process_example($1,$2);
+		} elsif (/^=figure\s+(\S+)\s+(.*)/si) { # =figure
+		    process_figure($1,$2);
+		} elsif (/^=code\s+(\S+)\s+(.*)/si) {   # =code
+		    process_code($1,$2);
 		} else {
 		    /^=(\S*)\s*/;
 		    warn "$0: $podfile: unknown pod directive '$1' in "
@@ -1187,6 +1193,44 @@ sub process_cut {
 #
 sub process_pod {
     # no need to set $ignore to 0 cause the main loop did it
+}
+
+#
+# process_example - process a =example newpod tag.
+# =example 1.1 This is a title
+# becomes
+# <p><i>Example 1.1: This is a title</i></p>
+#
+sub process_example {
+    my($index, $title) = @_;
+    $OUT .= qq{<p><i>Example $index: $title</i></p>};
+}
+
+#
+# process_figure - process a =figure newpod tag.
+# =figure 1.1 This is a title
+# becomes
+# <p><center><img src="fig1.1.gif"></center></p>
+# <p><center><b>Figure 1.1: This is a title</b></center></p>
+#
+sub process_figure {
+    my($index, $title) = @_;
+    $OUT .= qq{<p><center><img src="fig$index.gif"></center></p>
+               <p><center><b>Figure $index: $title</b></center></p>
+              };
+}
+
+#
+# process_code - process a =code newpod tag.
+# =code filename This is a comment
+# becomes
+# <p><a href="code/filename"><code>filename</code></a>This is a comment</p>
+#
+sub process_code {
+    my($filename, $comment) = @_;
+    $OUT .= qq{
+	       <p><a href="code/$filename"><code>$filename</code></a> -- $comment</p>
+	      };
 }
 
 #

@@ -32,7 +32,7 @@ do that against the POD source files in I<src> directory. Thank you!
 
 =head1 AUTHOR
 
-Stas Bekman <sbekman@iname.com>
+Stas Bekman <stas@stason.org>
 
 =head1 SEE ALSO
 

@@ -167,6 +167,185 @@ C<RES> (or C<RSS>) columns with the C<SHARE> column.  C<RES> is
 RESident memory, which is the size of pages currently swapped in.
 
 
+
+
+=head1 Calculating Real Memory Usage
+
+You have learned how to measure the size of the process' shared
+memory, but we still want to know what is the real memory usage, which
+is obviously cannot be calculated by summing up the memory size of
+each process, because it doesn't take into account the shared memory.
+
+On the other hand we cannot just substruct the shared memory size from
+the total size to get the real memory usage numbers, because in
+reality each process does a different task, therefore the shared
+memory is not the same for all processes.
+
+How do we measure the real memory size used by the server we run. It's
+probably would be a tough goal to give the exact number, but I've
+found a way to get a pretty close number which was verified in the
+following way. I have calculated the real memory used, by the
+technique you will see in the moment, and then have stopped the Apache
+server and saw that the memory usage report indicated that the total
+used memory went down by almost the same number I've calculated. Note
+that some OSes do smart caching so you may not see the memory usage
+decrease, when it actually happens.
+
+This is a technique I've used:
+
+=over
+
+=item 1
+
+For each process sum up the difference between shared and system
+memory. To calculate a difference for a single process use:
+
+  use GTop;
+  my $proc_mem = GTop->new->proc_mem($$);
+  my $diff     = $proc_mem->size - $proc_mem->share;
+  print "Difference is $diff bytes\n";
+
+=item 2
+
+Now if we add the shared memory size of the process with maximum
+shared memory, we will get all the memory that actually is being used
+by all httpd processes, but the parent process.
+
+=item 3 
+
+Finally, add the size of the parent process.
+
+=back
+
+Please note that this might be incorrect for your system, so you use
+this number on your own risk.
+
+I've used this technique to display a real memory usage in the module
+L<Apache::VMonitor|debug/Apache_VMonitor_Visual_Syste>, so instead of
+trying to manually calculate this number use this module to do the
+job.
+
+
+
+=head1 Is my Code Shared?
+
+How do you learn whether the code you write is shared between the
+process or not. Well, not all of the code, but some variables. For
+example, if you have some variables that use a lot of memory and you
+want them to be read-only. As you know the variable becomes unshared
+when the process modifies its value.
+
+So imagine that you have this 10Mb in-memory database that resides in
+a single variable, you perform various operations on it and want to
+make sure that the variable is still shared. For example if you do
+some matching regex processing on this variable and want to use the
+pos() function, will it make the variable unshared or not?
+
+The C<Apache::Peek> module comes to rescue, let's write a module
+called I<MyShared.pm> which we preload at the server startup, so all
+the variables of this module are initially shared by all children.
+
+  MyShared.pm
+  ---------
+  package MyShared;
+  use Apache::Peek;
+  
+  my $readonly = "Chris";
+  
+  sub match{      $readonly =~ /\w/g;                  }
+  sub print_pos{  print "pos: ", pos($readonly), "\n"; }
+  sub dump {      Dump($readonly);                     }
+  1; 
+
+This module declares the package, loads the C<Apache::Peek> module and
+defines the C<$readonly> variable which is supposed to be a I<big>
+variable, but we will use a small one to simplify this example. 
+
+The module also defines three subroutines: match() that does a simple
+character matching, print_pos() that prints the current position of
+the matching engine inside the string that was last matched and
+finally the dump() subroutine that calls the C<Apache::Peek> module's
+Dump() function to dump a raw Perl data-type of the C<$readonly>
+variable.
+
+Now we write the script that prints the PID of the process and calls
+the tree functions. The goal is to check whether pos() makes the
+variable dirty and therefore unshared.
+
+  share_test.pl
+  -------
+  use MyShared;
+  print "Content-type: text/plain\r\n\r\n";
+  print "PID: $$\n";
+  MyShared::match();
+  MyShared::print_pos();
+  MyShared::dump();
+
+Before you restart the server in I<httpd.conf> set:
+
+  MaxClients 2
+
+for easier tracking. You need at least two servers to compare the
+print outs of the test program, Having more than two can make the
+comparison process harder.
+
+Now open two browser windows and issue the request for this script for
+a several times in both windows, so you get different processes PID
+reported in the two windows and each process has been called a
+different number of times. 
+
+In the first window you will see something like that:
+
+  PID: 27040
+  pos: 1
+  SV = PVMG(0x853db20) at 0x8250e8c
+    REFCNT = 3
+    FLAGS = (PADBUSY,PADMY,SMG,POK,pPOK)
+    IV = 0
+    NV = 0
+    PV = 0x8271af0 "Chris"\0
+    CUR = 5
+    LEN = 6
+    MAGIC = 0x853dd80
+      MG_VIRTUAL = &vtbl_mglob
+      MG_TYPE = 'g'
+      MG_LEN = 1
+
+And in the second window:
+
+  PID: 27041
+  pos: 2
+  SV = PVMG(0x853db20) at 0x8250e8c
+    REFCNT = 3
+    FLAGS = (PADBUSY,PADMY,SMG,POK,pPOK)
+    IV = 0
+    NV = 0
+    PV = 0x8271af0 "Chris"\0
+    CUR = 5
+    LEN = 6
+    MAGIC = 0x853dd80
+      MG_VIRTUAL = &vtbl_mglob
+      MG_TYPE = 'g'
+      MG_LEN = 2
+
+We see that all the addresses are the same (C<0x8250e8c> and
+C<0x8271af0>), therefore the variable data structure is almost
+completely shared.  The only difference is in C<SV.MAGIC.MG_LEN>
+record, which is not shared.
+
+So given that the C<$readonly> variable is a big one, its value is
+still shared between the processes, while part of the variable data
+structure is non-shared but it's almost insignificant because it takes
+a very little memory space.
+
+Now if you need to compare more than variable, doing it by hand can be
+quite time consuming and error prune. Therefore it's better to correct
+the testing script to dump the Perl data-types into files (e.g
+I</tmp/dump.$$>, where C<$$> is the PID of the process) and then using
+diff(1) utility to see whether there is some difference.
+
+
+
 =head1 Preload Perl Modules at Server Startup
 
 Use the C<PerlRequire> and C<PerlModule> directives to load commonly
@@ -279,7 +458,7 @@ without the preload -- good!
 
 B<Server restarted>
 
-After C<CGI.pm> preloaded and compiled with CGI->compile(':all');
+After C<CGI.pm> preloaded and compiled with CGI-E<gt>compile(':all');
 
   USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
   root      86980  0.0  0.0 2836 1524      - A    17:05:27  0:00 httpd
@@ -292,7 +471,7 @@ After running a script which uses CGI's methods (no imports):
   httpd    188104  0.0  1.0 4188 2940      - A    17:05:27  0:00 httpd
 
 Observation: the child httpd has grown by 1172K - no change!  So does
-CGI->compile(':all') help us?  We probably do not use all the methods
+CGI-E<gt>compile(':all') help us?  We probably do not use all the methods
 which CGI provides, so in real use it's faster.
 
 You might want to compile only the tags you are going to use, then you
@@ -307,7 +486,7 @@ improve things. This is the code under test.
 
 B<Server restarted>
 
-After C<CGI.pm> was preloaded but NOT compiled with CGI->compile():
+After C<CGI.pm> was preloaded but NOT compiled with CGI-E<gt>compile():
 
   USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
   root      17268  0.0  0.0 1456 1552      - A    18:02:49  0:00 httpd
@@ -323,7 +502,7 @@ Observation: the child httpd has grown by 1264K
 
 B<Server restarted>
 
-After C<CGI.pm> was preloaded and compiled with CGI->compile(':all'):
+After C<CGI.pm> was preloaded and compiled with CGI-E<gt>compile(':all'):
 
   USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
   root      86812  0.0  0.0 2836 1524      - A    17:59:52  0:00 httpd
@@ -676,7 +855,7 @@ handlers.
 
 
 
-=head1 Forking or Executing Subprocesses from mod_perl
+=head1 Forking and Executing Subprocesses from mod_perl
 
 Generally you should not fork from your mod_perl scripts, since when
 you do, you are forking the entire Apache Web server, lock, stock and
@@ -703,7 +882,14 @@ Basically, you would do:
   $params=FreezeThaw::freeze(
 	[all data to pass to the other process]
 	);
-  system("program.pl $params");
+  system("program.pl", $params);
+
+Notice that you do a system() call with arguments separated by commas,
+rather than passing them all as a single argument. When you use
+commas, shell won't try to parse (tokenize) the parameters, therefore
+you don't have to worry about escaping unsafe shell characters. If you
+want shell to parse the variables make sure to run the escape
+function, for example the one from the C<String::ShellQuote> package.
 
 and in C<program.pl> :
 
@@ -870,6 +1056,10 @@ may need to close and reopen the C<STDERR> filehandle.  It's opened to
 append to the error_log file as inhereted by parent, so chances are
 that you will want it to leave untouched.
 
+Of course if your child needs any of the C<STDIN>, C<STDOUT> or
+C<STDERR> you should reopen them. But you must unties the parent
+process, thus you should close them first.
+
 So now the code would look like this:
 
   print "Content-type: text/plain\r\n\r\n";
@@ -878,7 +1068,6 @@ So now the code would look like this:
   
   defined (my $kid = fork) or die "Cannot fork: $!\n";
   if ($kid) {
-    waitpid($kid,0);
     print "Parent has finished\n";
   } else {
       close STDIN;
@@ -887,6 +1076,9 @@ So now the code would look like this:
       # do something time-consuming
       CORE::exit(0);
   }
+
+Note that waitpid() call has gone. The C<$SIG{CHLD} = IGNORE;>
+statement protects us from zombies, as explained above.
 
 Another, more portable, but slightly more expensive solution is to use
 a double fork approach.
@@ -1354,7 +1546,7 @@ requesting: http://localhost/perl-status?rgysubs you would see:
 after the both URIs have been requested from the same child process
 that happened to serve your request.  To make the debugging easier see
 L<run the server in single
-mode|control/Running_server_in_a_single_mode>.
+mode|control/Running_a_Server_in_Single_Proce>.
 
 
 
@@ -1690,10 +1882,10 @@ serving.  The B<ab> tool comes bundled with the Apache source
 distribution, and it's free. :)
 
 Let's try it.  We will simulate 10 users concurrently requesting a
-very light script at C<www.nowhere.com:81/test/test.pl>.  Each
+very light script at C<www.example.com:81/test/test.pl>.  Each
 simulated user makes 10 requests.
 
-  % ./ab -n 100 -c 10 www.nowhere.com:81/test/test.pl
+  % ./ab -n 100 -c 10 www.example.com:81/test/test.pl
 
 The results are:
 
@@ -1722,7 +1914,7 @@ The only numbers we really care about are:
 Let's raise the request load to 100 x 10 (10 users, each makes 100
 requests):
 
-  % ./ab -n 1000 -c 10 www.nowhere.com:81/perl/access/access.cgi
+  % ./ab -n 1000 -c 10 www.example.com:81/perl/access/access.cgi
   Concurrency Level:      10
   Complete requests:      1000
   Failed requests:        0
@@ -1731,7 +1923,7 @@ requests):
 As expected, nothing changes -- we have the same 10 concurrent users.
 Now let's raise the number of concurrent users to 50:
 
-  % ./ab -n 1000 -c 50 www.nowhere.com:81/perl/access/access.cgi
+  % ./ab -n 1000 -c 50 www.example.com:81/perl/access/access.cgi
   Complete requests:      1000
   Failed requests:        0
   Requests per second:    133.01
@@ -1761,7 +1953,7 @@ use the following configuration:
 
 Simulate 50 users each generating a total of 20 requests:
 
-  % ./ab -n 1000 -c 50 www.nowhere.com:81/perl/access/access.cgi
+  % ./ab -n 1000 -c 50 www.example.com:81/perl/access/access.cgi
 
 The benchmark timed out with the above configuration.... I watched the
 output of B<C<ps>> as I ran it, the parent process just wasn't capable
@@ -1838,7 +2030,7 @@ I will use the following abbreviations:
 
 Running a mod_perl script with lots of mysql queries (the script under
 test is mysqld limited)
-(http://www.nowhere.com:81/perl/access/access.cgi?do_sub=query_form),
+(http://www.example.com:81/perl/access/access.cgi?do_sub=query_form),
 with the configuration:
 
   MinSpareServers  	 8
@@ -1867,7 +2059,7 @@ might time out!
 
 Now we will benchmark the same script without using the mysql (code
 limited by perl only):
-(http://www.nowhere.com:81/perl/access/access.cgi), it's the same
+(http://www.example.com:81/perl/access/access.cgi), it's the same
 script but it just returns the HTML form, without making SQL queries.
 
   MinSpareServers  	 8
@@ -2057,7 +2249,7 @@ parameters, but the implementations were different.
 
 Sample output:
 
-  URL(s):          http://www.nowhere.com:81/perl/access/access.cgi
+  URL(s):          http://www.example.com:81/perl/access/access.cgi
   Total Requests:  100
   Parallel Agents: 10
   Succeeded:       100 (100.00%)
@@ -2082,8 +2274,8 @@ And the code:
   my $nof_requests_total = 100; 
   my $timeout = 10;
   my @urls = (
-  	    'http://www.nowhere.com:81/perl/faq_manager/faq_manager.pl',
-  	    'http://www.nowhere.com:81/perl/access/access.cgi',
+  	    'http://www.example.com:81/perl/faq_manager/faq_manager.pl',
+  	    'http://www.example.com:81/perl/access/access.cgi',
   	   );
   
   
@@ -2262,7 +2454,7 @@ you come up with solution please let us know!  If the shared memory
 was of the same size throughout the child's life, we could derive a
 much better formula:
 
-               Total_RAM + Shared_RAM_per_Child * MaxClients
+               Total_RAM + Shared__RAM_per_Child * MaxClients
   MaxClients = ---------------------------------------------
                         Max_Process_Size - 1
 
@@ -2305,6 +2497,7 @@ If you improve sharing and keep the sharing level, let's say:
 
 390% more servers!  You've got the point. :)
 
+
 =head2 Choosing MaxRequestsPerChild
 
 The C<MaxRequestsPerChild> directive sets the limit on the number of
@@ -2312,25 +2505,24 @@ requests that an individual child server process will handle.  After
 C<MaxRequestsPerChild> requests, the child process will die.  If
 C<MaxRequestsPerChild> is 0, then the process will live forever.
 
-Setting C<MaxRequestsPerChild> to a non-zero limit has two beneficial
-effects: it solves some memory leakage problems and it helps to reduce
-the number of processes when the server load reduces.
+Setting C<MaxRequestsPerChild> to a non-zero limit solves some memory
+leakage problems caused by sloppy programming practices, whereas a
+child process consumes more memory after each request.
 
-The first reason is the most crucial for mod_perl, since sloppy
-programming will cause a child process to consume more memory after
-each request.  If left unbounded, then after a certain number of
-requests the children will use up all the available memory and leave
-the server to die from memory starvation.  Note that sometimes
-standard system libraries leak memory too, especially on OSes with bad
-memory management (e.g. Solaris 2.5 on x86 arch).  If this is your
-case you can set C<MaxRequestsPerChild> to a small number.  This will
-allow the system to reclaim the memory that a greedy child processes
-consumed, when it exits after C<MaxRequestsPerChild> requests.  But
-beware -- if you set this number too low, you will lose some of the
-speed bonus you get from mod_perl.  Consider using C<Apache::PerlRun>
-if this is the case.  Also consider setting C<MaxSpareServers> to a
-number close to C<MaxClients>.  This will improve the response time
-but your parent process will be very busy respawning new children!
+If left unbounded, then after a certain number of requests the
+children will use up all the available memory and leave the server to
+die from memory starvation.  Note that sometimes standard system
+libraries leak memory too, especially on OSes with bad memory
+management (e.g. Solaris 2.5 on x86 arch).
+
+If this is your case you can set C<MaxRequestsPerChild> to a small
+number.  This will allow the system to reclaim the memory that a
+greedy child processes consumed, when it exits after
+C<MaxRequestsPerChild> requests.
+
+But beware -- if you set this number too low, you will lose some of
+the speed bonus you get from mod_perl.  Consider using
+C<Apache::PerlRun> if this is the case.
 
 Another approach is to use C<Apache::SizeLimit>.  See L<Limiting the
 size of processes|performance/Limiting_the_Size_of_the_Process>.
@@ -2342,7 +2534,7 @@ Memory|performance/Sharing_Memory>.
 
 =head2 Choosing MinSpareServers, MaxSpareServers and StartServers
 
-With mod_perl enabled, it might take as much as 30 seconds from the
+With mod_perl enabled, it might take as much as 20 seconds from the
 time you start the server until it is ready to serve incoming
 requests.  This delay depends on the OS, the number of preloaded
 modules and the process load of the machine.  It's best to set
@@ -2386,7 +2578,6 @@ capable of handling a high load, I'd think of:
 These numbers are taken off the top of my head, and shouldn't be used
 as a rule, but rather as examples to show you some possible scenarios.
 Use this information with caution!
-
 
 
 =head2 Summary of Benchmarking to tune all 5 parameters
@@ -3154,6 +3345,51 @@ I've seen:
 
 
 
+
+
+
+
+
+
+
+
+=head1 Memory Swapping is Considered Bad
+
+(META: check that you don't have a duplication somewhere in the text,
+probably the MaxClients tuning section)
+
+When tuning the performance of your box, you must configure the
+software that you run in a way that no memory swapping will
+happen. Even during the peak hours.
+
+Swap memory is slow since it resides on the hard disc, which is much
+slower than the RAM. When your machine starts to swap, because it's
+unable to cope with a number of the processes it has to run, your
+machine will become slower and slower until it'll completely halt its
+operations. When the CPU has to page in and out the memory pages,
+things slow down, causing the processing demands to go up, which in
+turn slows down the system even more as more memory is required and
+this is provided by kerner using the reserved swap space.
+
+This is the path to the machine halt, unless the resource demand is
+suddenly goes down and allows the processes to catch up with their
+tasks and go back to the normal usage of memory.
+
+For the swapping monitoring techniques see the section
+'L<Apache::VMonitor -- Visual System and Apache Server
+Monitor|debug/Apache_VMonitor_Visual_Syste>'.
+
+For the mod_perl specific swapping preventing guideliness see the
+section 'L<Choosing MaxClients|performance/Choosing_MaxClients>'.
+
+
+
+
+
+
+
+
+
 =head1 Code Profiling
 
 The profiling process helps you to determine which subroutines or just
@@ -3329,13 +3565,173 @@ C<$ServerRoot/logs/dprof/$$> and run:
 
 
 
+=head1 Reducing the Number of stat() Calls
+
+If you watch the server calls trace, while this processes a request,
+you will notice a few stat() calls are made. For example when I
+execute http://localhost/perl-status and I have my DocRoot set to
+I</home/httpd/docs> I see:
+
+  [snip]
+  stat("/home/httpd/docs/perl-status", 0xbffff8cc) = -1 
+                      ENOENT (No such file or directory)
+  stat("/home/httpd/docs", {st_mode=S_IFDIR|0755, 
+                                 st_size=1024, ...}) = 0
+  [snip]
+
+when running the server under C<strace> or C<truss> utility.
+
+If you have some dynamically generated code (not from the script) and
+your virtual relative URI is like I</news/perl/mod_perl/summary>
+(there is no such a directory on the web server, the sub sections are
+only used for requesting a specific report), this will generate
+five(!) stat() calls, before the C<DocumentRoot> will be found. You
+will see something like this:
+
+  stat("/home/httpd/docs/news/perl/mod_perl/summary", 0xbffff744) = -1 
+                      ENOENT (No such file or directory)
+  stat("/home/httpd/docs/news/perl/mod_perl", 0xbffff744) = -1 
+                      ENOENT (No such file or directory)
+  stat("/home/httpd/docs/news/perl", 0xbffff744) = -1 
+                      ENOENT (No such file or directory)
+  stat("/home/httpd/docs/news", 0xbffff744) = -1 
+                      ENOENT (No such file or directory)
+  stat("/home/httpd/docs", {st_mode=S_IFDIR|0755, 
+                                 st_size=1024, ...}) = 0
+
+
+You should blame the installed by default C<TransHandler> for this
+inefficiency. Of course you could supply your own one, which will be
+smart enough not to look for this virtual path and immediately return
+C<OK>. But in case that you have some virtual host that serves only
+dynamically generated documents, you can override the default
+C<PerlTransHandler> with this one:
+
+  <VirtualHost 10.10.10.10:80>
+    ...
+    PerlTransHandler  Apache::OK
+    ...
+  </VirtualHost>
+
+As you see it will affect only this specific virtual host.
+
+This has the effect of short circuiting the normal C<TransHandler>
+processing of trying to find a filesystem component that matches the
+given URI -- no more 'stat's!
 
 
 
 =head1 Object Methods Calls Versus Function Calls
 
-Which approach is more efficient: OOP methods or function calls?
-C<CGI.pm>, for example, allows you to work in both modes.
+Which subroutine calling form is more efficient: OOP methods or
+functions?
+
+=head2 The Overhead with Light Subroutines
+
+Let's do a benchmarking.  We will start doing it using empty methods,
+which will allow us to measure the real difference in the overhead
+each kind of call introduces.  We will use this code:
+
+  bench_call1.pl
+  --------------
+  package Foo;
+  
+  use strict;
+  use Benchmark;
+  
+  sub bar { };
+  
+  timethese(50_000, {
+                 method   => sub { Foo->bar()      },
+                 function => sub { Foo::bar('Foo');},
+                });
+
+The two calls are equivalent, since both pass the class name as their
+first name, I<function> does this explicitly, while I<method> does
+this transparently.
+
+The benchmarking result:
+
+  Benchmark: timing 50000 iterations of function, method...
+    function:  0 wallclock secs ( 0.80 usr +  0.05 sys =  0.85 CPU)
+      method:  1 wallclock secs ( 1.51 usr +  0.08 sys =  1.59 CPU)
+
+We are are interested in the 'total CPU times' and not the 'wallclock
+seconds'.  It's possible that the load on the system was different for
+the two tests while benchmarking, so the wallclock times give us no
+useful information.
+
+We see that the I<method> calling type is almost twice slower, than
+I<function>.  0.85 CPU compared to 1.59 CPU real execution time.  Why
+does this happen?  Because the difference between functions and
+methods is the time taken to resolve the pointer from the object, to
+find the module it belongs to and then the actual method.  Functions
+form has one parameter less to pass, less stack operations, less time
+to get to the guts of the subroutine.
+
+=head2 The Overhead with Heavy Subroutines
+
+But that doesn't mean that you shouldn't use methods.  Generally your
+functions do something, and the more they do the less will be the
+difference, because the overhead time is a number of a final length.
+Therefore the longer execution time of the function the smaller the
+relative overhead of the method call.  The next bechmark proves this
+point:
+
+  bench_call2.pl
+  --------------
+  package Foo;
+  
+  use strict;
+  use Benchmark;
+  
+  sub bar { 
+    my $class = shift;
+  
+    my ($x,$y) = (100,100);
+    $y = log ($x ** 10)  for (0..20);
+  };
+  
+  timethese(50_000, {
+                 method   => sub { Foo->bar()      },
+                 function => sub { Foo::bar('Foo');},
+                });
+
+
+We get a very close benchmarks!
+
+  function: 33 wallclock secs (15.81 usr +  1.12 sys = 16.93 CPU)
+    method: 32 wallclock secs (18.02 usr +  1.34 sys = 19.36 CPU)
+
+Let's make the subroutine I<bar> even slower:
+
+  sub bar { 
+    my $class = shift;
+  
+    my ($x,$y) = (100,100);
+    $y = log ($x ** 10)  for (0..40);
+  };
+
+And the result is amazing, the I<method> call convention was faster
+then I<function>:
+
+  function: 81 wallclock secs (25.63 usr +  1.84 sys = 27.47 CPU)
+    method: 61 wallclock secs (19.69 usr +  1.49 sys = 21.18 CPU)
+
+In case your functions do very little, like the functions that
+generate HTML tags in C<CGI.pm>, the overhead might become a
+significant one. If your goal is speed you might consider to use the
+I<function> form, but if you write a big and complicated application,
+it's much better to use the I<method> form, as it will make your code
+easier to develop, maintain and debug.
+
+
+=head2 Are All Methods Slower than Functions?
+
+Some modules' API is misleading, for example C<CGI.pm> allows you to
+execute its subroutined as functions and methods. As you will see in a
+moment its function form of the calls is slower than the method form
+because it does some woodoo work when the function form call is used.
 
   use CGI;
   my $q = new CGI;
@@ -3348,9 +3744,11 @@ versus
   param('x',5);
   my $x = param('x');
 
-As usual, let's benchmark and compare:
+As usual, let's benchmark some very light calls and compare. Ideally
+we would expect the I<methods> to be slower than I<functions> based on
+the previous benchmarks:
 
-  meth_vs_func.pl
+  bench_call3.pl
   ---------------
   use Benchmark;
   
@@ -3359,45 +3757,43 @@ As usual, let's benchmark and compare:
   my $q = new CGI;
   my $x;
   timethese
-    (20000, 
-     {
-      'Method'   => sub {$q->param('x',5); $x = $q->param('x'); },
-      'Function' => sub {param('x',5); $x = param('x');},
+    (20000, {
+      method   => sub {$q->param('x',5); $x = $q->param('x'); },
+      function => sub {    param('x',5); $x =     param('x'); },
      });
 
 The benchmark is written is such a way that all the initializations
-are done at the beginning, so that we get as accurate a picture of the
-performance as we can.  Let's do it:
+are done at the beginning, so that we get as accurate performance
+figures as possible.  Let's do it:
 
-  % ./meth_vs_func.pl
+  % ./bench_call3.pl
   
-  Function: 29 wallclock secs (25.19 usr +  0.13 sys = 25.32 CPU)
-    Method: 28 wallclock secs (22.94 usr +  0.10 sys = 23.04 CPU)
+  function: 51 wallclock secs (28.16 usr +  2.58 sys = 30.74 CPU)
+    method: 39 wallclock secs (21.88 usr +  1.74 sys = 23.62 CPU)
 
-We are are interested in the 'total CPU times' and not the 'wallclock
-seconds'.  It's possible that the load on the system was different for
-the two tests while benchmarking, so the wallclock times give us no
-useful information.
+As we can see methods are faster than functions, which seems to be
+wrong.  The explanation lays in the way C<CGI.pm> is implemented.
+C<CGI.pm> uses some I<fancy> tricks to make the same routine act both
+as a I<method> and a plain I<function>.  The overhead of checking
+whether the arguments list looks like a I<method> invocation or not,
+will mask the slight difference in time for the way the function was
+called.
 
-As we can see methods are about 6% slower than functions.  This number
-is true for all methods in C<CGI.pm> and other OOP modules as well.
-Why?  Because the difference between functions and methods is the time
-taken to resolve the pointer from the object, to find the Module it
-belongs to and then the actual method.
+If you are intrigued and want to investigate further by yourself the
+subroutine you want to explore is called I<self_or_default>.  The
+first line of this function short-circuits if you are using the object
+methods, but the whole function is called if you are using the
+functional forms.  Therefore, the functional form should be slightly
+slower than the object form.
 
-If you maintain the data object in a package's global variable like
-C<CGI.pm> does, you also save a little more time since you don't have
-to pass it to the function.  One parameter less to pass, less stack
-operations, less time to get to the guts of the function.
 
-But this little overhead is insignificant for most of us, relative to
-the benefits it gives when we have a big project to take care of.  And
-with big projects it's much easier to use the object oriented
-approach.
 
-In addition there is a real memory hit when you import all of the
-function into your process' memory.  This can significantly enlarge
-memory requirements, particularly when there are many child processes.
+
+=head1 Imported Symbols and Memory Usage
+
+There is a real memory hit when you import all of the function into
+your process' memory.  This can significantly enlarge memory
+requirements, particularly when there are many child processes.
 
 In addition to polluting the namespace, when a process imports symbols
 from any module or any script it grows by the size of the space
@@ -3459,7 +3855,6 @@ If you are looking for performance improvement, you will have to face
 the fact that having to type C<My::Module::my_method> might save you a
 good chunk of memory if the above call must not be called with a
 reference to an object, but even then it can be passed by value.
-
 
 I strongly endorse L<Apache::Request (libapreq) - Generic Apache
 Request Library|modules/Apache_Request_libapreq_Gen>.  Its is written

@@ -1,7 +1,7 @@
 #!/usr/bin/perl -w
 
 use strict;
-use diagnostics;
+
 $|=1;
 
 # allow to this script from any path and not only from the current directory
@@ -28,7 +28,7 @@ use File::Copy;
 
 # process command line arguments
 my %opts;
-getopts('htpfavlm', \%opts);
+getopts('hvtpdfalm', \%opts);
 
 # set defaults if no options given
 my $verbose        = 1;  # verbose?
@@ -65,6 +65,7 @@ if ($makefile_mode) {
 } else {
   require Storable;
 }
+
 
 # when we will finish to parse the pod files, %valid_anchors will
 # include all the valid anchors
@@ -106,7 +107,7 @@ my @ordered_srcs =
     );
 
 # Non pod/html files
-my @other_srcs = qw(CHANGES style.css images);
+my @other_srcs = qw(CHANGES style.css images code);
 
 # Main Table of Contents for index.html
 my $rh_main_toc = {};
@@ -227,7 +228,7 @@ if ($generate_ps) {
 # Generate PDF file
 if ($generate_pdf) {
   print "Generating a PDF\n";
-  my $command = "ps2pdf $ps_root/mod_perl_tutorial.ps $ps_root/mod_perl_tutorial.pdf";
+  my $command = "ps2pdf $ps_root/mod_perl_guide.ps $ps_root/mod_perl_guide.pdf";
   print "Doing $command\n";
   system $command;
 }
@@ -323,9 +324,8 @@ sub make_index_file{
 ###################
 sub make_indexps_file{
 
-  open VERSION, "$src_root/VERSION" or die "Can't open $src_root/VERSION: $!\n";
-  my $version = <VERSION>;
-  close VERSION;
+  use vars qw($VERSION);
+  require $version_file;
 
   my ($mon,$day,$year) = (localtime ( time ) )[4,3,5];
   $year = 1900 + $year;
@@ -335,7 +335,7 @@ sub make_indexps_file{
 
   my %replace_map = 
     (
-     VERSION  => $version,
+     VERSION  => $VERSION,
      DATE     => $date,
      MODIFIED => $time_stamp,
     );
@@ -360,57 +360,28 @@ sub make_indexps_file{
 sub make_tar_gz{
 
   mkdir $out_dir, 0755 unless -d $out_dir;
-    # copy files to a new directory
-#  map { copy("$rel_root/$_","$out_dir/$_")} grep /\.html$/, DirHandle->new($rel_root)->read();
 
     # copy all to an out dir
   system "cp -r $rel_root/* $out_dir";
 
   chdir $root;
 
-    # tar all the release files, compress them and put into a release directory
-  print "tar cvf $out_name.tar $out_name\n";
-  system("tar cvf $out_name.tar $out_name");
-		# Compress it and save the prev copy
-  print "mv $out_name.tar.gz $out_name.tar.gz.old\n" if -e "$out_name.tar.gz";
-  rename "$out_name.tar.gz", "$out_name.tar.gz.old" if -e "$out_name.tar.gz";
-  print "gzip $out_name.tar\n";
-  system("gzip $out_name.tar");
-  print "mv $out_name.tar.gz $out_name\n";
-  move("$out_name.tar.gz",$out_name);
-
-  if ($generate_ps) {
-    print "gzip ./ps/mod_perl_guide.ps\n";
-    system("gzip ./ps/mod_perl_guide.ps");
-    print "mv ./ps/mod_perl_guide.ps.gz $out_name\n";
-    move("./ps/mod_perl_guide.ps.gz",$out_name);
+  if ($generate_pdf) {
+    print "gzip $ps_root/mod_perl_guide.pdf\n";
+    system("gzip $ps_root/mod_perl_guide.pdf");
+    print "mv $ps_root/mod_perl_guide.pdf.gz $out_name\n";
+    move("$ps_root/mod_perl_guide.pdf.gz",$out_name);
   }
 
-    # tar all the source and bin files, compress them and put into a
-    # release directory
-    # clean the src and bin dirs
-  my $src = "guide-src";
-  mkdir $src, 0755;
-  system("cp -r src bin $src");
-
-  print "Ignore the error about ': No such file or directory' if it shows up\n";
-  system("rm $src/src/*~ $src/bin/*~ $src/bin/*/*~");
-
-  system("tar cvf guide-src.tar $src");
-		# Compress it and save the prev copy
-  rename "guide-src.tar.gz", "guide-src.tar.gz.old" if -e "guide-src.tar.gz";
-  system("gzip guide-src.tar");
-  move("guide-src.tar.gz",$out_name);
-
-  system("tar cvf $out_name.tar $out_name");
-  system("gzip $out_name.tar");
+  print "mv $out_name.tar.gz $out_name.tar.gz.old\n" if -e "$out_name.tar.gz";
+  rename "$out_name.tar.gz", "$out_name.tar.gz.old" if -e "$out_name.tar.gz";
+  system "tar czvf $out_name.tar.gz $out_name";
 
 		# Clean up
-  system("rm -rf $out_name");
-  system("rm -rf $src");
+  system "rm -rf $out_name";
 
-  print "*** Error: PostScript did not enter the release package!\n"
-    unless $generate_ps;
+  print "*** Error: PDF did not enter the release package!\n"
+    unless $generate_pdf;
 
 } # end of sub make_tar
 
@@ -433,4 +404,67 @@ sub usage{
 
 USAGE
 
+  exit;
+
 }
+
+
+__END__
+
+################
+#sub make_tar_gz{
+
+#  mkdir $out_dir, 0755 unless -d $out_dir;
+#    # copy files to a new directory
+##  map { copy("$rel_root/$_","$out_dir/$_")} grep /\.html$/, DirHandle->new($rel_root)->read();
+
+#    # copy all to an out dir
+#  system "cp -r $rel_root/* $out_dir";
+
+#  chdir $root;
+
+#    # tar all the release files, compress them and put into a release directory
+#  print "tar cvf $out_name.tar $out_name\n";
+#  system("tar cvf $out_name.tar $out_name");
+#		# Compress it and save the prev copy
+#  print "mv $out_name.tar.gz $out_name.tar.gz.old\n" if -e "$out_name.tar.gz";
+#  rename "$out_name.tar.gz", "$out_name.tar.gz.old" if -e "$out_name.tar.gz";
+#  print "gzip $out_name.tar\n";
+#  system("gzip $out_name.tar");
+#  print "mv $out_name.tar.gz $out_name\n";
+#  move("$out_name.tar.gz",$out_name);
+
+#  if ($generate_ps) {
+#    print "gzip ./ps/mod_perl_guide.ps\n";
+#    system("gzip ./ps/mod_perl_guide.ps");
+#    print "mv ./ps/mod_perl_guide.ps.gz $out_name\n";
+#    move("./ps/mod_perl_guide.ps.gz",$out_name);
+#  }
+
+#    # tar all the source and bin files, compress them and put into a
+#    # release directory
+#    # clean the src and bin dirs
+#  my $src = "guide-src";
+#  mkdir $src, 0755;
+#  system("cp -r src bin $src");
+
+#  print "Ignore the error about ': No such file or directory' if it shows up\n";
+#  system("rm $src/src/*~ $src/bin/*~ $src/bin/*/*~");
+
+#  system("tar cvf guide-src.tar $src");
+#		# Compress it and save the prev copy
+#  rename "guide-src.tar.gz", "guide-src.tar.gz.old" if -e "guide-src.tar.gz";
+#  system("gzip guide-src.tar");
+#  move("guide-src.tar.gz",$out_name);
+
+#  system("tar cvf $out_name.tar $out_name");
+#  system("gzip $out_name.tar");
+
+#		# Clean up
+#  system("rm -rf $out_name");
+#  system("rm -rf $src");
+
+#  print "*** Error: PostScript did not enter the release package!\n"
+#    unless $generate_ps;
+
+#} # end of sub make_tar

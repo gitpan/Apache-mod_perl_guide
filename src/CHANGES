@@ -2,7 +2,98 @@
 		### mod_perl Guide CHANGES file ###
 		###################################
 
+03.04.2000 ver 1.21
+
+* help: updated the mod_perl list subscription info, added the
+  advocacy list info.
+
+* download: HA section - added more links (Robin Berjon, Gerd Knops)
+
+* strategy: added a new section "When One Machine is not Enough for
+  SQL DB and mod_perl" (Vivek Khera, Jeffrey W. Baker, John Armstrong,
+  Mike Miller, Leslie Mikesell, Tom Brown, Ed Phillips, Marko van der
+  Puil) Special thanks to Jeffrey for working on the this section
+  before it went into the Gude.
+
+* perfomance: added the section "Memory Swapping is Considered Bad"
+
+* modules: added the Apache::GTopLimit and Apache::Watchdog::RunAway
+  modules description
+
+* performance: new section "Is my Code Shared"
+
+* download: added links to DB sites and "Low-Cost Unix Database
+  Differences" comparison page.
+
+* config: new section "Enabling Remote Server Configuration Reports"
+
+* performance: new section "Calculating Real Memory Usage"
+
+* scenario: mod_proxy section has been rewritten and extended with
+  lots of OS specific information (Joshua Chamas, Oleg Bartunov,
+  Gerald Richter, Radu Greab, Peter Haworth, Vivek Khera)
+
+* performance: rewritten "Object Methods Calls Versus Function Calls"
+  and splitted into the original section and "Imported Symbols and
+  Memory Usage" (James G Smith, David Mitchell, Doug, Matt Sergeant,
+  Bill Moseley, Autarch)
+
+* performance: added "Reducing the Number of stat() Calls" (Steve
+  Reppucci)
+
+* install: added a note of how to force CPAN shell to install mod_perl
+  when the same version is already installed. 
+
+* scenario: added "mod_rewrite Examples" (Vivek Khera, Tom Mornini)
+
+* databases: added "Optimize: Run Two SQL Engine Servers" (Pascal
+  Eeftinck)
+
+* snippets: added "Using DESTROY to Finalize Output" with solutions to
+  redirection loghandler fixes (Michael Blakeley)
+
+* scenario: added to the section "One Plain and One mod_perl enabled
+  Apache Servers" --target option to make the ./configure stage
+  somewhat simpler. (James Furness)
+
+* snippets: added 2 modified versions of the mysql backup/restore
+  scripts to work with 3.22.30+ (Ward Vandewege)
+
+* Moved complete files, previously enlisted in the text, to the
+  external files. This makes the browsing faster when the files are
+  very big.  Added new POD tag =code to create the link to the
+  external file at the pod2html conversion stage
+
+* review: Ged W. Haywood was very kind to review and correct the
+  following chapters: control, install
+
+* performance: in "Forking and Executing Subprocesses from mod_perl"
+  fixed a few typos in code. (Anthony D. Ettinger, Matt Sergeant and
+  Edwin Pratomo)
+
+
+
+
+
 02.09.2000 ver 1.20
+
+* I've created a mod_perl_guide package and now it's available from
+  CPAN! So when a new version gets released you just open your CPAN
+  shell and do:
+
+  % perl -MCPAN -eshell
+  cpan> install mod_perl_guide
+
+  All the POD sources and build scripts has moved to this
+  distribution, get them from CPAN. 
+
+* There is no more PostScript file book style distribution. A better
+  PDF version has replaced it (suggested by Andrew Ford). Note that
+  you can use gv (ghostview) to view pdf files, if you don't have a
+  free acroread installed. Or you can always use 'pdf2ps' utility to
+  convert it back to PS.
+
+  BTW this release's PDF file consists of 481 Letter format pages.
 
 * install: rewritten "What Compiler Should Be Used to Build mod_perl?"
 
@@ -53,9 +144,6 @@
 
 * install: "make test troubleshooting": added the 'localhost' entry
   existance in '/etc/hosts' verification.
-
-* guide: now producing an online PDF version of the guide, following
-  the suggestion by Andrew Ford, and not PS as I did before.
 
 * debug: explained the confusion about Sys::Signal and SIGALRM (was
   already solved internally) (Doug)

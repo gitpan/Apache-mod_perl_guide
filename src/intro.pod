@@ -185,7 +185,7 @@ infamous fable of the shepherd boy and the wolves...)
 
 If you find incorrect details or mistakes in my grammar, or you want 
 to contribute to this document please feel free to send me an email at
-sbekman@iname.com .
+stas@stason.org .
 
 =head1 High-Profile Sites Running mod_perl
 

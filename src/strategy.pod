@@ -109,7 +109,7 @@ Your mileage may vary.
 The DSO module (C<mod_so>) adds size and complexity to your binaries.
 
 See L<Build mod_perl as DSO inside Apache source tree via
-APACI|install/Build_mod_perl_as_DSO_inside_Apa>
+APACI|install/Build_mod_perl_as_a_DSO_inside_t>
 
 
 
@@ -457,12 +457,12 @@ around for the data to move.
 Using numbers is always more convincing :) Let's take a user connected
 to your site with 28.8 kbps (bps == bits/sec) modem. It means that the
 speed of the user's link is 28.8/8 = 3.6 kbytes/sec. I assume an
-average generated HTML page to be of 10kb (kb == kilobytes) and an
-average script that generates this output in 0.5 secs. How long
-will the server wait before the user gets the whole output response? A
-simple calculation reveals pretty scary numbers - it will have to wait
-for another 6 secs (20kb/3.6kb), when it could serve another 12
-(6/0.5) dynamic requests in this time.
+average generated HTML page to be of 40kb (kb == kilobytes) and an
+average script that generates this output in 1 second. How long will
+the server wait before the user gets the whole output response? A
+simple calculation reveals pretty scary numbers -- it will have to
+wait for another 12 secs (40kb/3.6kb), when it could serve another 11
+(12/1-1) dynamic requests in this time.
 
 This very simple example shows us that we need only one twelfth the
 number of children running, which means that we will need only one
@@ -682,7 +682,7 @@ rewrites the URL back to the original one, e.g:
 =item *
 
 It does mod_perl output buffering like squid does. See the L<Using
-mod_proxy|scenario/Building_and_Using_mod_proxy> notes for more details.
+mod_proxy|scenario/mod_proxy> notes for more details.
 
 =item *
 
@@ -725,8 +725,242 @@ fast enough.
 =back
 
 For implementation see the "L<Using
-mod_proxy|scenario/Building_and_Using_mod_proxy>" section in the 
+mod_proxy|scenario/mod_proxy>" section in the 
 implementation chapter.
+
+
+
+=head1 When One Machine is not Enough for SQL DB and mod_perl
+
+You have begun your business as a small service providing web-site.
+After a while your business becomes very popular and at some point you
+understand that it has outgrown the capacity of your machine and you
+have moved everything onto a stronger machine with more memory, a
+stronger CPU and a faster hard disk.
+
+The situation comes back to normal but not for a long, as a demand for
+your services keeps on growing and just a little time after you've
+upgraded your machine, it cannot stand the load again. Should you buy
+an even stronger and very expensive machine or start looking for
+another solution?
+
+A typical web service consists of two main software components, the
+database server and the web server.
+
+A typical user-server interaction consists of accepting the query
+parameters filled into an HTML form and submitted to the web server by
+a user, converting these parameters into a database query, sending it
+to the database server, accepting the results of the executed query,
+formatting them into a nice HTML page, and sending it to a user's
+Internet browser or another application that created the request.
+
+This figure depicts the above description:
+
+             1                      2
+  [      ] ====> [               ] ====> [                 ]
+  [ User ]       [ Apache Server ]       [ Database Server ]
+  [      ] <==== [               ] <==== [                 ]
+             4                       3
+
+This schema is known as a 3-tier architecture in the computing world.
+
+3-tier architecture means splitting up several processes of your
+computing solution between different machines.
+
+1st you have the client, who will see the data on its screen and can
+give instruction to modify or process the data.  In our case, an
+Internet browser.
+
+2nd you have the application server, which does the actual processing
+of the data and sends it back to the client.  In our case, a mod_perl
+enabled apache server.
+
+3rd you have the database server, which stores and retrieves all the
+data for the application server.
+
++We are interested only in the 2nd and the 3rd tiers; we don't specify
+user machine requirements, since mod_perl is all about server side
+programming. The only thing the user should be able to do is to render
+the generated HTML from the response, which any simple browser will
+do. Of course I'm not talking about the case where you return some
+heavy Java applets, but that movie is screened in another theater.
+
+
+
+=head2 Servers' Requirements
+
+Let's first understand what kind of software the web and database
+servers are, what do they need to run fast and what implications they
+have on the rest of the system software.
+
+The three important machine components are the hard disk, the amount
+of RAM and the CPU type.
+
+In the average case the mod_perl server is mostly RAM hungry, while
+SQL database server needs a very fast hard-disk the most.  Of course
+if your mod_perl process reads a lot from the disk (which is a quite
+infrequent phenomenon) you will need a fast disk too. And if your
+database server has to do a lot of sorting of the big tables and do
+lots of big table joins, you will need a lot of RAM too.
+
+If we would specify average "virtual" requirements for each machine,
+that's what we'd get:
+
+An I<"ideal"> mod_perl machine:
+
+  * HD:  low-end (no real IO, mostly logging)
+  * RAM: the more the better
+  * CPU: medium-high (according to needs)
+
+An I<"ideal"> database server machine:
+
+  * HD:  high-end
+  * RAM: big amount   (big joins, sorting of many records)
+         small amount (otherwise)
+  * CPU: medium-high (according to needs)
+
+
+=head2 The Problem
+
+With the database and the httpd on the same machine, you have
+conflicting interests.
+
+During the peak load, Apache will spawn more processes and use RAM
+that the database server might have been using, or that the kernel was
+using on its behalf in the form of cache.  You will starve your
+database of resources at the time when it needs those resources the
+most.
+
+Disk I/O contention is the biggest time issue.  Adding another disk
+wouldn't cut I/O times because the database is the only one who does
+I/O - since mod_perl processes has all the code loaded in memory. (I'm
+talking about code that does pure perl and SQL processing) so it's
+clear that the DB is I/O and CPU bounded (RAM only if there are big
+joins to make) and mod_perl CPU and mostly RAM bounded.
+
+The problem exists, but it doesn't mean that you cannot run the
+application and the web servers on the same machine.  There is a very
+high degree of parallelism in modern PC architecture.  The I/O
+hardware is helpful here.  The machine can do many things while a SCSI
+subsystem is processing a command, or the network hardware is writing
+a buffer over the wire.
+
+If a process is not runnable (that is, it is blocked waiting for I/O
+or similar), it is not using significant CPU time.  The only CPU time
+that will be required to maintain a blocked process is the time it
+takes for the operating system's scheduler to look at the process,
+decide that it is still not runnable, and move on to the next process
+in the list.  This is hardly any time at all.  If there are two
+processes and one of them is blocked on I/O and the other is CPU
+bound, the blocked process is getting 0% CPU time, the runnable
+process is getting 99.9% CPU time, and the kernel scheduler is using
+the remainder.
+
+
+=head2 The Solution
+
+Adding another machine, which allows a set-up where both the database
+and the web servers run on its dedicated machine.
+
+=head3 Pros
+
+=over
+
+=item * Hardware Requirements
+
+That allows you to scale two requirements independently.
+
+If your httpd processes are heavily weighted with respect to RAM
+consumption, you can easily add another machine to accommodate more
+httpd processes, without changing your database machine.
+
+If your database is CPU intensive, but your httpd doesn't need much
+CPU time, you can get low end machines for the httpd and a high end
+machine with a very fast CPU for the database server.
+
+=item * Scalability
+
+Since your web server is not depending on the database server location
+any more, you can add more web servers hitting the same database
+server, using the existing infrastructure.
+
+=item * Database Security
+
+Once you have multiple web server boxes the backend database becomes a
+single point of failure so it's a good idea to shield it from direct
+internet access, something you couldn't do when you had both servers
+on the same machine.
+
+=back
+
+
+
+=head3 Cons
+
+=over
+
+=item * Network latency
+
+When the request to the database server like mysql are made at the
+same machine the database server is running on, it uses the UNIX
+sockets compared to the TCP/IP socket when the client submits the
+query from another machine.  UNIX sockets are very fast since there is
+no network delays, since all the communications happens within the
+same box.  TCP/IP sockets communication totally depends on the quality
+and the speed of the network the two machines are connected with.
+
+Basically you can have almost the same client-server speed if you
+install a very fast and dedicated network between the two machines. It
+might impose a cost of additional NICs but it's probably insignificant
+compared to the speed up you gain.
+
+But even the normal network that you have would probably fit as well,
+because the networks delays are probably much smaller than the time it
+takes to execute the query. In contrast to the previous paragraph, you
+really want to test the added overhead, since the network can be quite
+slow especially at the peak hours.
+
+How do you know what overhead is a significant one? All you have to
+measure is the average time spent in the web server and the database
+server. If any of the two numbers is at least 20 times bigger than the
+added overhead of the network you are all set.
+
+To give you some numbers -- if your query takes about 20 milliseconds
+to process and only 1 millisecond to deliver the results, it's
+good. If the delivery takes about half of the time the processing
+takes you should start thinking to switch to a faster and/or dedicated
+network.
+
+The implications of the slow network can be quite bad. If the network
+is slow mod_perl processes remain open waiting for data from the
+database server and eats even more RAM as new child processes pop up
+to handle new requests. So the overall machine performance can be
+worse than it was originally when you have had a single machine for
+both servers.
+
+
+=back
+
+
+=head2 Three Machines Model
+
+Since we are talking about giving a dedicated machine for each server,
+you might consider adding the third machine to do the proxy work, this
+will make your setup even more flexible since it will enable you to
+proxy-pass all request to more than one mod_perl running box, but many
+of them. It will enable you doing a load balancing if and when you
+will need that.
+
+Generally the proxy machine can be very light when they serve just a
+little traffic and mainly proxy-pass to the mod_perl processes. Of
+course you can put this machine to serve the static content and then
+the hardware requirement will depend on the number of object you will
+have to serve and the hit rate.
+
+
+
+
+
 
 
 =cut

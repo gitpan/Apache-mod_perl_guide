@@ -75,12 +75,34 @@ http://www.stanford.edu/~schemers/docs/lbnamed/lbnamed.html
 Network Address Translation and Networks: Virtual Servers (Load Balancing) 
 http://www.csn.tu-chemnitz.de/~mha/linux-ip-nat/diplom/node4.html#SECTION00043100000000000000
 
+Linux Virtual Server Project
+http://www.linuxvirtualserver.org/
+
+Efficient Support for P-HTTP in Cluster-Based Web Servers. (with Mohit
+Aron and Willy Zwaenepoel.) In Proceedings of the USENIX 1999 Annual
+Technical Conference, Monterey, CA, June 1999.
+http://www.cs.rice.edu/~druschel/usenix99lard.ps.gz
+http://www.usenix.org/publications/library/proceedings/usenix99/full_papers/aron/aron_html/index.html
+
+The latest ip filter includes some simple load balancing code, that
+allows a round-robin distribution onto several machines via
+ipnat. That may be a simple solution for a few specific load problem.
+http://coombs.anu.edu.au/~avalon/ipf3.4beta3.tgz
+
 
 =head1 Apache::Request
 
 Get it from CPAN at $CPAN/authors/id/DOUGM/libapreq-x.xx.tar.gz or
 from http://perl.apache.org/dist/libapreq-x.xx.tar.gz . (replace x.xx
 with the current version)
+
+=head1 DataBases
+
+Low-Cost Unix Database Differences
+http://www.toodarkpark.org/computers/dbs.html
+
+My collection of various links to databases implementations
+http://stason.org/TULARC/webmaster/db.html
 
 =cut
 

@@ -22,7 +22,7 @@ CORRECTIONS
     do that against the POD source files in *src* directory. Thank you!
 
 AUTHOR
-    Stas Bekman <sbekman@iname.com>
+    Stas Bekman <stas@stason.org>
 
 SEE ALSO
     perl(1), mod_perl(1).

@@ -367,6 +367,17 @@ never become obsolete :).
     --logfiledir=/usr/local/var/httpd_docs/logs \
     --proxycachedir=/usr/local/var/httpd_docs/proxy
 
+Notice that you actually don't have to enlist all these options, it's
+enough to replace them all with C<--target=httpd_docs>.
+
+  % ./configure --prefix=/usr/local \
+    --target=httpd_docs
+
+This will use the default directory layout, but will replace I<apache>
+with I<httpd_docs> everywhere. It'll even rename I<apachectl> to be
+I<httpd_docsctl>. But we will continue with the manual directory
+tuning in the scenario below.
+
 If you need some other modules, such as mod_rewrite and mod_include
 (SSI), add them to the end of this list:
 
@@ -380,6 +391,7 @@ compiled by C<gcc> than if compiled C<cc> on AIX.  Remove the line
 C<env CC=gcc> if you want to use the default compiler.  If you want to
 use it and you are a (ba)?sh user you will not need the C<env>
 function, t?csh users will have to keep it. 
+
 
 It's very important to use the same compiler you build the perl with.
 See the section 'L<What Compiler Should Be Used to Build
@@ -452,6 +464,18 @@ correctly the way it is shown above, breaking the long lines with
 'C<\>'.  When C<t?csh> passes the C<APACI_ARGS> arguments to
 C<./configure> it does not alter the newlines, but it strips the
 backslashes, thus breaking the configuration process.
+
+Notice that just like in httpd_docs configuration you can use
+C<--target=httpd_perl> instead of specifying each directory
+separately. Note that this option has to be the very last argument in
+C<APACI_ARGS>, otherwise 'make test' tries to run "httpd_perl," which
+fails.
+
+This will use the default directory layout, but will replace I<apache>
+with I<httpd_docs> everywhere. It'll even rename I<apachectl> to be
+I<httpd_docsctl>. But we will continue with the manual directory
+tuning in the scenario below.
+
 
 As with httpd_docs you might need other modules such as
 C<mod_rewrite>, so add them at the end of this list:
@@ -557,7 +581,7 @@ Squid in httpd Accelerator
 Mode|scenario/Running_One_Webserver_and_Squid_>, L<Running Two
 Webservers and Squid in httpd Accelerator
 Mode|scenario/Running_Two_webservers_and_Squid> and L<Using
-mod_proxy|scenario/Building_and_Using_mod_proxy>.
+mod_proxy|scenario/mod_proxy>.
 
 Now we proceed to the mod_perl specific directives.  It will be a good
 idea to add them all at the end of C<httpd.conf>, since you are going
@@ -918,7 +942,7 @@ one have different logs that have to be merged (up to 3 for each
 server + squid) ? Even when squid responds to a request out of its
 cache I'd still want the thing to be logged.  </META>
 
-See L<Using mod_proxy|scenario/Building_and_Using_mod_proxy> for
+See L<Using mod_proxy|scenario/mod_proxy> for
 information about C<X-Forwarded-For>.
 
 To save you some keystrokes, here is the whole modified C<squid.conf>:
@@ -974,7 +998,7 @@ whitespace from each line.
 =head1 Running One Webserver and Squid in httpd Accelerator Mode
 
 When I was first told about Squid, I thought: "Hey, now I can drop the
-C<httpd_docs> server and to have just Squid and C<httpd_perl>
+C<httpd_docs> server and have just Squid and the C<httpd_perl>
 servers".  Since all my static objects will be cached by squid, I do
 not need the light C<httpd_docs> server.
 
@@ -1182,7 +1206,7 @@ to eliminate it.
 It's easy to get the logger to log the original client's IP address
 and not the one that comes from proxy server.  Look for
 C<mod_proxy_add_forward> at L<Building and Using
-mod_proxy|scenario/Building_and_Using_mod_proxy> for hints.
+mod_proxy|scenario/mod_proxy> for hints.
 
 =item * Eliminating C<:8080>'s
 
@@ -1287,31 +1311,234 @@ is not recommended.  After all, if a user gets onto port C<8080> in
 this scenario, the worst that will happen is that URLs will look odd.
 
 Note that if you are using the
-L<C<X-Forwarded-For>|scenario/Building_and_Using_mod_proxy> HTTP
-header, then this subsection is of limited relevance to you.
+L<C<X-Forwarded-For>|scenario/mod_proxy> HTTP header, then this
+subsection is of limited relevance to you.
 
 =back
 
 
-=head1 Building and Using mod_proxy
 
-To build it into apache just add B<--enable-module=proxy> during the
-Apache B<configure> stage.
 
-Now we will talk about Apache's mod_proxy and understand how it works.
 
-The server on port 80 answers http requests directly and proxies the
-mod_perl enabled server in the following way:
 
-  ProxyPass        /modperl/ http://localhost:81/modperl/
-  ProxyPassReverse /modperl/ http://localhost:81/modperl/
 
-C<ProxyPassReverse> is the saving grace here, that makes Apache win
-over Squid.  It rewrites the redirect on its way back to the original
-URI.
 
-The proxy has a receive buffer for output from the heavy server.  You
-can control the buffer size with C<ProxyReceiveBufferSize> directive:
+
+
+
+
+=head1 mod_proxy
+
+mod_proxy implements a proxy/cache for Apache.  It implements proxying
+capability for FTP, CONNECT (for SSL), HTTP/0.9, and HTTP/1.0.  The
+module can be configured to connect to other proxy modules for these
+and other protocols.
+
+=head2 Concepts and Configuration Directives
+
+In the following explanation, we will use I<www.example.com> as the
+main server users access when they want to get some kind of service
+and I<backend.example.com> as a machine that does the heavy work.  The
+main and the back-end are different servers, they may coexist on the
+same machine and may not.
+
+The mod_proxy module is built into the server that answers to requests
+to the I<www.example.com> hostname.  It doesn't matter what
+functionality is built into the I<backend.example.com> server.
+
+=head3 ProxyPass
+
+You can use C<ProxyPass> configuration directive for mapping remote
+hosts into the space of the local server; the local server does not
+act as a proxy in the conventional sense, but appears to be a mirror
+of the remote server.
+
+Let's explore what this rule does:
+
+  ProxyPass   /modperl/ http://backend.example.com/modperl/
+
+When user initiates a request to
+http://www.example.com/modperl/foo.pl, the request will be redirected
+to http://backend.example.com/modperl/foo.pl, and starting from this
+moment user will see http://backend.example.com/ in her location
+window, instead of http://www.example.com/.
+
+You have probably noticed many examples from the real life Internet
+deployment.  Free-email service providers and other similar heavy
+online services display the login or the main page from their main
+server, and then when you log-in you see something like
+I<x11.example.com>, then I<w59.example.com>, etc.  These are the
+back-end servers that do the actual work.
+
+Obviously this is not quite nice solution, but usually users don't
+really care about what they see in the location window.  So you can
+get away with this approach.  As I'll show in a minute there is a
+better solution which removes this caveat and provides even more
+useful functionalities.
+
+=head3 ProxyPassReverse
+
+This directive lets Apache adjust the URL in the C<Location> header on
+HTTP redirect responses.  For instance this is essential when Apache
+is used as a reverse proxy to avoid by-passing the reverse proxy
+because of HTTP redirects on the back-end servers which stay behind the
+reverse proxy.  Generally used in conjunction with C<ProxyPass>
+directive to build a complete front-end proxy server.
+
+  ProxyPass          /modperl/  http://backend.example.com/modperl/
+  ProxyPassReverse   /modperl/  http://backend.example.com/modperl/
+
+When user initiates a request to
+http://www.example.com/modperl/foo.pl, the request will be redirected
+to http://backend.example.com/modperl/foo.pl but on the way back
+C<ProxyPassReverse> will correct the location URL to become
+http://www.example.com/modperl/foo.pl .  This happens absolutely
+transparently to user.  User will never know that something has
+happened to his request behind the scenes.
+
+Note that this C<ProxyPassReverse> directive can also be used in
+conjunction with the proxy pass-through feature:
+
+  RewriteRule ... [P]
+
+from mod_rewrite because its doesn't depend on a corresponding
+C<ProxyPass> directive.
+
+=head2 Buffering Feature
+
+In addition to the correcting the URI on its way back from the back-end
+server feature, mod_proxy provides a buffering services, mod_perl and
+similar heavy modules benefit from. The buffering feature allows
+mod_perl to pass the generated data to mod_proxy and move on serving
+new requests, instead of waiting for a possibly slow client to receive
+all the data.
+
+This figure depicts this feature:
+
+                [socket]                   wire     `o'
+  [mod_perl] => [      ] => [mod_proxy] => ____ =>  /|\
+                [buffer]                            / \
+
+From looking at this figure it's easy to see that the bottleneck is
+the socket buffer; it has to be able to absorb all the data that
+mod_perl has generated in order to untie the mod_perl process
+immediately.
+
+C<ProxyReceiveBufferSize> is the name of the parameter that specifies
+the size of the socket buffer. Configuring:
+
+  ProxyReceiveBufferSize 16384
+
+will create a buffer of 16k in size. If mod_perl generates output
+which size is under 16k, the process will be immediately untied and
+allowed to serve new requests, if the output is bigger than 16k, the
+following process is taking place:
+
+=over
+
+=item 1
+
+The first 16k will enter the system buffer.
+
+=item 2
+
+mod_proxy picks the first 8k and sends down the wire.
+
+=item 3
+
+mod_perl writes the next 8k into the place of the 8k of data that was
+just picked by mod_proxy.
+
+=back
+
+Stages 2 and 3 get repeated until mod_perl has run out of data it has
+to send.  When this happens, it goes on its own business and the stage
+2 is repeated until all the data was picked from the system buffer and
+sent down the wire.
+
+Of course you want to set the buffer size as bigger as possible, since
+you want the heavy mod_perl processes to be utilized in the most
+effective way, so you don't want them waste their time waiting for a
+client to receive the data, especially if a client has a slow
+downstream connection.
+
+As the C<ProxyReceiveBufferSize> name states, its buffering feature
+applies only to I<downstream data> (coming from the origin server to
+the proxy) and not upstream data.  There is no buffering of data
+uploaded from the client browser to the proxy, thus you cannot use
+this technique to prevent the heavy mod_perl server from being tied up
+during a large POST such as a file upload.  Falling back to mod_cgi
+seems to be the best solution for these specific scripts whose major
+function is getting a big upstream.
+
+
+<META: check this --->
+Of course just like mod_perl, mod_proxy writes the data it proxy-passes
+into its outgoing socket buffer, therefore the mod_proxy process gets
+released as soon as the last chuck of data was deposited into this
+buffer, even if the client didn't completed the downloading. The OS
+worries to complete the transfer and release the TCP socket used for
+this transfer.
+
+Therefore if you don't use mod_proxy and mod_perl send its data
+directly to the client, and you have a big socket buffer, the mod_perl
+process will be released as soon as the last chunk of data will enter
+the buffer. Just like with mod_proxy, OS will worry to complete the
+data transfer.
+
+<based on this comment>
+yes, too (but receive and transmit buffer may be of different size,
+depending on the OS)
+
+The problem I don't know is, does the call to close the socket wait, until
+all data is actually send successfully or not. If it doesn't wait, you may
+not be noticed of any failure, but because the proxing Apache can write as
+fast to the socket transmission buffer as he can read, it should be possible
+that the proxing Apache copies all the data from the receive to the
+transmission buffer and after that releasing the receive buffer, so the
+mod_perl Apache is free to do other things, while the proxing Apache still
+wait until the client returns the success of data transmission. (The last,
+is the part I am not sure on)
+
+
+</META>
+
+Unfortunately you cannot set the socket buffer size as large as you
+want because there is a limit of the available physical memory and OS
+has its own upper limits on the possible buffer size.
+
+It doesn't mean that you cannot change the OS imposed limits, but to
+do that you have to know the techniques for doing that. In the next
+section we will present a few OSes and the ways to achieve the upper
+limit rise.
+
+To solve the physical memory limits you just have to add more memory.
+
+=head3 Setting the Buffering Limits on Various OSes
+
+As we just saw there are a few kinds of parameters we might want to
+adjust for our needs.
+
+=head4 IOBUFSIZE Source Code Definition
+
+The first one is the parameter that use by
+I<proxy_util.c:ap_proxy_send_fb()> to loop over content being proxy
+passed in 8K chunks (as of this writing), passing that on to the
+client. In other words it specifies the size of the data that is sent
+downstream the wire.
+
+This parameter is defined by the C<IOBUFSIZE>:
+
+  #define IOBUFSIZE 8192
+
+You have no control over this setting in the server configuration
+file, therefore you might want to change it in the source files,
+before you compile the server.
+
+=head4 ProxyReceiveBufferSize Configuration Directive
+
+You can control the socket buffer size with C<ProxyReceiveBufferSize>
+directive:
 
   ProxyReceiveBufferSize 16384
 
@@ -1319,40 +1546,119 @@ The above setting will set a buffer size to be of 16Kb.  If it is not
 set explicitly or if it is set to 0 then the default buffer size is
 used.  The number should be an integral multiple of 512.
 
-To release the mod_perl server from waiting for the data transfer
-after it has done all the processing, C<ProxyReceiveBufferSize> should
-if possible be set to a value greater than the biggest response
-produced by any mod_perl script, but no bigger.  But you have an
-improvement even if the buffer isn't always big enough to absorb all
-the data, since those heavy processes that generate less output will
-be released immediately.
+Note that if you set the value of C<ProxyReceiveBufferSize> bigger
+than the OS limit, the default value will be used.
 
 Both the default and the maximum possible value of
-C<ProxyReceiveBufferSize> depend on the Operating System.  For example
-on Linux with kernel 2.2.5 the maximum and default values are either
-32k or 64k (hint: grep the kernel sources for the C<SK_RMEM_MAX>
-variable).  If you set the value bigger than the limit, the default
-value will be used.
+C<ProxyReceiveBufferSize> depend on the Operating System.
+
+=over
+
+=item * Linux
+
+For 2.2 kernels the max limit is in I</proc/sys/net/core/rmem_max> and
+the default value is in I</proc/sys/net/core/rmem_default>.  If you
+want to increase C<RCVBUF> size above 65535, the default max value,
+you have to raise first the absolute limit in
+I</proc/sys/net/core/rmem_max>. To do that at the run time, execute
+this command to raise it to 128k:
+
+  % echo 131072 > /proc/sys/net/core/rmem_max
+
+You probably want to put this command into I</etc/rc.d/rc.local> so
+the change would take effect at the system reboot.
+
+On Linux OS with kernel 2.2.5 the maximum and default values are
+either 32k or 64k. You can also change the default and maximum values
+during the kernel compilation, for that you should alter the
+C<SK_RMEM_DEFAULT> and C<SK_RMEM_MAX> definitions respectively.
+
+=item * FreeBSD
 
 Under FreeBSD it's possible to configure the kernel to have bigger
 socket buffers:
 
  % sysctl -w kern.ipc.maxsockbuf=2621440
 
+=item * Solaris
+
+Under Solaris this upper limit is specified by I<tcp_max_buf>
+parameter and equals to 256k as reported.
+
+=item * Non Listed OSes
+
+If you use OS that is not listed here and know the required for this
+section details, please submit them to me.
+
+=back
+
 When you tell the kernel to use bigger sockets you can set bigger
 values for I<ProxyReceiveBufferSize>. e.g. 1Mb (1048576).
 
-As the name states, its buffering feature applies only to B<downstream
-data> (coming from the origin server to the proxy) and not upstream
-data.  There is no buffering of data being uploaded from the client
-browser to the proxy, thus you cannot use this technique to prevent
-the httpd_perl server from being tied up during a large POST such as a
-file upload.
+
+=head4 Hacking the Code
+
+Some folks have patched the Apache source code to make the application
+buffer configurable as well. After the patch there were two
+configuration directives available:
+
+=over
+
+=item *
+
+ProxyReceiveBufferSize -- sets the socket buffer size
+
+=item *
+
+ProxyInternalBufferSize sets the application buffer size
+
+=back
+
+To patch the source rename ap_breate() to ap_bcreate_size() and add a
+size parameter, which defaults to I<IOBUFSIZE> if 0 is passed. Then
+add
+
+  #define ap_bcreate(p,flags) ap_bcreate(p,flags,0)
+
+and add a new ap_bcreate() which calls ap_bcreate_size() for binary
+compatibility.
+
+Actually the C<ProxyReceiveBufferSize> should be called
+C<ProxySocketBufferSize>.  This would also remove some of the
+confusion about what it actually does.
+
+
+
+=head2 Caching
+
+META: complete the conf details
 
 Apache does caching as well.  It's relevant to mod_perl only if you
 produce proper headers, so your scripts' output can be cached.  See
 the Apache documentation for more details on configuration of this
 capability.
+
+
+
+=head2 Building process
+
+To build mod_proxy into Apache just add B<--enable-module=proxy>
+during the Apache B<./configure> stage.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+=head1 mod_proxy_add_forward and X-Forwarded-For header
 
 Ask Bjoern Hansen has written the C<mod_proxy_add_forward> module for
 Apache.  It sets the C<X-Forwarded-For> field when doing a
@@ -1411,6 +1717,18 @@ I think several of them are preserved.  You should run some tests or,
 maybe better, inspect the code to see which.
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 =head1 HTTP Authentication With Two Servers Plus a Proxy
 
 Assuming that you have a setup of one "front-end" server, which
@@ -1427,6 +1745,57 @@ take the authentication information for itself and not pass it on.
 
 The same applies to mod_ssl, if plugged into a front-end server.  It
 will properly encode/decode all the SSL requests.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+=head1 mod_rewrite Examples
+
+In the mod_proxy + mod_perl servers scenario, C<ProxyPass> was used to
+redirect all requests to the mod_perl server, by matching the
+beginning of the relative URI (e.g. I</perl>). What should you do if
+you want everything, but files with extensions like I<.gif> or
+I<.cgi>, to be proxypassed to the mod_perl server. These files are to
+to be served by the light Apache server which carries the mod_procy
+module.
+
+  RewriteEngine On
+  # handle GIF and JPG images, traditional CGI's directly
+  RewriteRule \.(gif|jpg|png|css|txt|cgi)$ - [last]
+  RewriteRule ^/cgi-bin - [last]
+  # pass off everything but images to the heavy-weight server via proxy
+  RewriteRule ^/(.*)$ http://localhost:4077/$1 [proxy]
+
+The following example rewrites everything to mod_perl server. It
+handles locally all the requests to the files with extensions I<gif,
+jpg, png, css, txt, cgi> and relative URIs starting with I</cgi-bin>
+(e.g. if you want some scripts to be executed under mod_cgi)
+
+That is, first, handle locally what you want to handle locally, then
+hand off everything else to the back-end guy.
+
+These is the configuration of the logging facilities. 
+
+  RewriteLogLevel 1
+  RewriteLog "| /usr/local/apache_proxy/bin/rotatelogs \
+  /usr/local/apache-common/logs/r_log 86400"
+
+It says: log all the rewrites thru the pipe to C<rotatelogs> utility
+which will rotate the logs every 2 hours (86400 secs).
+
+
+
+
 
 =cut
 

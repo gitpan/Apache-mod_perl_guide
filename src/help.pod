@@ -32,7 +32,7 @@ follow the guidelines as prescribed there.
 
 However, you are welcome to submit corrections and suggestions
 directly to me at
-sbekman@iname.com?subject=mod_perl%20guide%20corrections.  If you are
+stas@stason.org?subject=mod_perl%20guide%20corrections.  If you are
 going to B<submit heavy corrections of the text> (I love those!),
 please help me by downloading the source pages in POD from the main
 (index) page (at the bottom) and directly editing them. I will use
@@ -125,15 +125,18 @@ this link)
 http://www.perlreference.com/mod_perl/
 
 
-=item * mod_perl mailing list
+=item * mod_perl mailing lists
 
-The Apache/Perl mailing list (modperl@apache.org) B<is available for
-mod_perl users and developers to share ideas, solve problems and
-discuss things related to mod_perl and the Apache::* modules.> To
-subscribe to this list, send mail to majordomo@apache.org
-with empty C<Subject> and with C<Body>:
+=over
 
-  subscribe modperl
+=item * The mod_perl mailing list
+
+The Apache/Perl mailing list B<is available for mod_perl users and
+developers to share ideas, solve problems and discuss things related
+to mod_perl and the Apache::* modules.> To subscribe to this list,
+send email to modperl-subscribe@apache.org .  To unsubscribe send
+email to modperl-unsubscribe@apache.org . Use modperl@apache.org
+adress to post to the list.
 
 A B<searchable> mod_perl mailing list archive available at
 http://forum.swarthmore.edu/epigone/modperl . We owe it to Ken
@@ -147,29 +150,57 @@ More archives available:
 
 http://www.geocrawler.com/lists/3/web/182/0/
 
-=item * 
-
-http://www.bitmechanic.com/mail-archives/modperl/
-
-=item * 
+=item *
 
 http://www.mail-archive.com/modperl%40apache.org/
 
-=item * 
+=item *
 
 http://www.davin.ottawa.on.ca/archive/modperl/
 
-=item * 
+=item *
 
 http://www.progressive-comp.com/Lists/?l=apache-modperl&r=1&w=2#apache-modperl
 
-=item * 
+=item *
 
 http://www.egroups.com/group/modperl/
 
 =back
 
+=item * The advocacy mailing list
+
+The advocacy list for mod_perl advocacy issues, discussions about
+site, etc.
+
+Subscribe by sending a mail to advocacy-subscribe@perl.apache.org.
+Unsubscribe by sending a mail to advocacy-unsubscribe@perl.apache.org.
+Use advocacy@perl.apache.org to post to the list.
+
+The archive: http://www.mail-archive.com/advocacy@perl.apache.org/.
+
+
+=item * The modperl-cvs mailing list
+
+The modperl developers list is the list where you can watch mod_perl
+getting patched.  No real discussions happen on this list, but if you
+want to know about the latest changes in the mod_perl core before the
+rest of the people, this is a list to be on.
+
+To subscribe to this list, send email to
+modperl-cvs-subscribe@apache.org .  To unsubscribe send email to
+modperl-cvs-unsubscribe@apache.org .  Use modperl-cvs@apache.org
+adress to post to the list.
+
+No archives available.
+
+
+
 =back
+
+
+=back
+
 
 
 
@@ -225,7 +256,7 @@ at http://www.perl.com/CPAN/doc/FAQs/cgi/perl-cgi-faq.html
 
 =item * Answers to some bothering Perl and Perl/CGI questions
 
-http://www.singlesheaven.com/stas/TULARC/webmaster/myfaq.html
+http://stason.org/TULARC/webmaster/myfaq.html
 
 =item * Idiot's Guide to CGI programming
 

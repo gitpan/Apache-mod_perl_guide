@@ -11,8 +11,8 @@ WriteMakefile
    DISTNAME     => 'Apache-mod_perl_guide',
    NAME	        => 'mod_perl_guide',
    VERSION_FROM => 'src/Version.pm', # finds $VERSION
-   AUTHOR       => 'Stas Bekman <sbekman@iname.com>',
-   ABSTRACT     => 'mod_perl Guide',	      
+   AUTHOR       => 'Stas Bekman <stas@stason.org>',
+   ABSTRACT     => 'mod_perl Guide',
    clean        => {FILES => 'ps rel'},
    dist => {
 	    PREOP => 'pod2text mod_perl_guide.pm > README',
