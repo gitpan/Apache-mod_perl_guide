@@ -1,0 +1,1432 @@
+title: Real World Scenarios
+
+We will assume for this section that you are familiar with plain (not
+mod_perl enabled) Apache, its compilation and configuration.  We also
+assume that your server is called www.example.com and if it isn't you
+should make appropriate changes when you find that name in the
+instructions of this section.
+
+=head1 Standalone mod_perl Enabled Apache Server
+
+=head2 Installation in 10 lines
+
+The Installation is very very simple.  This example shows installation
+on the Linux operating system.
+
+  % cd /usr/src
+  % lwp-download http://www.apache.org/dist/apache_x.x.x.tar.gz
+  % lwp-download http://perl.apache.org/dist/mod_perl-x.xx.tar.gz
+  % tar xzvf apache_x.x.x.tar.gz
+  % tar xzvf mod_perl-x.xx.tar.gz
+  % cd mod_perl-x.xx
+  % perl Makefile.PL APACHE_SRC=../apache_x.x.x/src \
+    DO_HTTPD=1 USE_APACI=1 EVERYTHING=1
+  % make && make test && make install
+  % cd ../apache_x.x.x
+  % make install
+
+That's all!
+
+Notes: Replace x.xx and x.x.x with the real version numbers of
+mod_perl and Apache respectively.  The C<z> flag tells Gnu C<tar> to
+uncompress the archive as well as extract the files.  You might need
+superuser permissions to do the make install steps.
+
+=head2 Installation in 10 paragraphs
+
+If you have the C<lwp-download> utility installed, you can use it to
+download the sources of both packages:
+
+  % lwp-download http://www.apache.org/dist/apache_x.x.x.tar.gz
+  % lwp-download http://perl.apache.org/dist/mod_perl-x.xx.tar.gz
+
+C<lwp-download> is a part of the LWP module (from C<libwww> package),
+you will need to have it installed in order for mod_perl's C<make
+test> step to pass.
+
+Extract both sources.  Usually I open all the sources in I</usr/src/>,
+but your mileage may vary.  So move the sources and C<chdir> to the
+directory that you want to put the sources in.  If you have a non-gnu
+C<tar> utility it will be unable to decompress so you will do it in
+two steps: first uncompress the packages with:
+
+  gzip -d apache_x.x.x.tar.gz
+  gzip -d mod_perl-x.xx.tar.gz
+
+then un-tar them with:
+
+  tar xvf apache_x.x.x.tar 
+  tar xvf mod_perl-x.xx.tar
+
+You can probably use gunzip instead of gzip -d if you prefer.
+
+  % cd /usr/src
+  % tar xzvf apache_x.x.x.tar.gz
+  % tar xzvf mod_perl-x.xx.tar.gz
+
+C<chdir> to the mod_perl source directory:
+
+  % cd mod_perl-x.xx
+
+Now build the Makefile. For your first installation and most basic
+work the parameters in the example below are the only ones you will
+need.  C<APACHE_SRC> tells the Makefile.PL where to find the Apache
+I<src> directory.  If you have followed my suggestion and have
+extracted the both sources under the directory I</usr/src>, then issue
+the command:
+
+  % perl Makefile.PL APACHE_SRC=../apache_x.x.x/src \
+    DO_HTTPD=1 USE_APACI=1 EVERYTHING=1
+
+There are many additional optional parameters.  You can find some of
+them later in this section and in the L<Server Configuration|config/>
+section.
+
+While running C<perl Makefile.PL ...> the process will check for
+prerequisites and tell you if something is missing.  If you are
+missing some of the perl packages or other software, you will have to
+install them before you proceed.
+
+Next C<make> the project.  The command C<make> builds the mod_perl
+extension and also calls C<make> in the Apache source directory to
+build C<httpd>.  Then we run the I<test> suite, and finally I<install>
+the mod_perl modules in their proper places.
+
+  % make && make test && make install
+
+Note that if C<make> fails, neither C<make test> nor C<make install>
+will be executed.  If C<make test> fails, C<make install> will be not
+executed.
+
+Now change to the Apache source directory and run C<make install>.
+This will install Apache's headers, default configuration files, build
+the Apache directory tree and put C<httpd> in it.
+
+  % cd ../apache_x.x.x
+  % make install
+
+When you execute the above command, the Apache installation process
+will tell you how to start a freshly built webserver (you need to know
+the path of C<apachectl>, more about that later) and where to find the
+configuration files.  Write down both, since you will need this
+information very soon.  On my machine the two important paths are:
+
+  /usr/local/apache/bin/apachectl
+  /usr/local/apache/conf/httpd.conf
+
+Now the build and installation processes are complete.
+
+
+=head2  Configuration
+
+First, a simple configuration.  Configure apache as you usually would
+(set C<Port>, C<User>, C<Group>, C<ErrorLog>, other file paths etc).
+
+Start the server and make sure it works, then shut it down.  The
+C<apachectl> utility can be used to start and stop the server:
+
+  % /usr/local/apache/bin/apachectl start
+  % /usr/local/apache/bin/apachectl stop
+
+Now we will configure Apache to run perl CGI scripts under
+C<Apache::Registry> handler.
+
+You can add configuration directives to a separate file and tell
+I<httpd.conf> to include it, but for now we will simply add them to
+the main configuration file.  We will add the mod_perl configuration
+directives to the end of I<httpd.conf>.  In fact you can place them
+anywhere in the file, but they are easier to find at the end.
+
+For the moment we will assume that you will put all the scripts which
+you want to be executed by the mod_perl enabled server under the
+directory I</home/httpd/perl>.  We will alias this directory to the
+URI I</perl>
+
+Add the following configuration directives to I<httpd.conf>:
+
+  Alias /perl/ /home/httpd/perl/
+  
+  PerlModule Apache::Registry
+  <Location /perl>
+    SetHandler perl-script
+    PerlHandler Apache::Registry
+    Options ExecCGI
+    PerlSendHeader On
+    allow from all
+  </Location>
+
+Now create a four-line test script in I</home/httpd/perl/>:
+
+  test.pl
+  -------
+  #!/usr/bin/perl -w
+  use strict;
+  print "Content-type: text/html\r\n\r\n";
+  print "It worked!!!\n";
+
+Note that the server is probably running as a user with a restricted
+set of privileges, perhaps as user C<nobody> or C<www>.  Look for the
+C<User> directive in I<httpd.conf> to find the userid of the server.
+
+Make sure that you have read and execute permissions for I<test.pl>.
+
+  % chmod u+rx /home/httpd/perl/test.pl
+
+Test that the script works from the command line, by executing it:
+
+  % /home/httpd/perl/test.pl
+
+You should see:
+
+  Content-type: text/html
+  
+  It worked!!!
+
+Assuming that the server's userid is C<nobody>, make the script owned
+by this user. We already made it executable and readable by user.
+
+  % chown nobody /home/httpd/perl/test.pl
+
+Now it is time to test that mod_perl enabled Apache can execute the
+script.
+
+Start the server ('C<apachectl start>').  Check in I<logs/error_log>
+to see that indeed the server has started--verify the correct date and
+time of the log entry.
+
+To get Apache to execute the script we simply fetch its URI.  Assuming
+that your I<httpd.conf> has been configured with the directive C<Port
+80>, start your favorite browser and fetch the following URI:
+
+  http://www.example.com/perl/test.pl
+
+If you have the loop-back device (127.0.0.1) configured, you can use
+the URI:
+
+  http://localhost/perl/test.pl
+
+In either case, you should see:
+
+  It worked!!!
+
+If your server is listening on a port other than 80, for example 8000,
+then fetch the URI:
+
+  http://www.example.com:8000/perl/test.pl
+
+or whatever is appropriate.
+
+If something went wrong, go through the installation process again,
+and make sure you didn't make a mistake.  If that doesn't help, read
+the C<INSTALL> pod document (C<perlpod INSTALL>) in the mod_perl
+distribution directory.
+
+Now that your mod_perl server is working, copy some of your Perl CGI
+scripts into the directory I</home/httpd/perl/> or below it.
+
+If your programming techniques are good, chances are that your scripts
+will work with no modifications at all.  With the mod_perl enabled
+server you will see them working very much faster.
+
+If your programming techniques are sloppy, some of your scripts will
+not work and they may exhibit strange behaviour.  Depending on the
+degree of sloppiness they may need anything from minor tweaking to a
+major rewrite to make them work properly.  (See L<Sometimes script
+works, sometimes does not|debug/Sometimes_script_works_sometime>)
+
+The above setup is very basic, but as with Perl, you can start to
+benefit from mod_perl from the very first moment you try it.  As you
+become more familiar with mod_perl you will want to start writing
+Apache handlers and make more use of its power.
+
+
+=head1 One Plain and One mod_perl enabled Apache Servers
+
+Since we are going to run two Apache servers we will need two complete
+(and different) sets of configuration, log and other files.  We need a
+special directory layout.  While some of the directories can be shared
+between the two servers (assuming that both are built from the same
+source distribution), others should be separated.  From now on I will
+refer to these two servers as B<httpd_docs> (plain Apache) and
+B<httpd_perl> (Apache/mod_perl).
+
+For this illustration, we will use I</usr/local> as our I<root>
+directory.  The Apache installation directories will be stored under
+this root. (I</usr/local/bin>, I</usr/local/lib> and so on.)
+
+First let's prepare the sources.  We will assume that all the sources
+go into the I</usr/src> directory.  Since you will probably want to
+tune each copy of Apache separately, it is better to use two separate
+copies of the Apache source for this configuration.  For example you
+might want only the httpd_docs server to be built with the mod_rewrite
+module.
+
+Having two independent source trees will prove helpful unless you use
+dynamically shared objects (C<DSO>) which is covered later in this
+section.
+
+Make two subdirectories:
+
+  % mkdir /usr/src/httpd_docs
+  % mkdir /usr/src/httpd_perl
+
+Next put a set of the Apache sources into the I</usr/src/httpd_docs>
+directory (replace the directory I</tmp> with the path to the
+downloaded file and C<x.x.x> with the version of Apache that you have
+downloaded):
+
+  % cd /usr/src/httpd_docs
+  % gzip -dc /tmp/apache_x.x.x.tar.gz | tar xvf -
+
+or if you have GNU tar:
+
+  % tar xvzf /tmp/apache_x.x.x.tar.gz
+
+Just to check we have extracted in the right way:
+
+  % ls -l
+  drwxr-xr-x  8 stas  stas 2048 Apr 29 17:38 apache_x.x.x/
+
+Now prepare the httpd_perl server sources:
+
+  % cd /usr/src/httpd_perl
+  % gzip -dc /tmp/apache_x.x.x.tar.gz | tar xvf -
+  % gzip -dc /tmp/modperl-x.xx.tar.gz | tar xvf -
+  
+  % ls -l
+  drwxr-xr-x  8 stas  stas 2048 Apr 29 17:38 apache_x.x.x/
+  drwxr-xr-x  8 stas  stas 2048 Apr 29 17:38 modperl-x.xx/
+
+Time to decide on the desired directory structure layout (where the
+Apache files go):
+
+  ROOT = /usr/local
+
+The two servers can share the following directories (so we will not
+duplicate data):
+
+  /usr/local/bin/
+  /usr/local/lib
+  /usr/local/include/
+  /usr/local/man/
+  /usr/local/share/
+
+B<Important:> we assume that both servers are built from the same
+Apache source version.
+
+The two servers will store their specific files in either the
+I<httpd_docs/> or the I<httpd_perl/> sub-directories:
+
+  /usr/local/etc/httpd_docs/
+                 httpd_perl/
+  
+  /usr/local/sbin/httpd_docs/
+                  httpd_perl/
+  
+  /usr/local/var/httpd_docs/logs/
+                            proxy/
+                            run/
+                 httpd_perl/logs/
+                            proxy/
+                            run/
+
+After completion of the compilation and the installation of both
+servers, you will need to configure them.
+
+To make things clear before we proceed to the details, you should for
+example configure the plain Apache server
+(I</usr/local/etc/httpd_docs/httpd.conf>) to listen to C<Port 80>.
+Configure the mod_perl Apache server
+(I</usr/local/etc/httpd_perl/httpd.conf>) with a different C<Port>
+(e.g. 8080) from the one which the plain Apache server listens to.
+The port numbers issue will be discussed later.
+
+The next step is to configure and compile the sources: Below are the
+procedures to compile both servers, using the directory layout I have
+just suggested.
+
+=head2 Configuration and Compilation of the Sources.
+
+I will use x.x.x instead of real version numbers so this document will
+never become obsolete :).
+
+=head3 Building the httpd_docs Server
+
+=over 8
+
+=item Sources Configuration:
+
+  % cd /usr/src/httpd_docs/apache_x.x.x
+  % make clean
+  % env CC=gcc \
+  ./configure --prefix=/usr/local \
+    --sbindir=/usr/local/sbin/httpd_docs \
+    --sysconfdir=/usr/local/etc/httpd_docs \
+    --localstatedir=/usr/local/var/httpd_docs \
+    --runtimedir=/usr/local/var/httpd_docs/run \
+    --logfiledir=/usr/local/var/httpd_docs/logs \
+    --proxycachedir=/usr/local/var/httpd_docs/proxy
+
+If you need some other modules, such as mod_rewrite and mod_include
+(SSI), add them to the end of this list:
+
+    ....
+    ....
+    --proxycachedir=/usr/local/var/httpd_docs/proxy \
+    --enable-module=include --enable-module=rewrite
+
+OS specific note: The httpd executable is at least 100K smaller if
+compiled by C<gcc> than if compiled C<cc> on AIX.  Remove the line
+C<env CC=gcc> if you want to use the default compiler.  If you want to
+use it and you are a (ba)?sh user you will not need the C<env>
+function, t?csh users will have to keep it. 
+
+It's very important to use the same compiler you build the perl with.
+See the section 'L<What Compiler Should Be Used to Build
+mod_perl|install/What_Compiler_Should_Be_Used_to_>' for more 
+information.
+
+Note: Add C<--layout> to see the resulting directories' layout without
+actually running the configuration process.
+
+
+=item Source Compilation:
+
+  % make
+  % make install
+
+Rename C<httpd> to C<http_docs>:
+
+  % mv /usr/local/sbin/httpd_docs/httpd \
+  /usr/local/sbin/httpd_docs/httpd_docs
+
+Now modify the B<apachectl> utility to point to the renamed httpd via
+your favorite text editor or by using perl:
+
+  % perl -p -i -e 's|httpd_docs/httpd|httpd_docs/httpd_docs|' \
+  /usr/local/sbin/httpd_docs/apachectl
+
+=back
+
+=head3 Building the httpd_perl Server
+
+Before you start to configure the mod_perl sources, you should be
+aware that there are a few Perl modules that have to be installed
+before building mod_perl.  You will be alerted if any required modules
+are missing when you run the C<perl Makefile.PL> command below.  If
+you discover that something is missing, grab it from your nearest CPAN
+repository (if you do not know what that is, pay a visit to
+http://www.perl.com/CPAN) or run the C<CPAN> interactive shell via the
+command line C<perl -MCPAN -e shell>.
+
+Make sure the sources are clean:
+
+  % cd /usr/src/httpd_perl/apache_x.x.x
+  % make clean
+  % cd /usr/src/httpd_perl/mod_perl-x.xx
+  % make clean
+
+It is important to B<make clean> since some of the versions are not
+binary compatible (e.g apache 1.3.3 vs 1.3.4) so any "third-party" C
+modules need to be re-compiled against the latest header files.
+
+  % cd /usr/src/httpd_perl/mod_perl-x.xx
+
+  % /usr/local/bin/perl Makefile.PL \
+  APACHE_PREFIX=/usr/local/ \
+  APACHE_SRC=../apache_x.x.x/src \
+  DO_HTTPD=1 \
+  USE_APACI=1 \
+  PERL_STACKED_HANDLERS=1 \
+  ALL_HOOKS=1 \
+  APACI_ARGS=--sbindir=/usr/local/sbin/httpd_perl, \
+         --sysconfdir=/usr/local/etc/httpd_perl, \
+         --localstatedir=/usr/local/var/httpd_perl, \
+         --runtimedir=/usr/local/var/httpd_perl/run, \
+         --logfiledir=/usr/local/var/httpd_perl/logs, \
+         --proxycachedir=/usr/local/var/httpd_perl/proxy
+
+Notice that B<all> C<APACI_ARGS> (above) must be passed as one long
+line if you work with C<t?csh>!!!  However with C<(ba)?sh> it works
+correctly the way it is shown above, breaking the long lines with
+'C<\>'.  When C<t?csh> passes the C<APACI_ARGS> arguments to
+C<./configure> it does not alter the newlines, but it strips the
+backslashes, thus breaking the configuration process.
+
+As with httpd_docs you might need other modules such as
+C<mod_rewrite>, so add them at the end of this list:
+
+         ....
+         ....
+         --proxycachedir=/usr/local/var/httpd_perl/proxy, \
+         --enable-module=rewrite
+
+Note: C<PERL_STACKED_HANDLERS=1> is needed for C<Apache::DBI>
+
+Now, build, test and install the C<httpd_perl>.
+
+  % make && make test && make install
+
+Note: Apache puts a stripped version of C<httpd> at
+I</usr/local/sbin/httpd_perl/httpd>.  The original version which
+includes debugging symbols (if you need to run a debugger on this
+executable) is located at
+I</usr/src/httpd_perl/apache_x.x.x/src/httpd>.
+
+Note: You may have noticed that we did not run C<make install> in the
+Apache source directory.  When C<USE_APACI> is enabled,
+C<APACHE_PREFIX> will specify the C<--prefix> option for Apache's
+C<configure> utility, which gives the installation path for Apache.
+When this option is used, mod_perl's C<make install> will also C<make
+install> for Apache, installing the httpd binary, the support
+tools, and the configuration, log and document trees.
+
+If C<make test> fails, look into C<t/logs> and see what is in there.
+Also see L<make test fails|install/make_test_fails>.
+
+While doing C<perl Makefile.PL ...> mod_perl might complain by warning
+you about a missing library C<libgdbm>. This is a crucial warning. See
+L<Missing or Misconfigured
+libgdbm.so|install/Missing_or_Misconfigured_libgdbm> for more info.
+
+Now rename C<httpd> to C<httpd_perl>:
+
+  % mv /usr/local/sbin/httpd_perl/httpd \
+  /usr/local/sbin/httpd_perl/httpd_perl
+
+Update the apachectl utility to drive the renamed httpd:
+
+  % perl -p -i -e 's|httpd_perl/httpd|httpd_perl/httpd_perl|' \
+  /usr/local/sbin/httpd_perl/apachectl
+
+
+
+
+
+
+
+
+
+=head2 Configuration of the servers
+
+Now when we have completed the building process, the last stage before
+running the servers is to configure them.
+
+=head3 Basic httpd_docs Server Configuration
+
+Configuring of the C<httpd_docs> server is a very easy task.  Starting
+from version 1.3.4 of Apache, there is only one file to edit.  Open
+I</usr/local/etc/httpd_docs/httpd.conf> in your favorite text editor
+and configure it as you usually would, except make sure that you
+configure the log file directory (I</usr/local/var/httpd_docs/logs>
+and so on) and the other paths according to the layout you have
+decided to use.
+
+Start the server with:
+
+  /usr/local/sbin/httpd_docs/apachectl start
+
+
+=head3 Basic httpd_perl Server Configuration
+
+Edit the I</usr/local/etc/httpd_perl/httpd.conf>.  As with the
+C<httpd_docs> server configuration, make sure that C<ErrorLog> and
+other file location directives are set to point to the right places,
+according to the chosen directory layout.
+
+The first thing to do is to set a C<Port> directive - it should be
+different from that used by the plain Apache server (C<Port 80>) since
+we cannot bind two servers to the same port number on the same
+machine.  Here we will use C<8080>.  Some developers use port C<81>,
+but you can bind to ports below 1024 only if the server has root
+permissions.  If you are running on multiuser machine, there is a
+chance someone already uses that port, or will start using it in the
+future, which could cause problems.  If you are the only user on your
+machine, basically you can pick any unused port number.  Many
+organizations use firewalls which may block some of the ports, so port
+number choice can be a controversial topic.  From my experience the
+most popular port numbers are: C<80>, C<81>, C<8000> and C<8080>.
+Personally, I prefer the port C<8080>.  Of course with the two server
+scenario you can hide the nonstandard port number from firewalls and
+users, by using either mod_proxy's C<ProxyPass> directive or a proxy
+server like Squid.
+
+For more details see L<Publishing Port Numbers Different From 80
+|config/Publishing_Port_Numbers_Differen>, L<Running One Webserver and
+Squid in httpd Accelerator
+Mode|scenario/Running_One_Webserver_and_Squid_>, L<Running Two
+Webservers and Squid in httpd Accelerator
+Mode|scenario/Running_Two_webservers_and_Squid> and L<Using
+mod_proxy|scenario/Building_and_Using_mod_proxy>.
+
+Now we proceed to the mod_perl specific directives.  It will be a good
+idea to add them all at the end of C<httpd.conf>, since you are going
+to fiddle about with them a lot in the early stages.
+
+First, you need to specify the location where all mod_perl scripts
+will be located.
+
+Add the following configuration directive:
+
+    # mod_perl scripts will be called from
+  Alias /perl/ /usr/local/myproject/perl/
+
+From now on, all requests for URIs starting with I</perl> will be
+executed under mod_perl and will be mapped to the files in
+I</usr/local/myproject/perl/>.
+
+Now we configure the I</perl> location.
+
+  PerlModule Apache::Registry
+
+  <Location /perl>
+    #AllowOverride None
+    SetHandler perl-script
+    PerlHandler Apache::Registry
+    Options ExecCGI
+    allow from all
+    PerlSendHeader On
+  </Location>
+
+This configuration causes any script that is called with a path
+prefixed with I</perl> to be executed under the C<Apache::Registry>
+module and as a CGI (hence the C<ExecCGI>--if you omit this option the
+script will be printed to the user's browser as plain text or will
+possibly trigger a 'B<Save-As>' window).  The C<Apache::Registry>
+module lets you run your (carefully written) Perl CGI scripts almost
+completely unchanged under mod_perl.  The C<PerlModule> directive is
+the equivalent of Perl's require().  We load the C<Apache::Registry>
+module before we use it by giving the C<PerlHandler>
+C<Apache::Registry> directive.
+
+C<PerlSendHeader On> tells the server to send an HTTP header to the
+browser on every script invocation. You will want to turn this off for
+nph (non-parsed-headers) scripts.
+
+This is only a very basic configuration.  The L<Server
+Configuration|config/> section covers the rest of the details.
+
+Now start the server with:
+
+  /usr/local/sbin/httpd_perl/apachectl start
+
+
+=head1 Running Two webservers and Squid in httpd Accelerator Mode
+
+While I have detailed the mod_perl server installation, you are on
+your own with installing the Squid server (See L<Getting
+Helped|help/> for more details).
+I run Linux, so I downloaded the RPM package, installed it, configured
+the I</etc/squid/squid.conf>, fired off the server and all was set.
+
+Basically once you have Squid installed, you just need to modify the
+default C<squid.conf> as I will explain below, then you are ready to
+run it.
+
+First, let's take a look at what we have already running and what we
+want from squid.
+
+We have the C<httpd_docs> and C<httpd_perl> servers listening on ports
+80 and 8080.  We want squid to listen on port 80, to forward requests
+for static objects (plain HTML pages, images and so on) to the port
+which the httpd_docs server listens to, and dynamic requests to
+httpd_perl's port.  This is known as C<httpd accelerator mode> in
+proxy dialect.
+
+Our httpd_docs is listening to port 80, so we will have to reconfigure
+it to listen to port 81, since port 80 will be taken by Squid.  Both
+copies of Apache will reside on the same machine as Squid.  A proxy
+server makes all the magic behind it transparent to user.  Both Apache
+servers return the data to Squid (unless it was already cached by
+Squid).  The client never sees the other ports and never knows that
+there might be more than one server running.  Do not confuse this
+scenario with B<mod_rewrite>, where a server redirects the request
+somewhere according to the rewrite rules and forgets all about it.
+
+Squid can be used as a straightforward proxy server.  ISPs and other
+companies generally use it to cut down the incoming traffic by caching
+the most popular requests.  However we want to run it in C<httpd
+accelerator mode>.  Two directives (C<httpd_accel_host> and
+C<httpd_accel_port>) enable this mode.  We will see more details
+shortly.  
+
+If you are currently using Squid in the regular proxy mode, you can
+extend its functionality by running both modes concurrently.  To
+accomplish this, you can extend the existing Squid configuration with
+B<httpd accelerator mode>'s related directives or you can just create
+one from scratch.
+
+Now that you have Squid listening to port 80, you have to move the
+httpd_docs server to listen for example to port 81 (your mileage may
+vary :).  So you have to modify httpd_docs/conf/httpd.conf and restart
+the httpd_docs server.  But if you are working on a production server,
+do not do this before we get Squid running!
+
+Let's go through the changes we should make to the default
+configuration file.  Since this file (I</etc/squid/squid.conf>) is
+huge (about 60k+) and we will not alter 95% of its default settings,
+my suggestion is to write a new one including only the modified
+directives.
+
+We want to enable the redirect feature, to be able to serve requests
+by more than one server (in our case we have two: the httpd_docs and
+httpd_perl servers).  So we specify C<httpd_accel_host> as virtual.
+This assumes that your server has multiple interfaces - Squid will
+bind to all of them.
+
+  httpd_accel_host virtual
+
+Then we define the default port the requests will be sent to, unless
+redirected.  We assume that most requests will be for static documents
+(also it's easier to define redirect rules for mod_perl server because
+of the URI that starts with I<perl> or similar).  We have our
+httpd_docs listening on port 81. Therefore we made this part
+particular choice.
+
+  httpd_accel_port 81
+
+And as described before, squid listens to port 80.
+
+  http_port 80
+
+We do not use C<icp> (C<icp> is used for cache sharing between
+neighboring machines, which is more relevant in the proxy mode).
+
+  icp_port 0
+
+C<hierarchy_stoplist> defines a list of words which, if found in a
+URL, causes the object to be handled directly by the cache.  In other
+words, use this cache and do not query neighboring caches for certain
+objects.  Note that I have configured the I</cgi-bin> and I</perl>
+aliases for my dynamic documents, if you named them in a different
+way, make sure you use the correct aliases here.
+
+  hierarchy_stoplist /cgi-bin /perl
+
+Now we tell squid not to cache dynamic pages.
+
+  acl QUERY urlpath_regex /cgi-bin /perl
+  no_cache deny QUERY
+
+Please note that the last two directives are controversial ones.  If
+you want your scripts to be more compliant with the HTTP standards,
+according to the HTTP specs the headers of your scripts should carry
+the I<Caching Directives>: C<Last-Modified> and C<Expires>.  What are
+they for? (*) If you set the headers correctly, there is no need to
+tell the Squid accelerator B<NOT> to try to cache anything.  Squid
+will not bother your mod_perl servers a second time if a request is
+(a) cachable and (b) still in the cache.  Many mod_perl applications
+will produce identical results on identical requests if not much time
+has elapsed between the requests.  So your Squid might have a hit
+ratio of 50%, which means that the mod_perl servers will have only
+half as much work to do as they did before you installed Squid (or
+mod_proxy).  But this is only possible if you set the headers
+correctly.
+
+For more information, refere to the chapter L<Correct Headers - A
+quick guide for mod_perl users|correct_headers/>.
+
+Even if you insert a user-ID and date in your page, caching can save
+resources when you set the expiration time to 1 second.  A user might
+double click where a single click would do, thus sending two requests
+in parallel.  Squid could serve the second request.
+
+But if you are lazy, or just have too many things to deal with, you
+can leave the above directives the way I described.  Just keep in mind
+that one day you will want to reread this snippet and L<the headers
+generation tutorial|correct_headers/> to squeeze even more power from
+your servers without investing money in more memory and better
+hardware.
+
+While testing you might want to enable the debugging options and watch
+the log files in I</var/log/squid/>.  But turn debugging off in your
+production server.  Below I show it commented out.  The parameter 28
+means access control routes.
+
+  # debug_options ALL, 1, 28, 9
+
+We need to provide a way for squid to dispatch requests to the correct
+servers.  Static object requests should be redirected to httpd_docs
+unless they are already cached, while requests for dynamic documents
+should go to the httpd_perl server.  The configuration below tells
+Squid to fire off 10 redirect daemons at the specified path of the
+redirect daemon and (as suggested by Squid's documentation) disables
+rewriting of any C<Host:> headers in redirected requests.  The
+redirection daemon script is listed below.
+
+  redirect_program /usr/lib/squid/redirect.pl
+  redirect_children 10
+  redirect_rewrites_host_header off
+
+The maximum allowed request size is in kilobytes. This one is pretty
+obvious.  If you are using C<POST> to upload files, then set this to
+the largest file's size plus a few extra kbytes.
+
+  request_size 1000 KB
+
+Then we have access permissions, which I will not explain.  You might
+want to read the documentation, so as to avoid any security problems.
+
+  acl all src 0.0.0.0/0.0.0.0
+  acl manager proto cache_object
+  acl localhost src 127.0.0.1/255.255.255.255
+  acl myserver src 127.0.0.1/255.255.255.255
+  acl SSL_ports port 443 563
+  acl Safe_ports port 80 81 8080 81 443 563
+  acl CONNECT method CONNECT
+  
+  http_access allow manager localhost
+  http_access allow manager myserver
+  http_access deny manager
+  http_access deny !Safe_ports
+  http_access deny CONNECT !SSL_ports
+  # http_access allow all
+
+Since Squid should be run as a non-root user, you need these if you
+are invoking the Squid as root.
+
+  cache_effective_user squid
+  cache_effective_group squid
+
+Now configure a memory size to be used for caching.  The Squid
+documentation warns that the actual size of Squid can grow to be three
+times larger than the value you set.
+
+  cache_mem 20 MB
+
+Keep pools of allocated (but unused) memory available for future
+use.  Read more about it in the Squid documents.
+
+  memory_pools on
+
+Now tighten the runtime permissions of the cache manager CGI script
+(C<cachemgr.cgi>, which comes bundled with squid) on your production
+server.
+
+  cachemgr_passwd disable shutdown
+  #cachemgr_passwd none all
+
+Now the redirection daemon script (you should put it at the location
+you have specified in the C<redirect_program> parameter in the config
+file above, and make it executable by the webserver of course):
+
+  #!/usr/local/bin/perl
+  
+  $|=1;
+  
+  while (<>) {
+      # redirect to mod_perl server (httpd_perl)
+    print($_), next 
+      if s|www.example.com(:81)?/perl/|www.example.com:8080/perl/|o;
+
+      # send it unchanged to plain apache server (http_docs)
+    print;
+  }
+
+Here is what the regular expression from above does; it matches all
+the URIs that include either I<www.example.com/perl/> or
+I<www.example.com:81/perl/> strings in them and replaces it with
+I<www.example.com:8080>.  When the match-n-replace is completed and it
+was successful, the resulting URI is printed. Otherwise the original
+URI is printed.
+
+The above redirector can be more complex of course, but you know Perl,
+right?
+
+A few notes regarding the redirector script:
+
+You must disable buffering.  C<$|=1;> does the job.  If you do not
+disable buffering, C<STDOUT> will be flushed only when its buffer
+becomes full--and its default size is about 4096 characters.  So if
+you have an average URL of 70 chars, only after about 59 (4096/70)
+requests will the buffer be flushed, and the requests will finally
+reach the server.  Your users will not wait that long, unless you have
+hundreds requests per second and then the buffer will be flushed very
+frequently because it'll get full very fast.
+
+If you think that this is a very ineffective way to redirect, I'll try
+to prove you the opposite.  The redirector runs as a daemon, it fires
+up N redirect daemons, so there is no problem with Perl interpreter
+loading.  Exactly as with mod_perl, perl is loaded all the time and
+the code has already been compiled, so the redirect is very fast (not
+much slower than if the redirector was written in C).  Squid keeps an
+open pipe to each redirect daemon, thus there is not even the overhead
+of the system calls.
+
+Now it is time to restart the server, at linux I do it with:
+
+  /etc/rc.d/init.d/squid restart
+
+Now the setup is complete ...
+
+Almost... When you try the new setup, you will be surprised and upset
+to discover port 81 showing up in the URLs of the static objects (like
+htmls).  Hey, we did not want the user to see the port 81 and use it
+instead of 80, since then it will bypass the squid server and the hard
+work we went through was just a waste of time!
+
+The solution is to make both squid and httpd_docs listen to the same
+port.  This can be accomplished by binding each one to a specific
+interface (so they are listening to different B<sockets>).  Modify
+C<httpd.conf> in the C<httpd_docs> configuration directory:
+
+  Port 80
+  BindAddress 127.0.0.1
+  Listen 127.0.0.1:80
+
+Modify I<squid.conf>:
+
+  http_port 80
+  tcp_incoming_address 123.123.123.3
+  tcp_outgoing_address 127.0.0.1
+  httpd_accel_host 127.0.0.1
+  httpd_accel_port 80
+
+Where C<123.123.123.3> should be replaced with the IP address of your
+main server.  Now restart squid and httpd_docs (it doesn't matter
+which one you start first), and voila--the port number has gone.
+
+You must also have in the I</etc/hosts> an entry (chances are that
+it's already there):
+
+  127.0.0.1 localhost.localdomain localhost
+
+Now if your scripts are generating HTML including fully qualified self
+references, using the 8080 or other port, you should fix them to
+generate links to point to port 80 (which means not using the port at
+all in the URI).  If you do not do this, users will bypass Squid and
+will make direct requests to the mod_perl server's port.
+
+The only question left is what to do with users who bookmarked your
+services and they still have the port 8080 inside the URL.  Do not
+worry about it.  The most important thing is for your scripts to
+return full URLs, so if the user comes from the link with 8080 port
+inside, let it be.  Just make sure that all the subsequent calls to
+your server will be rewritten correctly.  After a time users will
+change their bookmarks.  You can send them an email if you know the
+address, or you could leave a note on your pages asking users to
+update their bookmarks.  You will avoid this problem if you do not
+publish non-80 ports in the first place.  See L<Publishing port
+numbers different from 80|config/Publishing_Port_Numbers_Differen>.
+
+<META> Need to write up a section about server logging with squid. One
+thing I sure would like to know is how requests are logged with this
+setup. I have, as most everyone I imagine, log rotation, analysis,
+archiving scripts and they all assume a single log.  <METAMETA> So
+what now with Apache TransferLog/ErrorLog/Refererlog? </METAMETA> Does
+one have different logs that have to be merged (up to 3 for each
+server + squid) ? Even when squid responds to a request out of its
+cache I'd still want the thing to be logged.  </META>
+
+See L<Using mod_proxy|scenario/Building_and_Using_mod_proxy> for
+information about C<X-Forwarded-For>.
+
+To save you some keystrokes, here is the whole modified C<squid.conf>:
+
+  http_port 80
+  tcp_incoming_address 123.123.123.3
+  tcp_outgoing_address 127.0.0.1
+  httpd_accel_host 127.0.0.1
+  httpd_accel_port 80
+  
+  icp_port 0
+  
+  hierarchy_stoplist /cgi-bin /perl
+  acl QUERY urlpath_regex /cgi-bin /perl
+  no_cache deny QUERY
+  
+  # debug_options ALL,1 28,9
+  
+  redirect_program /usr/lib/squid/redirect.pl
+  redirect_children 10
+  redirect_rewrites_host_header off
+  
+  request_size 1000 KB
+  
+  acl all src 0.0.0.0/0.0.0.0
+  acl manager proto cache_object
+  acl localhost src 127.0.0.1/255.255.255.255
+  acl myserver src 127.0.0.1/255.255.255.255
+  acl SSL_ports port 443 563
+  acl Safe_ports port 80 81 8080 81 443 563
+  acl CONNECT method CONNECT
+  
+  http_access allow manager localhost
+  http_access allow manager myserver
+  http_access deny manager
+  http_access deny !Safe_ports
+  http_access deny CONNECT !SSL_ports
+  # http_access allow all
+  
+  cache_effective_user squid
+  cache_effective_group squid
+  
+  cache_mem 20 MB
+  
+  memory_pools on
+  
+  cachemgr_passwd disable shutdown
+
+Note that all directives should start at the beginning of the line, so
+if you cut and paste from the text make sure you remove the leading
+whitespace from each line.
+
+=head1 Running One Webserver and Squid in httpd Accelerator Mode
+
+When I was first told about Squid, I thought: "Hey, now I can drop the
+C<httpd_docs> server and to have just Squid and C<httpd_perl>
+servers".  Since all my static objects will be cached by squid, I do
+not need the light C<httpd_docs> server.
+
+But I was a wrong.  Why?  Because I still have the overhead of loading
+the objects into Squid the first time.  If a site has many of them,
+unless a huge chunk of memory is devoted to Squid they won't all be
+cached and the heavy mod_perl server will still have the task of
+serving static objects.
+
+How one would measure the overhead?  The difference between the two
+servers is in memory consumption, everything else (e.g. I/O) should be
+equal.  So you have to estimate the time needed for first time
+fetching of each static object at a peak period and thus the number of
+additional servers you need for serving the static objects.  This will
+allow you to calculate the additional memory requirements.  I imagine
+that this amount could be significant in some installations.
+
+So I have decided to have even more administration overhead and to
+stick with the squid, httpd_docs and httpd_perl scenario, where I can
+optimize and fine tune everything.  Of course this may not be your
+situation.  If you are feeling that the scenario from the previous
+section is too complicated for you, make it simpler.  Have only one
+server with mod_perl built in and let Squid to do most of the job that
+plain light apache used to do.  As I have explained in the previous
+paragraph, you should pick this lighter setup only if you can make
+Squid cache most of your static objects.  If it cannot, your mod_perl
+server will have to do work we do not want it to do.
+
+If you are still with me, install apache with mod_perl and Squid.
+Then use a configuration similar to the previous section, but now
+httpd_docs is not there anymore.  Also we do not need the redirector
+anymore and we specify C<httpd_accel_host> as a name of the server and
+not C<virtual>.  Because we do not redirect there is no need to bind
+two servers on the same port so there are neither C<Bind> nor
+C<Listen> directives in C<httpd.conf>.
+
+
+The modified configuration (see the explanations in the previous
+section):
+
+  httpd_accel_host put.your.hostname.here
+  httpd_accel_port 8080
+  http_port 80
+  icp_port 0
+  
+  hierarchy_stoplist /cgi-bin /perl
+  acl QUERY urlpath_regex /cgi-bin /perl
+  no_cache deny QUERY
+  
+  # debug_options ALL, 1, 28, 9
+  
+  # redirect_program /usr/lib/squid/redirect.pl
+  # redirect_children 10
+  # redirect_rewrites_host_header off
+  
+  request_size 1000 KB
+  
+  acl all src 0.0.0.0/0.0.0.0
+  acl manager proto cache_object
+  acl localhost src 127.0.0.1/255.255.255.255
+  acl myserver src 127.0.0.1/255.255.255.255
+  acl SSL_ports port 443 563
+  acl Safe_ports port 80 81 8080 81 443 563
+  acl CONNECT method CONNECT
+  
+  http_access allow manager localhost
+  http_access allow manager myserver
+  http_access deny manager
+  http_access deny !Safe_ports
+  http_access deny CONNECT !SSL_ports
+  # http_access allow all
+  
+  cache_effective_user squid
+  cache_effective_group squid
+  
+  cache_mem 20 MB
+  
+  memory_pools on
+  
+  cachemgr_passwd disable shutdown
+
+
+=head1 One Light and One Heavy Server where All HTML is Perl-generated
+
+Instead of keeping all your Perl scripts in I</perl> and your static
+content everywhere else, you could keep your static content in special
+directories and keep your Perl scripts everywhere else.  You can still
+use the light/heavy apache separation approach described above, with
+a few minor modifications.
+
+=head2 Installation and Configuration
+
+First you need to compile your light Apache with mod_proxy and
+mod_rewrite:
+
+  % ./configure --prefix=[snip...] --enable-module=rewrite \
+                                   --enable-module=proxy
+
+In the I<light> Apache's C<httpd.conf> file, turn rewriting on:
+
+  RewriteEngine on
+
+and list the static directories something like this:
+
+  RewriteRule ^/img - [L]
+  RewriteRule ^/style - [L]
+
+The C<[L]> means that the rewrite engine should stop if it has a
+match.  This is necessary because the very last rewrite rule proxies
+everything to the I<heavy> server:
+
+  RewriteRule ^/(.*) http://www.example.com:8080/$1 [P]
+
+This line (B<which must be the last C<RewriteRule>>) is the difference
+between a server for which static content is the default and one for
+which dynamic (perlish) content is the default.
+
+The above C<RewriteRule> assumes that the heavy server runs on the
+same machine as the light server.  You can just insert a different URL
+if the heavy Apache is elsewhere, but keeping the two servers on the
+one machine and treating them as one has some advantages, as you will
+see later.
+
+You should also add the I<reverse rewrite rule>:
+
+  ProxyPassReverse / http://www.example.com/
+
+so that the user doesn't see the port number C<:8080> in her browser's
+location window.
+
+Of course C<www.example.com> should be replaced with your own
+domain name.
+
+It is possible to use C<localhost> in the C<RewriteRule> above if the
+heavy and light servers are on the same machine, but your heavy server
+might accidentally say C<localhost> in a client redirect (see below)
+which would not be good.  Also, if your heavy server understands
+virtual hosts, you probably don't want to use the name C<localhost>.
+
+=head2 Tricks, Traps and Gotchas
+
+=over
+
+=item * 'Closing your shutters' temporarily
+
+Very occasionally, your mod_perl server will suffer glitches.  Perhaps
+you changed a module and restarted your mod_perl httpd when a C<perl
+-cw> would have given you some very interesting information!  Since
+all your html is dynamically generated, suddenly nobody can view any
+pages on your site.  Disaster!!  Worse, your users are getting cryptic
+B<Unable to contact upstream server> error messages on a grey
+background, not the nice customised error messages you generate with
+Perl.
+
+If you insert a line into the light Apache's C<httpd.conf> file:
+
+  RewriteRule ^/(.*) /sorry.html [L]
+
+I<after> the list of static directories but I<before> the rule that
+proxies everything else to the heavy apache, your users now get a
+(relatively) nice `Sorry for the inconvenience' message instead of the
+cryptic message described above.  What's more, because this
+I<sorry.html> C<RewriteRule> is listed I<after> the image directory,
+you can refer to your images in it.  Now all you have to do is figure
+out how to fix the module you broke.
+
+Of course you need to prepare the file I<sorry.html> in advance of all
+this.  When you alter the configuration you will have to restart the
+light server for the changes to take effect, and when you have fixed
+all the errors in the mod_perl server you must remove the change and
+restart the light server again too.
+
+This situation is easy to prevent. See L<Safe Code Updates on a Live
+Production Server|control/Safe_Code_Updates_on_a_Live_Prod> for more
+info.
+
+=item * Logging
+
+There are a number of different ways to maintain logs of your hits.
+The easiest way is to let both Apaches log to their own C<access_log>
+file.  Unfortunately, this means that many requests will be logged
+twice, which makes it tricky to merge the two logfiles, should you
+want to.  Also, as far as the heavy Apache is concerned, all requests
+will appear to come from the IP address of the machine on which the
+light apache is running.  If you are logging IP addresses as part of
+your C<access_log> the logs written by the heavy Apache will be fairly
+meaningless.
+
+One solution is to tell the heavy Apache not to bother logging
+requests that seem to come from the light Apache's machine.  You might
+do this by installing a custom C<PerlLogHandler> or just piping to
+C<access_log> via C<grep -v> (match all but this pattern) for the
+light Apache machine's IP address.  In this scenario, the
+C<access_log> written by the light Apache is I<the more important>
+C<access_log>, but you need to look for any direct accesses to the
+heavy server in case the proxy server is sometimes bypassed.
+
+Note that you don't want to pipe the C<access_log> from the heavy
+Apache to I</dev/null>.  If you do this, you won't be able to see any
+requests that bypass the lightweight Apache and come straight in on
+the port to which the heavy server is listening.  Every time you see
+one of these requests you should ask yourself I<Why?> and take steps
+to eliminate it.
+
+It's easy to get the logger to log the original client's IP address
+and not the one that comes from proxy server.  Look for
+C<mod_proxy_add_forward> at L<Building and Using
+mod_proxy|scenario/Building_and_Using_mod_proxy> for hints.
+
+=item * Eliminating C<:8080>'s
+
+By 8080 we mean the port your mod_perl enabled Apache is listening to.
+Substitute whatever port you have chosen.
+
+There are a number of ways in which the user can somehow be directed
+to URLs which have C<:8080> in them.  If you are running the heavy
+Apache on a different machine from that of the light Apache, then
+provided that the heavy Apache has the same C<ServerName> as the light
+Apache this will be less of a problem, but this section may still
+apply to you.
+
+If the user requests a URL that maps to a directory without a trailing
+slash (I</>), apache will issue a client redirect (301?) to the
+I<correct> URL. Unfortunately the Apache that will issue this redirect
+will most likely be the heavy Apache, since most distinct requests are
+answered by it.  It will issue the redirect to its own port on its own
+C<ServerName>, and because the redirect is a so-called B<client>
+redirect the URL (with the :8080 on the end) will be in the body, not
+the header, of the data returned to the user's browser.  This means
+that the C<ProxyPassReverse> in the light Apache's configuration file
+which is supposed to catch such things will be unable to catch
+this. :-(
+
+Since this will tend only to be a problem when the heavy and light
+Apaches are running on different ports on the same machine, if the
+light and heavy apaches have the same C<DocumentRoot> we can have the
+I<light> apache figure out that a request is for a directory without a
+trailing slash.  Then it can do the redirect itself, before the heavy
+Apache finds out about it:
+
+    RewriteCond /www/shop%{SCRIPT_FILENAME} -d
+    RewriteRule ^(.+[^/])$ $1/ [R]   
+
+Note that these two lines should be I<after> the C<RewriteRule>s for
+the static directories but I<before> the final all-encompassing
+C<RewriteRule> that proxies everything else to the heavy Apache.
+
+Beware: if you put these two lines in the light I<httpd.conf> before
+the static directories are mentioned, then in this setup the light
+httpd may find itself in an infinite loop if somebody were to request
+for example I<</img>>.
+
+Another way in which C<:8080>'s can creep into URLs is if you have
+Perl code which issues a redirect to C<http://$ENV{HTTP_HOST}/...>.
+If you are migrating from one heavy server to one heavy and one light,
+you may find a few of these.  If you replace C<HTTP_HOST> with
+C<SERVER_NAME>, all should be well.  Note that you may need to do this
+whether or not the light and heavy servers are on the same machine.
+
+The C<:8080> effect can be insidious.  Once a user gets a URL with
+C<:8080> in it, odd things will happen.  If the heavy and light
+Apaches have the same C<DocumentRoot> (normal if they are on the same
+machine) and/or the heavy Apache is able to deliver the same static
+content as the light Apache, the user's browser will display C<:8080>
+in the location box for every subsequent URL on your site until they
+follow an absolute link (e.g. http://www.example.com/file/stuff as
+opposed to just I</file/stuff>).  At least if the heavy Apache can
+serve images, your site will still look normal.  If the request is in
+a password-protected area, then the user may have to log in twice.
+
+If the heavy and light Apaches do not share the same C<DocumentRoot>
+(normal if they are on different servers) and/or the heavy Apache
+cannot serve images, then all your pages will be imageless.  This is a
+fairly compelling reason to run your light and heavy servers on the
+same machine and to have them share a C<DocumentRoot>.
+
+Regardless of how hard you try to eliminate C<:8080>s, they will crop
+up from time to time.  You should occasionally examine the access_log
+of the heavy Apache.  Assuming you aren't bothering to log requests
+that come via the light Apache, any requests that appear should be
+investigated.
+
+Interestingly, if the final catch-all C<RedirectRule> is to
+C<localhost:8080>, it is possible that C<localhost> will leak into
+stray client redirects.  Moral: use your server's name in redirects,
+unless you have a very good reason not to.
+
+=item * Security
+
+Because all http requests will appear to your Perl scripts to be
+coming from the light httpd, you must be careful not to authenticate
+based on the IP address from which a request came.  This can be easy
+to overlook if you are moving from a single-server to a dual-server
+configuration.
+
+The URLs that return the I</server-status> and I</perl-status> of your
+Apache servers are often protected based on IP address.  The
+I</server-status> URL for the heavy server is probably safe if the
+light Apache also defines an identical I</server-status> URL, but the
+I</perl-status> URL should be protected.
+
+If you must authenticate based on IP address, you should either make
+sure that the light Apache's IP address is not in any way privileged
+or you should block access to port C<8080> from anywhere except the
+light Apache's IP address.
+
+If your heavy and light httpds can both serve static content (where
+C<:8080>s only affect URLs - not content), then blocking port C<8080>
+is not recommended.  After all, if a user gets onto port C<8080> in
+this scenario, the worst that will happen is that URLs will look odd.
+
+Note that if you are using the
+L<C<X-Forwarded-For>|scenario/Building_and_Using_mod_proxy> HTTP
+header, then this subsection is of limited relevance to you.
+
+=back
+
+
+=head1 Building and Using mod_proxy
+
+To build it into apache just add B<--enable-module=proxy> during the
+Apache B<configure> stage.
+
+Now we will talk about Apache's mod_proxy and understand how it works.
+
+The server on port 80 answers http requests directly and proxies the
+mod_perl enabled server in the following way:
+
+  ProxyPass        /modperl/ http://localhost:81/modperl/
+  ProxyPassReverse /modperl/ http://localhost:81/modperl/
+
+C<ProxyPassReverse> is the saving grace here, that makes Apache win
+over Squid.  It rewrites the redirect on its way back to the original
+URI.
+
+The proxy has a receive buffer for output from the heavy server.  You
+can control the buffer size with C<ProxyReceiveBufferSize> directive:
+
+  ProxyReceiveBufferSize 16384
+
+The above setting will set a buffer size to be of 16Kb.  If it is not
+set explicitly or if it is set to 0 then the default buffer size is
+used.  The number should be an integral multiple of 512.
+
+To release the mod_perl server from waiting for the data transfer
+after it has done all the processing, C<ProxyReceiveBufferSize> should
+if possible be set to a value greater than the biggest response
+produced by any mod_perl script, but no bigger.  But you have an
+improvement even if the buffer isn't always big enough to absorb all
+the data, since those heavy processes that generate less output will
+be released immediately.
+
+Both the default and the maximum possible value of
+C<ProxyReceiveBufferSize> depend on the Operating System.  For example
+on Linux with kernel 2.2.5 the maximum and default values are either
+32k or 64k (hint: grep the kernel sources for the C<SK_RMEM_MAX>
+variable).  If you set the value bigger than the limit, the default
+value will be used.
+
+Under FreeBSD it's possible to configure the kernel to have bigger
+socket buffers:
+
+ % sysctl -w kern.ipc.maxsockbuf=2621440
+
+When you tell the kernel to use bigger sockets you can set bigger
+values for I<ProxyReceiveBufferSize>. e.g. 1Mb (1048576).
+
+As the name states, its buffering feature applies only to B<downstream
+data> (coming from the origin server to the proxy) and not upstream
+data.  There is no buffering of data being uploaded from the client
+browser to the proxy, thus you cannot use this technique to prevent
+the httpd_perl server from being tied up during a large POST such as a
+file upload.
+
+Apache does caching as well.  It's relevant to mod_perl only if you
+produce proper headers, so your scripts' output can be cached.  See
+the Apache documentation for more details on configuration of this
+capability.
+
+Ask Bjoern Hansen has written the C<mod_proxy_add_forward> module for
+Apache.  It sets the C<X-Forwarded-For> field when doing a
+C<ProxyPass>, similar to what Squid can do.  Its location is specified
+in the help section.  Basically, this module adds an extra HTTP header
+to proxying requests.  You can access that header in the
+mod_perl-enabled server, and set the IP address of the remote server.
+You won't need to compile anything into the back-end server.
+
+If you are using C<Apache::{Registry,PerlRun}> just put something like
+the following into I<startup.pl>:
+
+  sub My::ProxyRemoteAddr ($) {
+    my $r = shift;
+   
+    # we'll only look at the X-Forwarded-For header if the requests
+    # comes from our proxy at localhost
+    return OK unless ($r->connection->remote_ip eq "127.0.0.1");
+  
+    # Select last value in the chain -- original client's ip
+    if (my ($ip) = $r->headers_in->{'X-Forwarded-For'} =~ /([^,\s]+)$/) {
+      $r->connection->remote_ip($ip);
+    }
+        
+    return OK;
+  }
+
+And in C<httpd.conf>:
+
+  PerlPostReadRequestHandler My::ProxyRemoteAddr
+
+Different sites have different needs.  If you use the header to set
+the IP address, Apache believes it.  This is reflected in the logging
+for example.  You really don't want anyone but your own system to set
+the header, that's why the above "recommended code" checks where the
+request really came from before changing C<remote_ip>.
+
+Generally you shouldn't trust the C<X-Forwarded-For> header.  You only
+want to rely on C<X-Forwarded-For> headers from proxies you control
+yourself.  If you know how to spoof a cookie you've probably got the
+general idea on making HTTP headers and can spoof the
+C<X-Forwarded-For> header as well.  The only address you can count on
+as being a reliable value is the one from
+C<r-E<gt>connection-E<gt>remote_ip>.
+
+From that point on, the remote IP address is correct.  You should be
+able to access C<REMOTE_ADDR> as usual.
+
+It was reported that Ben Laurie's Apache-SSL does not seem to put the
+IP addresses in the C<X-Forwarded-For> header--it does not set up such
+a header at all.  However, the C<REMOTE_ADDR> it sets up and contains
+the IP address of the original client machine.
+
+You could do the same thing with other environment variables, although
+I think several of them are preserved.  You should run some tests or,
+maybe better, inspect the code to see which.
+
+
+=head1 HTTP Authentication With Two Servers Plus a Proxy
+
+Assuming that you have a setup of one "front-end" server, which
+proxies the "back-end" (mod_perl) server, if you need to perform
+authentication in the "back-end" server it should handle all
+authentication itself.  If Apache proxies correctly, it will pass
+through all authentication information, making the "front-end" Apache
+somewhat "dumb", as it does nothing but pass through the information.
+
+In the configuration file your C<Auth> stuff needs to be inside
+C<<Directory ...>> ... C<</Directory>> sections because if you use a
+C<<Location ...>> ... C<</Location>> section the proxy server will
+take the authentication information for itself and not pass it on.
+
+The same applies to mod_ssl, if plugged into a front-end server.  It
+will properly encode/decode all the SSL requests.
+
+=cut
+

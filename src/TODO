@@ -1,0 +1,997 @@
+
+When you do use locking, be very very careful if you use Apache::DBI or
+similar persistent connections. MySQL threads keep tables locked until
+the thread ends (connection is closed) or the tables are unlocked. If your
+session die()'s while tables are locked, they will stay neatly locked as
+your connection won't be closed either .... This was a nasty one I bumped
+in to ...
+
+###########################################
+
+scenario: "One Light and One Heavy Server where ALL htmls are
+Perl-Generated" introduced a lot of info duplication in its tricks
+section! remove/modify/merge it.
+
+###########################################
+
+What's needed in order to sucessfully debug segfaulting modules under gdb:
+
+Apache::DB/ httpd -X -D DEBUG
+
+> if you set OPTMIZE => '-g', in the Makefile.PL and start httpd under gdb,
+> it's easy to debug.
+###########################################
+
+add mod_info to config.pod
+
+#
+# Allow remote server configuration reports, with the URL of
+#  http://servername/server-info (requires that mod_info.c be loaded).
+# Change the ".your_domain.com" to match your domain to enable.
+#
+#<Location /server-info>
+#    SetHandler server-info
+#    Order deny,allow
+#    Deny from all
+#    Allow from .your_domain.com
+#</Location>
+
+###########################################
+
+Check that you code examples/snippets don't include Y2K bugs! search
+for localtime
+
+###########################################
+
+Add: Low-Cost Unix Database Differences
+http://www.toodarkpark.org/computers/dbs.html
+to the databases
+
+###########################################
+(merge of status.pod and debug.pod)
+
+I think of merging the Apache::Status and the Debug sections since
+both are very relative and Apache::Status allows you to debug the code
+in some extend.
+
+ META: I think to move here the code to trap errors, to produce nice
+ messages to user: when the error occurs because of the user mistake,
+ or something went wrong on the server side. We user errors, add some
+ code that deployes a CGI's stickiness of variables, so you display
+ just the erroneous fields (give an code snippet from User Subscribe
+ from singlesheaven). Notice that error handling is an art, if you are
+ really concerned for users to be loyal and stay with your service.
+
+like Doug said:
+
+A virtuous Apache module must let at least two people know when a
+problem has occurred: you, the module's author, and the remote user.
+You can communicate errors and other exception conditions to yourself
+by writing out entries to the server log.  For alerting the user when
+a problem has occurred, you can take advantage of the simple but
+flexible Apache ErrorDocument system, use I<CGI::Carp>, or roll your
+own error handler.
+
+#####################################################################
+
+Important for both book and guide: The strategy chapter talks about
+performance improve among other things. The performance chapter
+doesn't mention it (refer to it). But this is a very important part of
+it.
+
+#####################################################################
+
+Include very important performance improve notes from:
+
+http://www.apache.org/docs/misc/perf-tuning.html
+http://www.apache.org/docs/misc/perf.html
+
+#####################################################################
+
+move "How can I tell whether mod_perl is running" from install.pod to
+control.pod!
+
+#####################################################################
+
+add benchmarks with keep-alive and without them!
+
+
+#####################################################################
+
+Notice this package in debug section.
+
+Devel::Symdump - dump symbol names or the symbol table
+
+Apache::Status uses it to show the process' internals
+
+#####################################################################
+
+
+#####################################################################
+
+
+#####################################################################
+
+#####################################################################
+
+#####################################################################
+
+Describe the BackLog (performance...)
+
+On that note you might want to set the BackLog parameter (I forget the precise
+name), it depends on whether you want users to wait indefinitely or just get
+an error.
+
+
+
+
+#####################################################################
+
+> > What is the best way to have a Location directive apply to an entire
+> > site except for a single directory?
+> 
+> Set the site-wide handler in a <Location "/"> and override the handler
+> for the "register" dir by setting the default handler in <Location
+> "/register">.  Unfortuntaly, I don't know the name of the default
+> handler.
+
+   SetHandler default-handler
+
+
+
+#####################################################################
+
+META: add a section about setting and passing environment variables:
+It includes and merges (PerlSetVar, SetVar and Pass*), %ENV, (creating
+your own directives?), subprocess
+
+Notes:
+
+
+* I'd suggest using $r->subprocess_env() instead.
+I guess %ENV will work in many situations, but it might bite you later
+when you can't figure out why a particular env variable isn't getting set
+in certain situations (speaking from experience).
+
+
+* I was going to suggest that too.  %ENV controls the environment
+of the currently running Perl process, but child processes come from
+the "subprocess env", which only the call above sets.
+
+
+
+
+#####################################################################
+
+
+#######################################################################
+
+Add a MOD_PERL_TRACE=all example...
+
+An email:
+
+> > > Any suggestions?  How might I debug this?
+> > 
+> > hmm, can you put a warn() trace in your sub SiteMap, I wonder if it's
+> > called the first time, but util.pm is not reloaded when Apache restarts
+> > itself on startup.  
+> > any difference if you turn Off PerlFreshRestart?
+> > is mod_perl configured as a dso or static?
+> > 
+> > -Doug
+> 
+> mod_perl is static (my initial message included commands I used to build
+> mod_perl/apache).
+> 
+> PerlFreshRestart Off  has no effect.
+> 
+> It does look like it's failing to load on the second pass, though, since I
+> get one response from the "warn" you suggested:
+> 
+>       # bin/httpd -X
+>       util.pm: MSELproxy::util about to bootstrap MSELproxy::util ...
+>       [Fri Oct  1 00:43:05 1999] null: ...saw SiteMap...
+>       Syntax error on line 14 of /usr/local/apache/conf/perl.conf:
+>       Invalid command 'SiteMap', perhaps mis-spelled or defined by a
+>       module not included in the server configuration
+
+
+
+... more evidence ...  output of 
+# MOD_PERL_TRACE=all bin/httpd -X
+
+perl_parse args: '/dev/null' ...allocating perl interpreter...ok
+constructing perl interpreter...ok
+ok
+running perl interpreter...ok
+mod_perl: 0 END blocks encountered during server startup
+perl_cmd_require: conf/perl-startup.pl
+attempting to require `conf/perl-startup.pl'
+loading perl module 'Apache::Constants::Exports'...ok
+loading perl module 'Apache'...ok
+loading perl module 'MSELproxy::util'...[Fri Oct  1 00:54:26 1999]
+        util.pm: MSELproxy::util about to bootstrap MSELproxy::util ...
+ok
+loading perl module 'Apache'...ok
+loading perl module 'MSELproxy::AccessManager'...ok
+loading perl module 'Apache'...ok
+loading perl module 'MSELproxy::OCLC'...ok
+loading perl module 'Apache'...ok
+loading perl module 'MSELproxy::RLG'...ok
+blessing cmd_parms=(0xbfffdb2c)
+[Fri Oct  1 00:54:26 1999] null: ...saw SiteMap...              <---
+[root@pembroke apache]# loading perl module 'Apache'...ok
+perl_startup: perl aleady running...ok
+loading perl module 'Apache'...ok
+cmd_cleanup: SvREFCNT($MSELproxy::util::$obj) == 1
+cmd_cleanup: SvREFCNT($MSELproxy::util::$obj) == 1
+loading perl module 'Apache'...ok
+perl_cmd_require: conf/perl-startup.pl
+attempting to require `conf/perl-startup.pl'
+loading perl module 'Apache'...ok
+loading perl module 'MSELproxy::util'...ok
+loading perl module 'Apache'...ok
+loading perl module 'MSELproxy::AccessManager'...ok
+loading perl module 'Apache'...ok
+loading perl module 'MSELproxy::OCLC'...ok
+loading perl module 'Apache'...ok
+loading perl module 'MSELproxy::RLG'...ok
+Syntax error on line 14 of /usr/local/apache/conf/perl.conf:
+Invalid command 'SiteMap', perhaps mis-spelled or defined by a module not
+included in the server configuration
+
+#######################################################################
+
+
+###################################
+
+###################################
+
+
+IPC: http://www.cpan.org/modules/by-module/IPC/
+
+ see IPC::MM, interface to rse's libmm, worth a look I'm sure.
+ IPC::ShareLite
+ IPC::Shareable (there is an example in the Perl Cookbook)
+
+
+From: Tom Christiansen <tchrist@jhereg.perl.com>
+To: Eric Cholet <cholet@logilune.com>
+Cc: "'modperl@apache.org'" <modperl@apache.org>,
+     'Mahesh Ganesan' <mGanesan@mvsn.com>
+Subject: Re: MOD_PERL question 
+
+>> Can you kindly explain the above with an example.
+
+>I've never used IPC::Shareable. "perldoc IPC::Shareable" should tell you<SNIP>
+
+Here's my perennial example:
+
+    use IPC::Shareable;
+
+    $handle = tie $buffer, 'IPC::Shareable', undef, { destroy => 1 };
+    $SIG{INT} = sub { die "$$ dying\n" };
+
+    for (1 .. 10) { 
+        unless ($child = fork) {        # i'm the child
+            die "cannot fork: $!" unless defined $child;
+            squabble();
+            exit;
+        } 
+        push @kids, $child;  # in case we care about their pids
+    }
+
+    while (1) {
+        print "Buffer is $buffer\n";
+        sleep 1;
+    } 
+    die "Not reached";
+
+    sub squabble {
+        my $i = 0;
+        while (1) { 
+            next if $buffer =~ /^$$\b/o;  
+            $handle->shlock();
+            $i++;
+            $buffer = "$$ $i";
+            $handle->shunlock();
+        }
+    } 
+
+I've had problems with the build of IPC::Shareable on my current
+system.  Its "make test" fails, and true enough, the Apache::SpeedLimit
+module conseuqently fails.  Some random linux and/or glibc bug, perhaps.
+
+
+
+###################################
+
+###################################
+
+=> Security
+
+It's a good idea to protect your various monitors like perl-status and
+alike by password. The less information you provide for intruders, the
+harder their break in task would be!!! (One of the biggest helps you
+can provide for these bad guys is showing them all the scripts you use
+if some of them are in public domain, while they can find out most of
+them by browsing your site. The moment they know the name of the
+script, they can grab the source of the script from the web (where the
+script has come from) and learn the source and probably find a few or
+even many security breaches. Security but obscurity doesn't really
+works against a determined intruder but it definitely helps to wave
+away some of the less determined malicious fellas.
+
+e.g:
+
+<Location /sys-monitor>
+  SetHandler perl-script
+  PerlHandler Apache::VMonitor
+  AuthUserFile /home/httpd/perl/.htpasswd
+  AuthGroupFile /dev/null
+  AuthName "SH Admin"
+  AuthType Basic
+  <Limit GET POST>
+    require user foo bar
+  </Limit>
+</Location>
+
+And the passwd file:
+  /home/httpd/perl/.htpasswd:
+  foo:1SA3h/d27mCp
+  bar:WbWQhZM3m4kl
+
+###################################
+
+
+> THere's nothing wrong with Ralf's guide per se, but I think
+> you should mention in your Adding a proxy server section that
+> mod_rewrite might be necessary if dynamic content is intermixed
+> with static content.
+  
+That sounds reasonable indeed. I'll add it. Don't understand me wrong -   
+I'm not against adding more things, I'm again duplication, which creates a
+mess. So once you made it clear, we need that - I'll certainly add it.
+
+Would you add something about using mod_rewrite to handle my scenario
+to the guide?
+
+Perhaps what you're looking for resembles this:
+
+RewriteRule ^/(images|static)/ - [S=1]
+RewriteRule (.+) http://backend$1 [P,L]
+
+John D Groenveld wrote:
+> 
+> I've been using mod_proxy
+> to proxypass my static content away from my /modperl
+> directories. Now, I'd like to make my root
+> dynamic and thus pass everything except /images and
+> /static.
+> I've looked at the guide and tuning  docs, as well
+> as the mod_proxy docs, but I must be missing
+> something.
+
+
+###################################
+
+
+###################################
+
+
+###################################
+
+
+###################################
+
+
+###################################
+
+
+
+
+###################################
+
+###################################
+
+
+###################################
+
+Just a snippet to try...
+
+try this (in the mod_perl-x.xx directory):
+
+% make start_httpd
+% strace -o strace.out -p `cat t/logs/httpd.pid` &
+% make run_tests
+% grep open stace.out | grep .htaccess > send_to_modperl_list
+% make kill_httpd
+
+and send us that file.  I have the feeling there's a .htaccess in your
+tree that the process can't read.
+
+###################################
+
+Apache::RegistryNG is just waiting for more people to bang on it.  so, if
+you make your module a sub-class of Apache::RegistryNG, that will help
+things move forward a bit :)
+
+###################################
+
+At the strategy sections put (first work on it):
+
+=head1 REDUCING THE NUMBER OF LARGE PROCESSES
+
+Unfortunately, simply reducing the size of each HTTPD process is not
+enough on a very busy site.  You also need to reduce the quantity of
+these processes.  This reduces memory consumption even more, and
+results in fewer processes fighting for the attention of the CPU.  If
+you can reduce the quantity of processes to fit into RAM, your
+response time is increased even more.
+
+The idea of the techniques outlined below is to offload the normal   
+document delivery (such as static HTML and GIF files) from the
+mod_perl HTTPD, and let it only handle the mod_perl requests.  This 
+way, your large mod_perl HTTPD processes are not tied up delivering
+simple content when a smaller process could perform the same job more
+efficiently.
+
+In the techniques below where there are two HTTPD configurations, the 
+same httpd executable can be used for both configurations; there is no
+need to build HTTPD both with and without mod_perl compiled into it.
+With Apache 1.3 this can be done with the DSO configuration -- just  
+configure one httpd invocation to dynamically load mod_perl and the 
+other not to do so.  
+ 
+These approaches work best when most of the requests are for static
+content rather than mod_perl programs.  Log file analysis become a bit
+of a challenge when you have multiple servers running on the same
+host, since you must log to different files.
+
+=head2 TWO MACHINES
+
+The simplest way is to put all static content on one machine, and all
+mod_perl programs on another.  The only trick is to make sure all
+links are properly coded to refer to the proper host.  The static
+content will be served up by lots of small HTTPD processes (configured
+I<not> to use mod_perl), and the relatively few mod_perl requests
+can be handled by the smaller number of large HTTPD processes on the
+other machine.
+
+The drawback is that you must maintain two machines, and this can get
+expensive.  For extremely large projects, this is the best way to go.
+
+=head2 TWO IP ADDRESSES
+
+Similar to above, but one HTTPD runs bound to one IP address, while
+the other runs bound to another IP address.  The only difference is 
+that one machine runs both servers.  Total memory usage is reduced 
+because the majority of files are served by the smaller HTTPD
+processes, so there are fewer large mod_perl HTTPD processes sitting
+around.
+
+This is accomplished using the F<httpd.conf> directive C<BindAddress> 
+to make each HTTPD respond only to one IP address on this host.  One
+will have mod_perl enabled, and the other will not.
+
+=head2 USING ProxyPass WITH TWO SERVERS
+
+To overcome the limitation of the alternate port above, you can use
+dual Apache HTTPD servers with just slight difference in
+configuration.  Essentially, you set up two servers just as you would
+with the two port on same IP address method above.  However, in your
+primary HTTPD configuration you add a line like this:
+
+ ProxyPass /programs http://localhost:8042/programs
+
+Where your mod_perl enabled HTTPD is running on port 8042, and has
+only the directory F<programs> within its DocumentRoot.  This assumes 
+that you have included the mod_proxy module in your server when it was
+built.
+
+Now, when you access http://www.domain.com/programs/printenv it will
+internally be passed through to your HTTPD running on port 8042 as the
+URL http://localhost:8042/programs/printenv and the result relayed
+back transparently.  To the client, it all seems as if it is just one
+server running.  This can also be used on the dual-host version to
+hide the second server from view if desired.
+
+=begin html
+<P>
+A complete configuration example of this technique is provided by
+two HTTPD configuration files.
+<A HREF="httpd.conf.txt">httpd.conf</A> is for the main server for all
+regular pages, and <A HREF="httpd%2bperl.conf.txt">httpd+perl.conf</A> is
+for the mod_perl programs accessed in the <CODE>/programs</CODE> URL. 
+
+
+The directory structure assumes that F</var/www/documents> is the
+C<DocumentRoot> directory, and the the mod_perl programs are in
+F</var/www/programs> and F</var/www/rprograms>.  I start them as
+follows:
+
+ daemon httpd
+ daemon httpd -f conf/httpd+perl.conf
+
+=head2 SQUID ACCELERATOR
+
+Another approach to reducing the number of large HTTPD processes on
+one machine is to use an accelerator such as Squid (which can be found
+at http://squid.nlanr.net/Squid/ on the web) between the clients and
+your large mod_perl HTTPD processes.  The idea here is that squid will
+handle the static objects from its cache while the HTTPD processes 
+will handle mostly just the mod_perl requests once the cache is
+primed.  This reduces the number of HTTPD processes and thus reduces
+the amount of memory used.
+
+To set this up, just install the current version of Squid (at this  
+writing, this is version 1.1.22) and use the RunAccel script to start
+it.  You will need to reconfigure your HTTPD to use an alternate port,
+such as 8042, rather than its default port 80.  To do this, you can
+either change the F<httpd.conf> line C<Port> or add a C<Listen>   
+directive to match the port specified in the F<squid.conf> file.  
+Your URLs do not need to change.  The benefit of using the C<Listen>  
+directive is that redirected URLs will still use the default port 80
+rather than your alternate port, which might reveal your real server 
+location to the outside world and bypass the accelerator.
+
+In the F<squid.conf> file, you will probably want to add C<programs>
+and C<perl> to the C<cache_stoplist> parameter so that these are
+always passed through to the HTTPD server under the assumption that
+they always produce different results.
+
+This is very similar to the two port, ProxyPass version above, but the
+Squid cache may be more flexible to fine tune for dynamic documents
+that do not change on every view.  The Squid proxy server also seems
+to be more stable and robust than the Apache 1.2.4 proxy module.
+
+One drawback to using this accelerator is that the logfiles will   
+always report access from IP address 127.0.0.1, which is the local
+host loopback address.  Also, any access permissions or other user
+tracking that requires the remote IP address will always see the local
+address.  The following code uses a feature of recent mod_perl
+versions (tested with mod_perl 1.16 and Apache 1.3.3) to trick Apache
+into logging the real client address and giving that information to
+mod_perl programs for their purposes.
+
+
+First, in your F<startup.perl> file add the following code:
+
+ use Apache::Constants qw(OK);
+
+ sub My::SquidRemoteAddr ($) {
+   my $r = shift;
+
+   if (my ($ip) = $r->header_in('X-Forwarded-For') =~ /([^,\s]+)$/) {
+     $r->connection->remote_ip($ip);
+   }
+
+   return OK;
+ }
+
+Next, add this to your F<httpd.conf> file:
+
+ PerlPostReadRequestHandler My::SquidRemoteAddr
+
+This will cause every request to have its C<remote_ip> address
+overridden by the value set in the C<X-Forwarded-For> header added by
+Squid.  Note that if you have multiple proxies between the client and
+the server, you want the IP address of the last machine before your
+accelerator.  This will be the right-most address in the
+X-Forwarded-For header (assuming the other proxies append their
+addresses to this same header, like Squid does.)
+   
+If you use apache with mod_proxy at your frontend, you can use Ask
+Bjørn Hansen's mod_proxy_add_forward module from
+ftp://ftp.netcetera.dk/pub/apache/ to make it insert the
+C<X-Forwarded-For> header.
+  
+
+###################################
+
+###################################
+
+
+
+###################################
+
+
+###################################
+
+config.pod:
+
+use Eric's presentation:
+
+http://conferences.oreilly.com/cd/apache/presentations/echolet/contents.html
+
+###################################
+
+mod_perl Humour.
+
+* mod_perl for embedded devices:
+
+Q: mod_perl for my Palm Pilot dumps core when built as a DSO, and
+the Palm lacks the memory to build statically, what should I do?
+
+A: you should get another Palm Pilot to act as a reverse proxy
+
+by Eric Cholet.
+
+
+#################################################
+
+#################################################
+
+DBI tips to improve performance:
+
+Need to work on the snippets below:
+
+
+What if the user_id has something that needs to be quoted?  I speak
+of the general case.  User data should not get anywhere *near* an SQL
+line... it should always be inserted via placeholders or very very
+careful consideration to quoting.
+
+
+Ahh, I see. I basically do the latter, with $dbh->quote. The contents of
+$Session are entirely system-generated. The user gives a ticket through
+the URL, yes, but that is parsed and validated and checked for presence in
+the DB before you even get to code that works like I had described.
+
+I agree - but you should always be aware of the issues with using
+placeholders for the database engine that you use. Sybase in
+particular has a deficient implementation, which tends to run out of
+space and creates locking contention. Using stored procs instead is a
+lot better (although it doesn't solve the quoting problems).
+
+OTOH, Oracle caches compiled SQL, and using placeholders means it's not
+caching SQL with specific data in it. The values can get bound into the
+compiled SQL just as easily, and it speeds things up by a noticable amount
+(factor of ~3 in my tests)
+
+If we are on this topic, I have a few questions. I've just read the DBI
+manpage, there is a prepare_cached() call. It's useless in mod_cgi if used
+only once with the same params across the script. If I use Apache::DBI,
+and replace all prepare statements (which include placeholders) with
+prepare_cached(). Does it mean that like with modules preloading , the
+prepare will be called only once per unique statements thru the whole life
+of the child?
+
+Otherwise a usage of placeholders is useless, if you do only one execute() 
+call per unique prepare() statement. The only benefit is of DBI taking
+handle of quoting the values for you. 
+
+I don't remember someone mentioned prepare_cached() ever. What's the
+verdict?
+
+
+
+Simply adding the "_cached" to "prepare()" in one of my utilities
+increased the performance eight fold (Oracle non-mod_perl environment).
+
+I don't know the fine points of if it is possible to share cached
+prepares across children (can you even fork with db connections?), but
+if your code is doing the same query(ies) over and over, definitly give
+it a try. 
+
+Not necessarily; it depends on your database. Oracle does caching which
+persists until it needs the space for something else; if you're finding
+information about customers, it's much more efficinet for there to be one
+entry in the library cache like this:
+
+        select * from customers where customer_id = :p1
+
+than it is for there to be lots of them like:
+
+        select * from customers where customer_id = 123
+        select * from customers where customer_id = 465
+        select * from customers where customer_id = 789
+
+since Oracle has to parse, compile and cache each one separatley. 
+
+I don't know if other databases do this kind of caching. 
+
+Ok, this makes sense. I just read the MySQL manual - with all grief, it
+doesn't cache :(
+
+So, I still think to use prepare_cached() to cache on the DBI behalf, but
+it's said to work thru the life of $dbh and since my $dbh is my() lexicall
+variable, I don't understand whether I get this benefit or not? I know
+that Apache::DBI maintains a pool of connections, does it preserver the
+cache of prepare statements as well (I mean does it preserve the whole 
+$dbh object )? If it does, I get a speedup at least a speedup for the
+whole life of a single connection. I think that the speedup is even better
+than the one you have been talking about, since if Oracle caches the
+prepare statement, DBI still reachs out for Oracle, if it's local cache we
+get a little more save ups. 
+
+Anyone deployes the scenario I have tried to present here? Seems like a
+good candidate for a performance chapter of the guide if it really
+makes speed better...
+
+The statement cursors will be cached per $dbh, which Apache::DBI
+caches, so there is an extreme performance boost... as your 
+application runs caching all its cursors, database queries will 
+become execution speed, no query parsing will be involved anymore.
+
+On Oracle, the performance improvement I saw was 100% by using
+prepare_cached functionality.
+
+If you have just a small number of web servers, the caching difference
+between Oracle & MySQL will be small on the db end.  Its when you have
+a lot of DBI handles that things might get inefficient.  But I'm 
+sure you are running a proxy front end, right Stas? :)
+
+Be warned: there are some pitfalls associated with prepare_cached().
+It actually gives you a reference to the *same* cached statement
+handle, not just a similar copy.  So you can't do this:
+
+my $sth1 = $dbh->prepare_cached('select name from table where id=?');
+my $sth2 = $dbh->prepare_cached('select name from table where id=?');
+
+$sth1 & $sth2 are now the same object!  If you try to use them
+independently, they'll stomp all over each other.
+
+That said, prepare_cached() can be a huge win when using a slow
+database like Oracle.  For mysql, it doesn't seem to help much, since
+mysql is so darn fast at preparing its statements.
+
+Sometimes you have to be careful about that, yes.  For instance, I was
+repeatedly executing a statement to insert data into a varchar column.  The
+first value to insert just happened to be a number, so DBD::mysql thought that
+it was a numeric column, and subsequent insertions failed using that same
+statement handle.
+
+I'm not sure what the correct solution should have been in that case, but I
+reverted back to calling $dbh->quote($val) and putting it directly into the
+SQL.  My opinion is that mysql should do a better job of figuring out which
+fields are actually numeric and which are strings - i.e. get the info from the
+database, not from the format of the data I'm passing it.
+
+
+
+Actually, I'm a big fan of placeholders.  I think they make the
+programming task a lot easier, since you don't have to worry about
+quoting data values.  They can also be quite nice when you've got
+values in a nice data structure and you want to pass them all to the
+database - just put them in the bound-vars list, and forget about
+constructing some big SQL string.
+
+I believe mysql just emulates true placeholders by doing the quoting,
+etc. behind the scenes.  So it's probably not much faster to use
+placeholders than direct embedded values.  But I think placeholders
+are cleaner, generally, and more fun.
+
+In my experience, prepare_cached() is just a judgment call.  It hasn't
+seemed to be a big performance win for mysql, so sometimes I use it,
+sometimes I don't.  I always use it with Oracle, though.
+
+prepare_cached is implemented by the database handle (and really the
+database itself).  For example, in Oracle it speeds things up.  In MySQL,
+it is exactly the same as prepare() because DBD::mysql does not implement
+it because MySQL itself has no mechanism for doing this.
+
+As I said in a previous message, prepare_cached() don't cache anything
+under MySQL.  However, you can implement your own statement handle caching
+scheme pretty easily by either subclassing DBI or writing a DB
+access module of your own (my preferred method).
+
+my $db = MyDB->new;
+
+my $sql = 'SELECT 1';
+my $sth = $db->get_sth($sql);
+
+$sth->execute or die $dbh->errstr;
+my ($numone) = $sth->fetchrow_array;
+$sth->finish or die $dbh->errstr;  # This is doubly necessary with this
+caching scheme!
+
+sub get_sth
+{
+    my $self = shift;
+    my $sql = shift;
+
+    return $self->{sth_cache}->{$sql} if exists $self->{sth_cache}->{$sql};
+
+    $self->{sth_cache}->{$sql} = $self->{dbh}->prepare($sql) 
+	or die $self->{dbh}->errstr;
+
+    return $self->{sth_cache}->{$sql};
+}
+
+I've used that in a few situations and it appears to speed things up a
+bit.
+
+For mod_perl, we would probably want to make $self->{sth_cache} global.
+
+
+You know, I just benchmarked this on a machine running PostgreSQL and it
+didn't actually speed things up (or slow it down).  However, I suspect
+that under mod_perl if this were something that were globally shared
+inside a child process it might make a difference.  Plus it also depends
+on the database used.
+
+(Contributors: Randal L. Schwartz, Steve Willer, Michael Peppler, Mark
+Cogan, Eric Hammond, Russell D. Weiss, Joshua Chamas, Ken Williams, Peter Grimes)
+
+#################################################
+
+As a quick side note, I actually found that it's faster to write the logs
+directly into a .gz, and read them out of the .gz, through pipes.  It takes
+longer (significantly, by my experience) to read 100 megs from the drive
+than it does to compress or uncompress 5 megs of data.
+
+#################################################
+
+pick the mails from the mail: - extend subsection - opening
+subprocesses/forks...
+
+Move it to performance section!
+
+#################################################
+
+#################################################
+
+performance.pod - extend on Apache::TimeIt package
+
+#################################################
+
+Add a new section - contributing to the guide - with incentives and
+guidelines of contributions (diff against pod...)
+
+#################################################
+
+
+#################################################
+
+Add to the perl reference chapter:
+
+
+What's a closure?
+
+Closures are documented in the perlref manpage. 
+
+Closure is a computer science term with a precise but hard-to-explain meaning
+. Closures are implemented in Perl as anonymous subroutines with lasting
+references to lexical variables outside their own scopes. These lexicals magi
+cally refer to the variables that were around when the subroutine was defined
+(deep binding). 
+
+Closures make sense in any programming language where you can have the return
+ value of a function be itself a function, as you can in Perl. Note that some
+languages provide anonymous functions but are not capable of providing proper
+ closures; the Python language, for example. For more information on closures
+,
+check out any textbook on functional programming. Scheme is a language that n
+ot only supports but encourages closures. 
+
+Here's a classic function-generating function: 
+
+    sub add_function_generator {
+      return sub { shift + shift };
+    }
+
+    $add_sub = add_function_generator();
+    $sum = $add_sub->(4,5);                # $sum is 9 now.
+
+The closure works as a function template with some customization slots left o
+ut to be filled later. The anonymous subroutine returned by
+add_function_generator() isn't technically a closure because it refers to no 
+lexicals outside its own scope. 
+
+Contrast this with the following make_adder() function, in which the returned
+ anonymous function contains a reference to a lexical variable outside the
+scope of that function itself. Such a reference requires that Perl return a p
+roper closure, thus locking in for all time the value that the lexical had wh
+en the
+function was created. 
+
+    sub make_adder {
+        my $addpiece = shift;
+        return sub { shift + $addpiece };
+    }
+
+    $f1 = make_adder(20);
+    $f2 = make_adder(555);
+
+Now &$f1($n) is always 20 plus whatever $n you pass in, whereas &$f2($n) is a
+lways 555 plus whatever $n you pass in. The $addpiece in the
+closure sticks around. 
+
+Closures are often used for less esoteric purposes. For example, when you wan
+t to pass in a bit of code into a function: 
+
+    my $line;
+    timeout( 30, sub { $line = <STDIN> } );
+
+If the code to execute had been passed in as a string, '$line = <STDIN>', the
+re would have been no way for the hypothetical timeout() function to
+access the lexical variable $line back in its caller's scope. 
+
+
+#################################################
+
+#################################################
+
+security.pod : add Apache:Auth* modules
+
+#################################################
+
+
+#################################################
+
+examples of Apache::Session::DBI code:
+
+use strict;
+use DBI;
+use Apache::Session::DBI;
+use CGI;
+use CGI::Carp qw(fatalsToBrowser);
+
+# Recommendation from mod_perl_traps:
+use Carp ();
+local $SIG{__WARN__} = \&Carp::cluck;
+
+[...]
+
+# Initiate a session ID
+my $session = ();
+my $opts = {  autocommit => 0, 
+              lifetime   => 3600 };     # 3600 is one hour
+
+# Read in the cookie if this is an old session
+my $r = Apache->request;
+my $no_cookie = '';
+my $cookie = $r->header_in('Cookie');
+{
+    # eliminate logging from Apache::Session::DBI's use of `warn'
+    local $^W = 0;      
+
+    if (defined($cookie) && $cookie ne '') {
+        
+        $cookie =~ s/SESSION_ID=(\w*)/$1/;
+        $session = Apache::Session::DBI->open($cookie, $opts);
+        $no_cookie = 'Y' unless defined($session);
+    }
+
+    # Could have been obsolete - get a new one
+    $session = Apache::Session::DBI->new($opts) unless defined($session);
+
+}
+
+# Might be a new session, so let's give them a cookie back
+if (! defined($cookie) || $no_cookie) {
+    local $^W = 0;
+
+    my $session_cookie = "SESSION_ID=$session->{'_ID'}";
+    $r->header_out("Set-Cookie" => $session_cookie);
+}
+
+
+#################################################
+
+
+#################################################
+
+
+##########################################################################
+                                                     
+
+#################################################################
+
+
+##################################################################
+
+
+########################################################################
+
+
+########################################################################
+
+
+########################################################################
+
+
+
+
+

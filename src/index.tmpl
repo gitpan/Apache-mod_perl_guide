@@ -1,0 +1,175 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+<HEAD>
+   <TITLE>mod_perl Guide</TITLE>
+   <META NAME="Author" CONTENT="Stas Bekman">
+   <META NAME="Description" CONTENT="All Apache/Perl related information: Hints, 
+Guidelines, Scenarios and Troubleshottings">
+   <META NAME="keywords" CONTENT="mod_perl modperl perl cgi apache webserver speed 
+fast guide mod_perl apache guide help info faq mod_perl installation cgi
+troubleshooting help no sex speedup free open source OSS mod_perl apache guide">
+   <META HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=iso-8859-1">
+   <META NAME="Classification" CONTENT="information">
+</HEAD>
+
+    <LINK REL=STYLESHEET TYPE="text/css"
+        HREF="style.css" TITLE="refstyle">
+     <style type="text/css">
+     <!-- 
+        @import url(style.css);
+     -->
+     
+     </style>
+<BODY TEXT="#000000" BGCOLOR="#E0FFFF" LINK="#0000EE" VLINK="#551A8B" ALINK="#FF0000">
+
+<H1 ALIGN=CENTER>mod_perl Guide</H1>
+
+<CENTER><P><B>Deploying mod_perl technology to give a rocket speed
+to your CGI/perl scripts.</B></P></CENTER>
+
+<CENTER><P><B>Version [VERSION] [DATE]</B></P></CENTER>
+ 
+<P><HR WIDTH="100%"></P>
+
+<B>Mirror readers</B>: Make sure you read <A
+HREF="http://perl.apache.org/guide"> the latest copy</A>.
+
+<HR WIDTH="100%">
+
+<A HREF="#download">Download the Guide Here</A>.
+
+<HR WIDTH="100%">
+
+<H3>Table of Contents:</H3>
+
+<UL>
+
+[MAIN_TOC]
+
+</UL>
+
+<HR>
+
+    <UL>
+
+      <LI><A HREF="CHANGES"><B>CHANGES</B></A></LI>
+
+      <LI><A HREF="#search"><B>Search perl.apache.org along with this guide</B></A></LI>
+
+      <LI><A NAME="download"><B>Download</B></A>
+
+	<UL>
+
+	  <LI> 
+	    All the HTML files, POD sources and build scripts are
+	    available from <A
+	    HREF="http://www.perl.com/CPAN-local/authors/id/S/ST/STAS/">
+	    my directory at CPAN</A>.
+	  </LI>
+
+	  <LI> 
+	    Here is the <A HREF="mod_perl_guide.ps.gz"> Book-like
+	    version </A> (PDF format). Note that <CODE>gv</CODE>
+	    (<CODE>ghostviewer</CODE>) in addition to viewing PS
+	    files, knows to handle PDF files as well. Use
+	    <CODE>pdf2ps</CODE> utility to convert PDF to PS format if
+	    wanted to.
+	  </LI>
+
+	</UL>
+
+      </LI>
+
+    </UL>
+
+<HR>
+<P>
+
+	     The <a href="http://www.modperl.com/">
+	     <B>Writing Apache Modules with Perl and C</B></a>
+	     book can be purchased online from <a
+	     href="http://www.ora.com/catalog/wrapmod/">O'Reilly </a>
+	     and <a
+	     href="http://www.amazon.com/exec/obidos/ASIN/156592567X/writinapachemodu">
+	     Amazon.com</a>.
+<HR>
+<P>
+
+<HR>
+
+<A NAME="SEARCH"></A>
+
+<!--
+<CENTER>
+<TABLE BORDER=10 CELLSPACING=2 CELLPADDING=8 >
+<TR BGCOLOR="gray" ALIGN=CENTER VALIGN=TOP>
+<TD ALIGN=CENTER VALIGN=TOP>
+<FONT COLOR=WHITE>
+Search mod_perl FAQs along with this guide 
+<BR> at www.perlreference.com
+<FORM action="http://perlreference.com/cgi-bin/mod_perl/search.pl" method="GET">
+<INPUT type="text" name="q" value="" SIZE=15>
+<INPUT TYPE="submit" VALUE="Search">
+</FORM>
+</FONT>
+</TD></TR>
+</TABLE>
+</CENTER>
+-->
+
+<CENTER>
+<TABLE BORDER=10 CELLSPACING=2 CELLPADDING=8 >
+<TR BGCOLOR="gray" ALIGN=CENTER VALIGN=TOP>
+<TD ALIGN=CENTER VALIGN=TOP>
+<FONT COLOR=WHITE>
+Search perl.apache.org along with this guide.
+<FORM ACTION="http://search.apache.org/" METHOD="POST">
+<INPUT TYPE="text" NAME="keyword" value="" SIZE=15>
+<input type="hidden" name="what" value="perl">
+<input type="hidden" name="results" value=40>
+<INPUT TYPE="submit" VALUE="Search">
+</FORM>
+</FONT>
+</TD></TR>
+</TABLE>
+</CENTER>
+
+
+<CENTER><TABLE CELLSPACING=2 CELLPADDING=2 WIDTH="100%" >
+<TR ALIGN=CENTER VALIGN=TOP>
+<TD ALIGN=CENTER VALIGN=CENTER COLSPAN="3">
+<HR></TD>
+</TR>
+<TR ALIGN=CENTER VALIGN=TOP>
+<TD ALIGN=CENTER VALIGN=CENTER COLSPAN="3">
+Master Copy URL: <B>http://perl.apache.org/guide</B><BR>
+Copyright &copy; 1998-2000 Stas Bekman. All rights reserved.
+</TD>
+</TR>
+<TR ALIGN=CENTER VALIGN=TOP>
+<TD ALIGN=CENTER VALIGN=CENTER COLSPAN="3">
+<HR></TD>
+</TR>
+
+<TR ALIGN=CENTER VALIGN=TOP>
+<TD ALIGN=CENTER VALIGN=CENTER><B><FONT SIZE=-1>Written by <A
+HREF="help.html#This_document_s_Author">Stas Bekman</A>.<BR> Last Modified at [MODIFIED]
+</FONT></B></TD>
+
+<TD><A HREF="http://perl.apache.org"><IMG SRC="images/mod_perl2.jpg"  BORDER=0 ALT="Mod Perl Icon" BORDER=0 HEIGHT=59 WIDTH=150></A>
+</TD>
+
+<TD><FONT SIZE=-2>Use of the Camel for Perl is <BR>
+a trademark of <A HREF="http://www.ora.com">O'Reilly &amp; Associates</A>,<BR>
+and is used by permission. </FONT> </TD>
+</TR>
+</TABLE></CENTER>
+
+</BODY>
+</HTML>
+
+
+
+
+
+

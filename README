@@ -1,0 +1,29 @@
+NAME
+    mod_perl_guide - mod_perl Guide
+
+SYNOPSIS
+    Use your favorite Netscape Browser to read the guide after installing
+    the package.
+
+DESCRIPTION
+    This is a HTML version of the mod_perl guide. You can also see the
+    online version at http://perl.apache.org/guide .
+
+    mod_perl project's home page: http://perl.apache.org
+
+INSTALLATION
+    The guide is gets installed just like any other Perl module:
+
+      perl Makefile.PL
+      make install
+
+CORRECTIONS
+    Corrections and suggestions are welcome. If you submit patches, please
+    do that against the POD source files in *src* directory. Thank you!
+
+AUTHOR
+    Stas Bekman <sbekman@iname.com>
+
+SEE ALSO
+    perl(1), mod_perl(1).
+

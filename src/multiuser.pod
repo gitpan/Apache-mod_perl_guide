@@ -1,0 +1,174 @@
+title: mod_perl for ISPs. mod_perl and Virtual Hosts.
+
+=head1 ISPs providing mod_perl services - a fantasy or reality.
+
+You have fallen in love with mod_perl from the first sight, since the
+moment you have installed it at your home box. But when you wanted to
+convert your CGI scripts, currently running on your favorite ISPs
+machine, to run under mod_perl - you have discovered, your ISPs either
+have never heard of such a beast, or refuse to install it for you.
+
+You are an old sailor in the ISP business, you have seen it all, you
+know how many ISPs are out there and you know that the sales margins
+are too low to keep you happy. You are looking for some new service
+almost no one provides, to attract more clients to become your users
+and hopefully to have a bigger slice than a neighbor ISP.
+
+If you are a user asking for a mod_perl service or an ISP considering
+to provide this service, this section should make things clear for
+both of you.
+
+An ISP has 3 choices to choose from:
+
+=over 4
+
+=item 1
+
+ISP cannot afford having a user, running scripts under mod_perl, on
+the main server, since it will die very soon for one of the many
+reasons: either sloppy programming, or user testing just updated
+script which probably has some syntax errors and etc, no need to
+explain why if you are familiar with mod_perl peculiarities. The only
+scripts that B<CAN BE ALLOWED> to use, are the ones that were written
+by ISP and are not being modified by user (guest books, counters and
+etc - the same standard scripts ISPs providing since they were born).
+So you have to say B<NO> for this choice.
+
+More things to think about are file permissions (any user who is
+allowed to write and run CGI script, can at least read if not write
+any other files that has a permissions of the web server. This has
+nothing to do with mod_perl, and there are solutions for that
+C<suEXEC> and C<cgiwrap> for example) and C<Apache::DBI> connections
+(You can pick a connection from the pool of cached connenctions,
+opened by someone else by hacking the C<Apache::DBI> code).
+
+=item 2
+
+But, hey why I cannot let my user to run his own server, so I clean my
+hands off and do not care how dirty and sloppy user's code is
+(assuming that user is running the server by his own username).
+
+This option is fine as long as you are concerned about your new system
+requirements. If you have even some very limited experience with
+mod_perl, you know that mod_perl enabled apache servers while freeing
+up your CPU and lets you run scripts much much faster, has a huge
+memory demands (5-20 times the plain apache uses). The size depends on
+the code length, sloppiness of the programmer, possible memory leaks
+the code might have and all that multiplied by the number of children
+each server spawns. A very simple example : a server demanding 10Mb of
+memory which spawns 10 children, already rises your memory
+requirements by 100Mb (the real requirement are actually smaller if
+your OS allows code sharing between processes and a programmer
+exploits these features in her code). Now multiply the received number
+by the number of users you intend to have and you will get the memory
+requirements. Since ISPs never say no, you better use an opposite
+approach - think of a largest memory size you can afford then divide
+it by one user's requirements as I have shown in example, and you
+will know how much mod_perl users you can afford :)
+
+But who am I to prognosticate how much memory your user may use. His
+requirement from a single server can be very modest, but do you know
+how many of servers he will run (after all she has all the control
+over httpd.conf - and it has to be that way, since this is very
+essential for the user running mod_perl)?
+
+All this rumbling about memory leads to a single question: Can you
+restrict user from using more than X memory? Or another variation of
+the question: Assuming you have as much memory as you want, can you
+charge user for the average memory usage?
+
+If the answer for either of the above question is positive, you are
+all set and your clients will prize your name for letting them run
+mod_perl! There are tools to restrict resources' usage (See for
+example man pages for C<ulimit(3)>, C<getrlimit(2)>, C<setrlimit(2)>
+and C<sysconf(3)> ).
+
+<META> If you have an experience with some restriction techniques
+please share with us. Thank you! </META>
+
+If you have picked this choice, you have to provide your client:
+
+=over 4
+
+=item *
+
+Shutdown/startup scripts installed together with the rest of your
+daemon startup scripts (e.g C</etc/rc.d> directory) scripts, so when
+you reboot your machine user's server will be correctly shutdowned
+and will be back online the moment your system comes back online. Also
+make sure to start each server under username the server belongs to,
+if you are not looking for a big trouble.
+
+=item *
+
+Proxy (in a forward or httpd accelerator mode) services for user's
+virtual host. Since user will have to run her server on unprivileged
+port (>1024), you will have to forward all requests from
+C<user.given.virtual.hostname:80> (which is
+C<user.given.virtual.hostname> without port - 80 is a default) to
+C<your.machine.ip:port_assigned_to_user> and user to code his scripts
+to write self referencing URLs to be of C<user.given.virtual.hostname>
+base of course.
+
+Letting user to run a mod_perl server, immediately adds a requirement
+for user to be able to restart and configure their own server. But
+only root can bind port 80. That is why user has to use ports numbers
+>1024.
+
+
+=item *
+
+Another problem you will have to solve is how to assign ports between
+users. Since user can pick any port above 1024 to run his server on,
+you will have to make some regulation here. A simple example will
+stress the importance of this problem: I am a malicious user or I just
+a rival of some fellow who runs his own server on your ISP. All I
+should do is to find out what port his server is listening to
+(e.g. with help of C<netstat(8)>) and configure my own server to
+listen on the same port. While I am unable to bind to this same port,
+imagine what will happen when you reboot your system and my startup
+script happen to be run before my rivals! I get the port first, now
+all requests will be redirected to my server and let your imagination
+go wild about what nasty things might happen then. Of course the ugly
+things will be revealed pretty soon, but the damage has been done.
+
+=back
+
+
+=item 3
+
+A much better, but costly solution is B<co-location>. Let user to hook
+her (or ISP's) stand alone machine into your network, and forget about
+this user. Of course either user or you will have to make all the
+system administration chores and it will cost your client more
+money.
+
+All in all, who are the people who seek the mod_perl support? The ones
+who run serious projects/businesses, who can afford a stand alone box,
+thus gaining their goal of self autonomy and keeping their ISP happy.
+So money is not an obstacle.
+
+=back
+
+=head1 Virtual Hosts in the guide
+
+If you are about to use B<Virtual Hosts> you might want to read these
+sections:
+
+
+L<Perl Sections|config/_Perl_Perl_Sections>
+
+L<Easing the chores of configuring the virtual hosts with
+mod_macro|config/Configuring_Apache_mod_perl_wi>
+
+L<Is There a Way to Provide a Different startup.pl File for Each
+Individual Virtual Host|config/Is_There_a_Way_to_Provide_a_Diff>
+
+L<Is There a Way to Modify @INC on a Per-Virtual-Host or Per-Location
+Basis.|config/Is_There_a_Way_to_Modify_INC_on> 
+
+L<A Script From One Virtual Host Calls a Script with the Same Path
+From the Other Virtual Host|config/A_Script_From_One_Virtual_Host_C>
+
+=cut
+

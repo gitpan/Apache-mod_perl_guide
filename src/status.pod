@@ -1,0 +1,73 @@
+title: mod_perl Status. Peeking into the Server's Perl Innards
+
+=head1 Watching the server
+
+This is a very useful feature. You can watch what happens to the Perl parts of
+the server.  Here are the instructions for configuring and
+using this feature:
+
+=head2 Configuration
+
+Add this to http.conf:
+
+  <Location /perl-status>
+    SetHandler perl-script
+    PerlHandler Apache::Status
+    order deny,allow
+    #deny from all
+    #allow from 
+  </Location>
+
+If you are going to use C<Apache::Status> it's important to put it as the first module in the start-up
+file, or in the httpd.conf:
+
+  # startup.pl
+  use Apache::Registry ();
+  use Apache::Status ();
+  use Apache::DBI ();
+
+If you don't put C<Apache::Status> before C<Apache::DBI>, you wouldn't
+get C<Apache::DBI>'s menu entry in status.
+
+For more about C<Apache::DBI> see L<Persistent DB Connections|performance/Persistent_DB_Connections>.
+
+=head2 Usage
+
+Assuming that your mod_perl server listens on port 81, fetch
+http://www.myserver.com:81/perl-status
+
+  Embedded Perl version 5.00502 for Apache/1.3.2 (Unix) mod_perl/1.16 
+  process 187138, running since Thu Nov 19 09:50:33 1998
+
+Below all sections should be links:
+
+  Signal Handlers
+  Enabled mod_perl Hooks
+  PerlRequire'd Files
+  Environment
+  Perl Section Configuration
+  Loaded Modules
+  Perl Configuration
+  ISA Tree
+  Inheritance Tree
+  Compiled Registry Scripts
+  Symbol Table Dump
+
+Let's follow, for example, C<PerlRequire>'d Files.  We see:
+
+  PerlRequire                   Location
+  /home/perl/apache-startup.pl  /home/perl/apache-startup.pl
+
+From some menus you can continue deeper to peek into the internals of
+the server, to see the values of the global variables in the packages,
+to the cached scripts and modules, and much more. Just click around...
+
+=head2 Compiled Registry Scripts section seems to be empty.
+
+Sometimes when you fetch C</perl-status> and follow the B<Compiled
+Registry Scripts> you see no listing of scripts at all. This is
+absolutely correct: C<Apache::Status> shows the registry scripts
+compiled in the httpd child which is serving your request for
+/perl-status. If a child has not compiled yet the script you are
+asking for, /perl-status will just show you the main menu.
+

@@ -1,0 +1,607 @@
+title: Warnings and Errors Troubleshooting Index
+
+=head1 General Advice 
+
+Having the warnings turned on, immensly helps to detect possible
+problems. See L<The Importance of
+Warnings|debug/The_Importance_of_Warnings>.
+
+Enabling C<use diagnostics;> generally helps you to determine the
+source of the problem and how to solve it. See L<diagnostics
+pragma|debug/diagnostics_pragma> for more info.
+
+
+
+
+
+
+
+
+=head1 Building and Installation 
+
+See L<make Troubleshooting|install/make_Troubleshooting> and
+L<make test Troubleshooting|install/make_test_Troubleshooting>
+
+
+
+
+
+
+
+
+
+
+=head1 Configuration and Startup
+
+This section talks about errors reported when you attempt to start the
+server.
+
+
+
+
+=head2 libexec/libperl.so: open failed: No such file or directory
+
+If when you run the server you get the following error:
+
+  libexec/libperl.so: open failed: No such file or directory
+
+The above error seems to indicate that perl was compiled with a shared
+library. mod_perl does detect this and links the apache executable to
+the perl shared library (I<libperl.so>).
+
+First of all make sure you have perl installed on the machine, and
+that you have I<libperl.so> in
+I<<perlroot>/<version>/<architecture>/CORE>. For example in
+I</usr/local/lib/perl5/5.00503/sun4-solaris/CORE>.
+
+Then make sure that that directory is included in the environment
+variable C<LD_LIBRARY_PRELOAD>. Under normal circumstances, apache
+should have the path configured at compile time, but this way you can
+override the library path.
+
+
+
+
+
+=head2 Invalid command 'PerlHandler'...
+
+  Syntax error on line 393 of /etc/httpd/conf/httpd.conf: Invalid
+  command 'PerlHandler', perhaps mis-spelled or defined by a module
+  not included in the server configuration [FAILED]
+
+Happens when you have a mod_perl enabled Apache compiled with DSO
+(Generally it's an installed RPM or other binary package). You have to
+tell apache to load mod_perl by adding:
+
+  AddModule mod_perl.c
+
+in your config file.
+
+
+
+
+
+
+
+
+=head2 RegistryLoader: Cannot translate the URI /home/httpd/perl/test.pl
+
+(Meta: I've changed this warning message in the module - update it!!!)
+
+  RegistryLoader: Cannot translate the URI /home/httpd/perl/test.pl
+              into a real path to the filename. Please refer to the
+              manpage for more information
+              or use the complete method's call like:
+              $r->handler(uri,filename);\n";
+
+This warning shows up when RegistryLoader fails to translate the URI
+into the corresponding filesystem path. Most of failures happen when
+one passes a file path instead of URI. (A reminder:
+/home/httpd/perl/test.pl is a file path, while /perl/test.pl is an
+URI). In most cases all you have to do is to pass something that
+RegistryLoader expects to get - the URI, but there are more complex
+cases. RegistryLoader's man page shows how to handle these cases as
+well (watch for the trans() sub).
+
+
+
+
+
+
+
+=head2 "Apache.pm failed to load!"
+
+If your server startup fails with:
+
+  Apache.pm failed to load!
+
+error, try adding to I<httpd.conf>:
+
+  PerlModule Apache
+
+directive.
+
+
+
+
+
+
+
+
+
+
+
+=head1 Code Parsing and Compilation
+
+
+
+
+
+
+
+
+=head2 Value of $x will not stay shared at - line 5
+
+L<my() Scoped Variable in Nested 
+Subroutines|perl/my_Scoped_Variable_in_Nested_S>.
+
+
+
+
+
+
+
+
+=head2 Value of $x may be unavailable at - line 5.
+
+L<my() Scoped Variable in Nested 
+Subroutines|perl/my_Scoped_Variable_in_Nested_S>.
+
+
+
+
+
+
+
+
+
+
+
+=head2 Can't locate loadable object for module XXX
+
+There is no object built for this module. e.g. when you see:
+
+  Can't locate loadable object for module Apache::Util in @INC...
+
+make sure to give mod_perl's C<Makefile.PL> C<PERL_UTIL_API=1>,
+C<EVERYTHING=1> or C<DYNAMIC=1> parameters to enable and build all the
+components of C<Apache::Util>.
+
+
+
+
+
+
+
+=head2 Can't locate object method "get_handlers"...
+
+  Can't locate object method "get_handlers" via package "Apache"
+
+You need to rebuild your mod_perl with stacked handlers, i.e.
+C<PERL_STACKED_HANDLERS=1> or more simply C<EVERYTHING=1>.
+
+
+
+
+
+
+
+=head2 Missing right bracket at line ...
+
+Most chances you really have a syntax error. However the other reason
+might be a script running under C<Apache::Registry> and using
+<__DATA__> or <__END__> tokens. L<Learn
+why|porting/_END_and_DATA_tokens>
+
+
+
+
+
+=head2  Can't load '.../auto/DBI/DBI.so' for module DBI
+
+Check that all your modules are compiled with the same perl that is
+being compiled into mod_perl. perl 5.005 and 5.004 are not binary
+compatible by default.
+
+Other known causes of this problem:
+
+OS distributions that ship with a (broken) binary Perl installation.
+
+The `perl' program and `libperl.a' library are somehow built with
+different binary compatibility flags.
+
+The solution to these problems is to rebuild Perl and any extension
+modules from a fresh source tree.  Tip for running Perl's Configure
+script: use the `-des' flags to accepts defaults and `-D' flag to
+override certain attributes:
+
+  % ./Configure -des -Dcc=gcc ... && make test && make install
+
+Read Perl's INSTALL doc for more details.
+
+Solaris OS specific:
+
+Can't load DBI or similar Error for the IO module or whatever dynamic
+module mod_perl tries to pull in first.  The solution is to
+re-configure, re-build and re-install Perl and dynamic modules with
+the following flags when Configure asks for "additional LD flags":
+
+  -Xlinker --export-dynamic
+
+or
+
+  -Xlinker -E
+
+This problem is only known to be caused by installing gnu ld under Solaris.
+
+
+
+
+
+
+
+
+
+
+
+
+=head1 Runtime
+
+
+
+
+
+=head2 Incorrect line number reporting in error/warn log messages
+
+See L<Use of uninitialized value at (eval 80) line
+12.|/Use_of_uninitialized_value_at_e>
+
+
+
+=head2 rwrite returned -1
+
+That message happens when the client breaks the connection while your
+script is trying to write to the client. With Apache 1.3.x, you should
+only see the rwrite messages if C<LogLevel> is set to C<debug>.
+
+There was a bug that reported this debug message regardless the value
+of C<LogLevel> directive. It has been fixed in mod_perl 1.19_01 (CVS
+version).
+
+Generally a C<LogLevel> is either C<debug> or C<info>. C<debug> logs
+everything, C<info> is the next level, which doesn't include debug
+messages. You shouldn't use a "debug" mode on your production server.
+And as of this moment there is no way to stop users from aborting
+connections.
+
+
+
+
+=head2 caught SIGPIPE in process
+
+
+  [modperl] caught SIGPIPE in process 1234
+  [modperl] process 1234 going to Apache::exit with status...
+
+That's the B<$SIG{PIPE}> handler installed by mod_perl/Apache::SIG, called if
+a connection timesout or Client presses the 'Stop' button. It gives you an
+opportunity to do cleanups if the script was aborted in the middle of
+its execution. See L<Handling the 'User pressed Stop button'
+case|debug/Handling_the_User_pressed_Stop_> for more info.
+
+If your mod_perl version < 1.17 you might get the message in the following
+section...
+
+=head2 Client hit STOP or Netscape bit it!
+
+  Client hit STOP or Netscape bit it!
+  Process 2493 going to Apache::exit with status=-2
+
+You will see this message in mod_perl < 1.17. See L<caught SIGPIPE in
+process|/caught_SIGPIPE_in_process>.
+
+
+
+=head2 Global symbol "$foo" requires explicit package name
+
+The script below will print a warning like above, moreover it will
+print the whole script as a part of the warning message:
+
+  #!/usr/bin/perl -w
+  use strict;
+  print "Content-type: text/html\n\n";
+  print "Hello $undefined";
+
+The warning:
+
+  Global symbol "$undefined" requires explicit package name at /usr/apps/foo/cgi/tmp.pl line 4.
+          eval 'package Apache::ROOT::perl::tmp_2epl;use Apache qw(exit);sub handler {
+  #line 1 /usr/apps/foo/cgi/tmp.pl
+  BEGIN {$^W = 1;}#!/usr/bin/perl -w
+  use strict;
+  print "Content-type: text/html\\n\\n";
+  print "Hello $undefined";
+  
+  
+  }
+  ;' called at /usr/apps/lib/perl5/site_perl/5.005/aix/Apache/Registry.pm line 168
+          Apache::Registry::compile('package
+  	Apache::ROOT::perl::tmp_2epl;use Apache qw(exit);sub han...') 
+  	called at /usr/apps/lib/perl5/site_perl/5.005/aix/Apache/Registry.pm line 121
+          Apache::Registry::handler('Apache=SCALAR(0x205026c0)') called at /usr/apps/foo/cgi/tmp.pl line 4
+          eval {...} called at /usr/apps/foo/cgi/tmp.pl line 4
+  [Sun Nov 15 15:15:30 1998] [error] Undefined subroutine &Apache::ROOT::perl::tmp_2epl::handler called at /
+  usr/apps/lib/perl5/site_perl/5.005/aix/Apache/Registry.pm line 135.
+  
+  [Sun Nov 15 15:15:30 1998] [error] Goto undefined subroutine &Apache::Constants::SERVER_ERROR at /usr/apps
+  /lib/perl5/site_perl/5.005/aix/Apache/Constants.pm line 23.
+
+The error is simple to fix. When you use the C<use strict;> pragma (and
+you should...), all variables should be defined before being
+used.
+
+The bad thing is that sometimes the whole script (possibly, 
+thousands of lines) is printed to error_log file as a code that the
+server has tried to B<eval()>uate.
+
+As Doug answered to this question:
+
+ Looks like you have a $SIG{__DIE__} handler installed (Carp::confess?).
+ That's what's expected if so.
+
+It wasn't in my case, but may be yours.
+
+Bryan Miller said:
+
+ You might wish to try something more terse such as 
+ "local $SIG{__WARN__} = \&Carp::cluck;"  The confess method is _very_
+ verbose and will tell you more than you might wish to know including
+ full source.
+
+
+
+
+
+=head2 Use of uninitialized value at (eval 80) line 12.
+
+Your code includes some undefined variable that you have used as if it
+was already defined and initialized. For example:
+
+  $param = $q->param('test');
+  print $param;
+
+vs.
+
+  $param = $q->param('test') || '';
+  print $param;
+
+In the second case, C<$param> will always be C<defined>, either
+C<$q-E<gt>param('test')> returns some value or C<undef>.
+
+Also read about L<finding the Line Number the Error/Warning has been
+Triggered at|debug/Finding_the_Line_Number_the_Erro>.
+
+=head2 Undefined subroutine &Apache::ROOT::perl::test_2epl::some_function called at
+
+See L<Names collisions with Modules and
+libs|porting/Name_collisions_with_Modules_and>.
+
+
+
+=head2 Callback called exit
+
+I<Callback called exit> is just a generic message when some
+unrecoverable error occurs inside Perl during C<perl_call_sv()> (which
+mod_perl uses to invoke all handler subroutines. Such problems seem
+far less with 5.005_03 than 5.004.
+
+Sometimes you discover that your server is not responding and its
+error_log has filled up the remaining space on the file system. When
+you get to see the contents of the error_log -- it includes millions
+of lines, like:
+
+  Callback called exit at -e line 33, <HTML> chunk 1.
+
+Why the looping?
+
+Perl can get *very* confused inside an endless loop in your code, it
+doesn't mean your code called C<exit()>, but Perl's malloc went
+haywire and called C<croak()>, but no memory is left to properly
+report the error, so Perl is stuck in a loop writing that same message
+to stderr.
+
+Perl 5.005+ plus is recommended for its improved malloc.c and other
+features that improve mod_perl and come turned on by default.
+
+See also L</Out_of_memory!>
+
+=head2 Out of memory!
+
+If something goes really wrong with your code, Perl may die with an "Out
+of memory!" message and/or "Callback called exit". Common causes of this
+are never-ending loops, deep recursion, or calling an undefined subroutine.
+Here's one way to catch the problem: See Perl's INSTALL document for this
+item: 
+
+  =item -DPERL_EMERGENCY_SBRK
+
+  If PERL_EMERGENCY_SBRK is defined, running out of memory need not be a
+  fatal error: a memory pool can allocated by assigning to the special
+  variable $^M.  See perlvar(1) for more details.
+
+If you compile with that option and add 'C<use Apache::Debug level =E<gt>
+4;>' to your PerlScript, it will allocate the C<$^M> emergency pool 
+and the C<$SIG{__DIE__}> handler will call C<Carp::confess>, giving
+you a stack trace which should reveal where the problem is. See the
+C<Apache::Resource> module for prevention of spinning httpds.
+
+Note that perl-5.005+ has C<PERL_EMERGENCY_SBRK> turned on by default.
+
+The other trick is to have a startup script initialize
+C<Carp::confess>, like so:
+
+  use Carp ();
+  eval { Carp::confess("init") };
+
+this way, when the real problem happens, C<Carp::confess> doesn't eat
+memory in the emergency pool (C<$^M>).
+
+
+
+
+=head2 server reached MaxClients setting, consider raising the MaxClients setting
+
+See L<Choosing MaxClients|performance/Choosing_MaxClients>.
+
+=head2 syntax error at /dev/null line 1, near "line arguments:"
+
+  syntax error at /dev/null line 1, near "line arguments:"
+  Execution of /dev/null aborted due to compilation errors.
+  parse: Undefined error: 0
+
+There is a chance that your C</dev/null> device is broken. Try:
+
+  % sudo echo > /dev/null
+
+
+=head2 Can't call method "register_cleanup" (CGI.pm)
+
+  Can't call method "register_cleanup" on an
+  undefined value at /usr/lib/perl5/5.00503/CGI.pm line 263.
+
+caused by this code snippet in I<CGI.pm>:
+
+  if ($MOD_PERL) {
+    Apache->request->register_cleanup(\&CGI::_reset_globals);
+    undef $NPH;
+  }
+
+The solution is to add to I<httpd.conf>:
+
+  PerlPostReadRequestHandler 'sub { Apache->request(shift) }'
+
+But even better swicth to Apache::Cookie:
+
+  use Apache;
+  use Apache::Cookie;
+  
+  sub handler {
+    my $r = shift;
+    my $cookies = Apache::Cookie->new($r)->parse;
+    my %bar = $cookies->{foo}->value;
+  }
+
+
+
+
+
+=head1 Shutdown and Restart
+
+
+
+=head2 Evil things might happen when using PerlFreshRestart
+
+Unfortunately, not all perl modules are robust enough to survive
+reload, for them, unusual situation. PerlFreshRestart does not much
+more than:
+
+  while (my($k,$v) = each %INC) {
+    delete $INC{$k};
+    require $k;
+  }
+
+Besides that, it flushes the Apache::Registry cache, and empties any
+dynamic stacked handlers (e.g. PerlChildInitHandler).
+
+Lots of SegFaults and other problems were reported by users who have
+turned C<PerlFreshRestart> B<On>. Most of them have gone away when it
+was turned off. It doesn't mean that you shouldn't use it, if it works
+for you. Just be aware of the dragons...
+
+
+
+=head2 Constant subroutine XXX redefined
+
+That's a mandatory warning inside Perl. It happens only if you modify
+your script and Apache::Registry reloads it.  Perl is warning you that
+the subroutine(s) were redefined.  It is mostly harmless.  If you
+don't like seeing those, just C<kill -USR2> (graceful restart) apache
+when you modify your scripts.
+
+You aren't supposed to see these warnings when you don't modify the
+code with perl 5.004_05 or 5.005+.and higher. If you still experince a
+problem with code within a CGI script, moving all the code into a
+module (or a library) and requiring it should solve the problem.
+
+
+
+
+=head2 Can't undef active subroutine
+
+  Can't undef active subroutine at
+  /usr/apps/lib/perl5/site_perl/5.005/aix/Apache/Registry.pm line 102.
+  Called from package Apache::Registry, filename
+  /usr/apps/lib/perl5/site_perl/5.005/aix/Apache/Registry.pm, line 102
+
+This problem is caused when, a client drops the connection while httpd
+is in the middle of a write, httpd timeout happens, sending a SIGPIPE,
+and Perl in that child is stuck in the middle of its eval context.
+This is fixed by the Apache::SIG module which is called by
+default. This should not happen unless you have code that is messing
+with B<$SIG{PIPE}>.  It's also triggered only when you've changed your
+script on disk and mod_perl is trying to reload it.
+
+
+
+
+=head2 [warn] child process 30388 did not exit, sending another SIGHUP
+
+From mod_perl.pod: With Apache versions 1.3.0 and higher, mod_perl
+will call the perl_destruct() Perl API function during the child exit
+phase.  This will cause proper execution of B<END> blocks found during
+server startup along with invoking the B<DESTROY> method on global
+objects who are still alive.  It is possible that this operation may
+take a long time to finish, causing problems during a restart.  If
+your code does not contain and B<END> blocks or B<DESTROY> methods
+which need to be run during child server shutdown, this destruction
+can be avoided by setting the I<PERL_DESTRUCT_LEVEL> environment
+variable to C<-1>.
+
+
+
+
+=head1 Windows OS specific notes
+
+
+=head2 Apache::DBI 
+
+C<Apache::DBI> causes the server to exit when it starts up, with:
+
+  [Mon Oct 25 15:06:11 1999] file .\main\http_main.c, line 5890,
+  assertion "start_mutex" failed
+
+Build mod_perl with C<PERL_STARTUP_DONE_CHECK> set (e.g. insert
+
+  #define PERL_STARTUP_DONE_CHECK 1
+
+at the top of mod_perl.h or add it to the defines in MSVC++ Options
+dialog).
+
+Apache loads all Apache modules twice, to make sure the server will
+successfully restart when asked to. This flag disables all
+C<PerlRequire> and C<PerlModule> statements on the first load, so they
+can succeed on the second load. Without that flag, the second load
+fails.
+
+
+=cut

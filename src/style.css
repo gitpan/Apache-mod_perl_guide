@@ -1,0 +1,15 @@
+A { 
+	text-decoration: none; 
+}
+PRE { 
+	white-space: pre;
+	font-family: profont, monaco, ocr-a, monospace, fixed;
+	font-size: medium;
+	line-height: normal;
+	color: black;
+	background-color: #ccccff;
+	padding: .25em; 
+	margin: .25em;
+	border: thin dashed black;
+}
+

@@ -1,0 +1,432 @@
+title: Apache::* modules
+
+=head1 Apache::Session - Maintain session state across HTTP requests
+
+This module provides the Apache/mod_perl user a mechanism for storing
+persistent user data in a global hash, which is independent of its
+real storage mechanism. Currently you can choose from these storage
+mechanisms C<Apache::Session::DBI>, C<Apache::Session::Win32>,
+C<Apache::Session::File>, C<Apache::Session::IPC>. Read the man page
+of the mechanism you want to use for a complete reference.
+
+What C<Apache::Session> does is provide persistence to a data structure. 
+The data structure has an ID number, and you can retrieve it by using
+the ID number.  In the case of Apache, you would store the ID number in
+a cookie or the URL to associate it with one browser, but the method of
+dealing with the ID is completely up to you.  The flow of things is
+generally:
+
+  Tie a session to Apache::Session.
+  Get the ID number.
+  Store the ID number in a cookie.
+  End of Request 1.
+
+  (time passes)
+
+  Get the cookie.
+  Restore your hash using the ID number in the cookie.
+  Use whatever data you put in the hash.
+  End of Request 2.
+
+
+Using C<Apache::Session> is easy: simply tie a hash to the session
+object, stick any data structure into the hash, and the data you put
+in automatically persists until the next invocation.  Here is a quick
+example which uses cookies to track the user's session.
+
+  #  Pull in the require packages
+  use Apache::Session::DBI;
+  use Apache;
+  
+  use strict;
+  
+  # Read in the cookie if this is an old session
+  my $r = Apache->request;
+  my $cookie = $r->header_in('Cookie');
+  $cookie =~ s/SESSION_ID=(\w*)/$1/;
+  
+  # Create a session object based on the cookie we got from the
+  # browser, or a new session if we got no cookie
+  my %session;
+  tie %session, 'Apache::Session::DBI', $cookie,
+      {DataSource => 'dbi:mysql:sessions',
+       UserName   => $db_user,
+       Password   => $db_pass
+      };
+  
+  # Might be a new session, so lets give them their cookie back
+  my $session_cookie = "SESSION_ID=$session{_session_id};";
+  $r->header_out("Set-Cookie" => $session_cookie);
+
+After setting this up, you can stick anything you want into %session
+(except file handles), and it will still be there when the user invokes
+the next page.
+
+It is possible to write an Apache authen handler using
+C<Apache::Session>.  You can put your authentication token into the
+session.  When a user invokes a page, you open their session, check to
+see if they have a valid token, and approve or deny their
+authorization based on that.
+
+As for IIS, let's compare.  IIS's sessions are only valid on the
+same web server as the one that issued the session.
+C<Apache::Session>'s session objects can be shared amongst a farm of
+many machines running different operating systems, including even
+Win32.  IIS stores session information in RAM.  C<Apache::Session>
+stores sessions in databases, file systems, or RAM.  IIS's sessions
+are only good for storing scalars or arrays.  C<Apache::Session>'s
+sessions allow you to store arbitrarily complex objects.  IIS sets up
+the session and automatically tracks it for you.  With
+C<Apache::Session>, you setup and track the session yourself.  IIS is
+proprietary.  C<Apache::Session> is open-source.
+C<Apache::Session::DBI> can issue 400+ session requests per second on
+light Celeron 300A running Linux.  IIS?
+
+An alternative to C<Apache::Session> is Apache::ASP, which has session
+tracking abilities.  HTML::Embperl hooks into C<Apache::Session> for
+you.
+
+
+
+
+
+
+
+
+=head1 Apache::DBI - Initiate a persistent database connection
+
+See L<mod_perl and relational
+Databases|databases/Apache_DBI_Initiate_a_persist>
+
+
+
+
+
+
+
+
+=head1 Apache::Request (libapreq) - Generic Apache Request Library
+
+This package contains modules for manipulating client request data via
+the Apache API with Perl and C.  Functionality includes:
+
+- parsing of application/x-www-form-urlencoded data
+
+- parsing of multipart/form-data
+
+- parsing of HTTP Cookies
+
+The Perl modules are simply a thin xs layer on top of libapreq, making
+them a lighter and faster alternative to CGI.pm and CGI::Cookie.  See
+the C<Apache::Request> and C<Apache::Cookie> documentation for more
+details and eg/perl/ for examples.
+
+C<Apache::Request> and the libapreq are tied tight to the Apache API,
+which there is no access to in a process running under mod_cgi.
+
+(L<Apache::Request|download/Apache_Request>)
+
+
+
+
+
+
+
+=head1 Apache::PerlRun - Run unaltered CGI scripts under mod_perl
+
+See L<Apache::PerlRun - a closer
+look|porting/Apache_PerlRun_a_closer_look>.
+
+
+
+
+
+
+
+=head1 Apache::RegistryNG -- Apache::Registry New Generation
+
+C<Apache::RegistryNG> is the same as C<Apache::Registry>, aside from
+using filename instead of URI for the namespace. It also uses OO
+interface.
+
+  PerlModule Apache::RegistryNG
+  <Location /perl>
+    SetHandler perl-script
+    PerlHandler ApacheRegistryNG->handler
+  </Location>
+
+C<Apache::RegistryNG> inherits from C<Apache::PerlRun>, but the
+handler() is overriden.  Aside from the handler(), the rest of
+C<Apache::PerlRun> contains all the functionality of
+C<Apache::Registry> broken down into several subclass-able methods.
+These methods are used by C<Apache::RegistryNG> to implement the exact
+same functionality of C<Apache::Registry>, using the
+C<Apache::PerlRun> methods.
+
+There is no compelling reason to use C<Apache::RegistryNG> over
+C<Apache::Registry>, unless you want to do add or change the
+functionality of the existing I<Registry.pm>.  For example,
+C<Apache::RegistryBB> (Bare-Bones) is another subclass that skips the
+stat() call performed by C<Apache::Registry> on each request.
+
+META: is this (below) correct?
+
+One situation where C<Apache::RegistryNG> may definitely be required
+is if you are rewriting URIs (using either mod_rewrite or your own
+handler) in certain ways.
+
+For instance  if you  have a rewrite rule  of the form:
+
+  XYZ123456.html  ==> /perl/foo.pl?p1=XYZ&p2=123456
+
+C<Apache::Registry> loses big, as it recompiles I<foo.pl> for each
+unique URL -- C<Apache::RegistryNG> should be used instead.
+
+
+
+
+
+=head1 Apache::RegistryBB -- Apache::Registry Bare Bones 
+
+It works just like C<Apache::Registry>, but does not test the x bit
+(-x) only compiles the file once (no stat() call is made per
+requsest), skips the OPT_EXECCGI checks and does not C<chdir()> into
+the script parent directory. It uses the OO interface.
+
+Configuration:
+
+  PerlModule Apache::RegistryBB
+  <Location /perl>
+    SetHandler perl-script
+    PerlHandler ApacheRegistryBB->handler
+  </Location>
+
+See L<Apache::RegistryNG|modules/Apache_RegistryNG_Apache_Re> for more
+info.
+
+
+
+
+
+
+=head1 Apache::GzipChain - compress HTML (or anything) in the OutputChain
+
+Have you ever served a huge HTML file (e.g. a file bloated with
+JavaScript code) and wandered how could you send it compressed, thus
+drammatically cutting down the download times. After all java applets
+can be compressed into a jar and benefit from a faster download
+times. Why cannot we do the same with a plain ASCII (HTML,JS and etc),
+it is a known fact that ASCII text can be compressed by a factor of 10.
+
+C<Apache::GzipChain> comes to help you with this task. If a client
+(browser) understands C<gzip> encoding this module compresses the
+output and sends it downstream. A client decompresses the data upon
+receive and renders the HTML as if it was a plain HTML fetch.
+
+For example to compress all html files on the fly, do:
+
+  <Files *.html>
+    SetHandler perl-script
+    PerlHandler Apache::OutputChain Apache::GzipChain Apache::PassFile
+  </Files>
+
+Remember that it will work only if the browser claims to accept
+compressed input, thru C<Accept-Encoding> header. C<Apache::GzipChain>
+keeps a list of user-agents, thus it also looks at C<User-Agent>
+header, for known to accept compressed output browsers.
+
+For example if you want to return compressed files which should pass
+in addition through Embperl module, you would write:
+
+  <Location /test>
+    SetHandler perl-script
+    PerlHandler Apache::OutputChain Apache::GzipChain Apache::EmbperlChain Apache::PassFile
+  </Location>
+
+Hint: Watch an C<access_log> file to see how many bytes were actually
+send, compare with a regular configuration send.
+
+(See C<perldoc Apache::GzipChain>).
+
+Notice that the rightmost PerlHandler must be a content producer. Use
+C<Apache::PassFile> or another similar module.
+
+
+
+
+
+
+
+
+
+=head1 Apache::PerlVINC - set a different @INC perl-location 
+
+With that module, you can configure C<@INC> and have modules reloaded
+for a given C<Location>, e.g. say two versions of C<Apache::Status>
+are being hacked on in the same server, this fixup handler will simply
+C<delete $INC{ $filename }>, unshift the prefered C<PerlINC> path into
+C<@INC>, and reload the file with C<require()>:
+
+  PerlModule Apache::PerlVINC
+
+  <Location /dougm-status>
+    SetHandler perl-script
+    PerlHandler Apache::Status
+  
+    PerlINC /home/dougm/dev/modperl/lib
+    PerlVersionINC On
+    PerlFixupHandler Apache::PerlVINC
+    PerlRequire Apache/Status.pm
+  </Location>
+
+  <Location /other-status>
+    SetHandler perl-script
+    PerlHandler Apache::Status
+  
+    PerlINC /home/other/current/modperl/lib
+    PerlVersionINC On
+    PerlFixupHandler Apache::PerlVINC
+    PerlRequire Apache/Status.pm
+  </Location>
+
+It's important to stress that changed C<@INC> is effective only inside
+the C<<Location>> or a similar configuration directive.
+C<Apache::PerlVINC> subclasses the C<PerlRequire> directive, marking
+the file to be reloaded by the fixup handler, using the value of
+C<PerlINC> for C<@INC>. That's local to the fixup handler, so you
+won't actually see C<@INC> changed in your script.
+
+To address possible issues of namespace clashes during reload, the
+handler could call C<$r-E<gt>child_terminate()> so the next server to
+load the different versions will have a fresh namespace. (not a good
+idea in a high load environment, of course.)
+
+If it is still absent from CPAN get it at:
+http://perl.apache.org/~dougm/Apache-PerlVINC-0.01.tar.gz
+
+
+
+
+
+
+
+
+
+=head1 Apache::LogSTDERR
+
+When Apache's builtin syslog support is used, the stderr stream is
+redirected to C</dev/null>.  This means Perl warnings, any messages
+from C<die()>, C<croak()>, etc., will also end up in the black hole.
+The I<HookStderr> directive will hook the stderr stream to a file of
+your choice, the default is shown in this example:
+
+ PerlModule Apache::LogSTDERR
+ HookStderr logs/stderr_log
+
+
+
+
+
+
+
+=head1 Apache::RedirectLogFix
+
+Due the nature of how mod_perl handles redirects, the status code is
+not properly logged.  C<Apache::RedirectLogFix> module works around
+that bug until mod_perl can deal with this. All you have to do is to
+enable it in the I<httpd.conf> file.
+
+  PerlLogHandler Apache::RedirectLogFix
+
+For example, you will have to use it when doing:
+
+  $r->status(304);
+
+and do some manual header sending, like:
+
+  $r->status(304);
+  $r->send_http_header();
+
+
+
+
+
+=head1 Apache::SubProcess
+
+The output of C<system()>, C<exec()>, and C<open(PIPE,"|program")> calls
+will not be sent to the browser unless your Perl was configured with
+C<sfio>.
+
+One workaround is to use backticks:
+
+  print `command here`;
+
+But a cleaner solution is provided by the C<Apache::SubProcess>
+module. It overrides the exec() and system() calls, with ones that
+work correctly under mod_perl.
+
+Let's see a few examples:
+
+  use strict;
+  use Apache::SubProcess qw(system exec);
+  
+  my $r = shift;
+  $r->send_http_header('text/plain');
+  
+  # override built-in system() function
+  system "/bin/echo hi there";
+  
+  # send an output of a program
+  my $efh = $r->spawn_child(\&env);
+  $r->send_fd($efh);
+  
+  # pass arguments to a program and sends its output
+  my $fh = $r->spawn_child(\&banner);
+  $r->send_fd($fh);
+  
+  # pipe data to a program and send its output
+  use vars qw($String);
+  $String = "hello world";
+  my($out, $in, $err) = $r->spawn_child(\&echo);
+  print $out $String;
+  $r->send_fd($in);
+  
+  # override built-in exec() function
+  exec "/usr/bin/cal"; 
+  
+  print "NOT REACHED\n";
+  
+  sub env {
+      my $r = shift;
+      #$r->subprocess_env->clear;
+      $r->subprocess_env(HELLO => 'world');
+      $r->filename("/bin/env");
+      $r->call_exec;
+  }
+  
+  sub banner {
+      my $r = shift;
+      # /usr/games/banner on many Unices
+      $r->filename("/usr/bin/banner"); 
+      $r->args("-w40+Hello%20World");  
+      $r->call_exec;
+  }
+  
+  sub echo {
+      my $r = shift;
+      $r->subprocess_env(CONTENT_LENGTH => length $String);
+      $r->filename("/tmp/pecho");
+      $r->call_exec;
+  }
+  # where /tmp/pecho is:
+  # --------------------
+  #!/usr/bin/perl 
+  #read STDIN, $buf, $ENV{CONTENT_LENGTH}; 
+  #print "STDIN: `$buf' ($ENV{CONTENT_LENGTH})\n";
+
+
+
+=cut
+
+
+

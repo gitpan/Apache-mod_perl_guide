@@ -1,0 +1,3497 @@
+title: Performance. Benchmarks.
+
+
+
+=head1 Performance: The Big Picture
+
+To make the user's Web browsing experience as painless as possible,
+every effort must be made to wring the last drop of performance from
+the server. There are many factors which affect Web site usability,
+but speed is one of the most important. This applies to any webserver,
+not just Apache, and it is very important for you to understand it.
+
+How do we measure the speed of a server?  Since the user (and not the
+computer) is the one that interacts with the Web site, one good speed
+measurement is the time elapsed between the moment when she clicks on
+a link or presses a I<Submit> button to the moment when the resulting
+page is rendered complete.
+
+The requests and replies are broken into packets.  A request may be
+made up of several packets, a reply may be many thousands.  Each
+packet has to make its own way from one machine to another, perhaps
+passing through many interconnection nodes.  We must measure the time
+starting from when the first packet of the request leaves our user's
+machine to when the last packet of the reply arrives back there.
+
+A webserver is only one of the elements the packets see along their
+way.  If we follow them from browser to server and back again, they
+may travel by different routes through many different entities.
+Before they are processed by your server the packets might have to go
+through proxy (accelerator) servers and if the request contains more
+than one packet they will all have to wait for the last one so that
+the full request message can be reassembled at the server.  Then the
+whole process is repeated in reverse.
+
+You could work hard to fine tune your webserver's performance, but a
+slow Network Interface Card (NIC) or a slow network connection from
+your server might defeat it all.  That's why it's important to think
+about the Big Picture and to be aware of possible bottlenecks between
+the server and the Web.  Of course there is little that you can do if
+the user has a slow connection.
+
+You might tune your scripts and webserver to process incoming requests
+ultra fast, so you will need only a small number of working servers,
+but you might find that the server processes are all busy waiting for
+slow clients to accept their responses.  You will see more examples in
+this chapter.
+
+My point is that a Web service is like a car, if one of the parts or
+mechanisms is broken the car may not go smoothly and it can even stop
+dead if pushed too far without first fixing it.
+
+
+
+=head1 Analysis of Software and Hardware Requirements
+
+(META: Only partial analysis. Please submit more points. Many points
+are scattered around the document and should be gathered here, to
+represent the whole picture. It also should be merged with the above
+item!)
+
+You need to analyze all of the problem's dimensions.  There are
+several things that need to be considered:
+
+*How long does it take to process each request?
+
+*How many requests can you process simultaneously?
+
+*How many simultaneous requests are you planning to get?
+
+*At what rate are you expecting to receive requests?
+
+
+The first one is probably the easiest to optimize. Following the
+performance optimization tips in this and other documents allows
+a professional perl (mod_perl) programmer to exercise your code and
+improve it.
+
+The second one is a function of RAM.  How much RAM is in each box, how
+many boxes do you have, and how much RAM does each mod_perl process
+use?  Multiply the first two and divide by the third.  Ask yourself
+whether it is better to switch to another, possibly just as
+inefficient language or whether that will actually cost more than
+throwing another Ultra 2 into the rack.
+
+Also ask yourself whether switching to another language will even
+help.  In some applications, for example to link Oracle runtime
+libraries, a huge chunk of memory is needed so you would save nothing
+even if you switched from Perl to C.
+
+The last one is important.  You need a realistic estimate.  Are you
+really expecting 8 million hits per day?  What is the expected peak
+load, and what kind of response time do you need to guarantee?
+Remember that these numbers might change drastically when you apply
+code changes and your site becomes popular. Remember that when you get
+a very high hit rate, the resource requirements don't grow linearly
+but exponentially!
+
+
+
+=head1 Sharing Memory
+
+The sharing of memory is another very important factor.  If your OS
+supports it (and most sane systems do), you might save memory by
+sharing it between child processes.  This is only possible when you
+preload code at server startup.  However, during a child process' life
+its memory pages tend to become unshared.  There is no way we can make
+Perl allocate memory so that (dynamic) variables land on different
+memory pages from constants, so the B<copy-on-write> effect (we will
+explain this in a moment) will hit you almost at random.
+
+If you are pre-loading many modules you might be able to trade off the
+memory that stays shared against the time for an occasional fork by
+tuning C<MaxRequestsPerChild>.  Each time a child reaches this upper
+limit and dies it should release its unshared pages.  The new child
+which replaces it will share its fresh pages until it scribbles on
+them.  The ideal is a point where your processes usually restart
+before too much memory becomes unshared.  You should make some
+measurements to see if it makes a real difference, and to find the
+range of reasonable values.  If you have success with this tuning the
+value of C<MaxRequestsPerChild> will probably be peculiar to your
+situation and may change with changing circumstances.
+
+It is very important to understand that your goal is not to have
+C<MaxRequestsPerChild> to be 10000. Having a child serving 300
+requests on precompiled code is already a huge overall speedup, so if
+it is 100 or 10000 it probably does not really matter if you can save
+RAM by using a lower value. Do not forget that if you preload most of
+your code at server startup, the fork to spawn a new child will be
+very very fast, because it inherits most of the preloaded code and the
+perl interpreter from the parent process.  During the life of the
+child its memory pages (which aren't really its own to start with, it
+uses the parent's pages) gradually get `dirty' - variables which were
+originally inherited and shared are updated or modified -- and the
+I<copy-on-write> happens.  This reduces the number of shared memory
+pages, thus increasing the memory requirement.  Killing the child and
+spawning a new one allows the new child to get back to the pristine
+shared memory of the parent process.
+
+The conclusion is that C<MaxRequestsPerChild> should not be too big,
+otherwise you lose some of the benefit of the memory sharing.
+
+See L<Choosing
+MaxRequestsPerChild|performance/Choosing_MaxRequestsPerChild> for more
+about tuning the C<MaxRequestsPerChild> parameter.
+
+
+=head1 How Shared Is My Memory?
+
+You've probably noticed that the word shared is repeated many times in
+many things related to mod_perl.  Indeed, shared memory might save you
+a lot of money, since with sharing in place you can run many more
+servers than without it.  See L<the Formula and the
+numbers|performance/Choosing_MaxClients>.
+
+How much shared memory do you have?  You can see it by either using
+the memory utility that comes with your system or you can deploy the
+C<GTop> module:
+
+  print "Shared memory of the current process: ",
+    GTop->new->proc_mem($$)->share,"\n";
+  
+  print "Total shared memory: ",
+    GTop->new->mem->share,"\n";
+
+When you watch the output of the C<top> utility, don't confuse the
+C<RES> (or C<RSS>) columns with the C<SHARE> column.  C<RES> is
+RESident memory, which is the size of pages currently swapped in.
+
+
+=head1 Preload Perl Modules at Server Startup
+
+Use the C<PerlRequire> and C<PerlModule> directives to load commonly
+used modules such as C<CGI.pm>, C<DBI> and etc., when the server is
+started.  On most systems, server children will be able to share the
+code space used by these modules.  Just add the following directives
+into C<httpd.conf>:
+
+  PerlModule CGI;
+  PerlModule DBI;
+
+But an even better approach is to create a separate startup file
+(where you code in plain perl) and put there things like:
+
+  use DBI;
+  use Carp;
+
+Then you C<require()> this startup file in C<httpd.conf> with the
+C<PerlRequire> directive, placing it before the rest of the mod_perl
+configuration directives:
+
+  PerlRequire /path/to/start-up.pl
+
+C<CGI.pm> is a special case.  Ordinarily C<CGI.pm> autoloads most of
+its functions on an as-needed basis.  This speeds up the loading time
+by defering the compilation phase.  When you use mod_perl, FastCGI or
+another system that uses a persistent Perl interpreter, you will want
+to precompile the methods at initialization time.  To accomplish this,
+call the package function compile() like this:
+
+    use CGI ();
+    CGI->compile(':all');
+
+The arguments to C<compile()> are a list of method names or sets, and
+are identical to those accepted by the C<use()> and C<import()>
+operators.  Note that in most cases you will want to replace C<':all'>
+with the tag names that you actually use in your code, since generally
+you only use a subset of them.
+
+You can also preload the Registry scripts. See L<Preload Registry
+Scripts|/Preload_Registry_Scripts>.
+
+=head2 Preload Perl modules - Real Numbers
+
+(META: while the numbers and conclusions are mostly correct, need to
+rewrite the whole benchmark section using the GTop library to report
+the shared memory which is very important and will improve the
+benchmarks)
+
+(META: Add the memory size tests when the server was compiled with
+EVERYTHING=1 and without it, does loading everything make a big change
+in the memory footprint? Probably the suggestion would be as follows:
+For a development server use EVERYTHING=1, while for production if
+your server is pretty busy and/or low on memory and every bit is on
+account, only the required parts should be built in. BTW, remember
+that apache comes with many modules that are built by default, and you
+might not need those!)
+
+I have conducted a few tests to benchmark the memory usage when some
+modules are preloaded.  The first set of tests checks the memory used
+with a Perl module preloaded (C<CGI.pm>).  The second set checks the
+compile method of C<CGI.pm>.  The third test checks the benefit of
+preloading a few Perl modules (we see more memory saved) and also the
+effect of precompiling the Registry modules with
+C<Apache::RegistryLoader>.
+
+Hardware and software: The server is Apache 1.3.2 with mod_perl 1.16
+running on AIX 4.1.5 RS6000 with 1G RAM.
+
+1. In the first test, I used the following script:
+
+  use strict;
+  use CGI ();
+  my $q = new CGI;
+  print $q->header;
+  print $q->start_html,$q->p("Hello");
+
+B<Server restarted>
+
+Before preloading C<CGI.pm>: (No other modules preloaded)
+
+  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
+  root      87004  0.0  0.0 1060 1524      - A    16:51:14  0:00 httpd
+  httpd    240864  0.0  0.0 1304 1784      - A    16:51:13  0:00 httpd
+
+After running a script which uses CGI's methods (no imports):
+
+  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
+  root     188068  0.0  0.0 1052 1524      - A    17:04:16  0:00 httpd
+  httpd     86952  0.0  1.0 2520 3052      - A    17:04:16  0:00 httpd
+
+Observation: the child httpd has grown by 1268K
+
+B<Server restarted>
+
+After preloading C<CGI.pm>:
+
+  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
+  root     240796  0.0  0.0 1456 1552      - A    16:55:30  0:00 httpd
+  httpd     86944  0.0  0.0 1688 1800      - A    16:55:30  0:00 httpd
+
+after running a script which uses CGI's methods (no imports):
+
+  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
+  root      86872  0.0  0.0 1448 1552      - A    17:02:56  0:00 httpd
+  httpd    187996  0.0  1.0 2808 2968      - A    17:02:56  0:00 httpd
+
+Observation: the child httpd has grown by 1168K, 100K less than
+without the preload -- good!
+
+B<Server restarted>
+
+After C<CGI.pm> preloaded and compiled with CGI->compile(':all');
+
+  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
+  root      86980  0.0  0.0 2836 1524      - A    17:05:27  0:00 httpd
+  httpd    188104  0.0  0.0 3064 1768      - A    17:05:27  0:00 httpd
+
+After running a script which uses CGI's methods (no imports):
+
+  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
+  root      86980  0.0  0.0 2828 1524      - A    17:05:27  0:00 httpd
+  httpd    188104  0.0  1.0 4188 2940      - A    17:05:27  0:00 httpd
+
+Observation: the child httpd has grown by 1172K - no change!  So does
+CGI->compile(':all') help us?  We probably do not use all the methods
+which CGI provides, so in real use it's faster.
+
+You might want to compile only the tags you are going to use, then you
+will definitely see some benefit.
+
+2. The second test attempts to check whether C<CGI>'s compile() method
+improve things. This is the code under test.
+
+  use strict;
+  use CGI qw(:all);
+  print header,start_html,p("Hello");
+
+B<Server restarted>
+
+After C<CGI.pm> was preloaded but NOT compiled with CGI->compile():
+
+  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
+  root      17268  0.0  0.0 1456 1552      - A    18:02:49  0:00 httpd
+  httpd     86904  0.0  0.0 1688 1800      - A    18:02:49  0:00 httpd
+
+After running a script which imports ALL the symbols:
+
+  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
+  root      17268  0.0  0.0 1448 1552      - A    18:02:49  0:00 httpd
+  httpd     86904  0.0  1.0 2952 3112      - A    18:02:49  0:00 httpd
+
+Observation: the child httpd has grown by 1264K
+
+B<Server restarted>
+
+After C<CGI.pm> was preloaded and compiled with CGI->compile(':all'):
+
+  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
+  root      86812  0.0  0.0 2836 1524      - A    17:59:52  0:00 httpd
+  httpd     99104  0.0  0.0 3064 1768      - A    17:59:52  0:00 httpd
+
+After running a script which imports ALL the symbols:
+
+  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
+  root      86812  0.0  0.0 2832 1436      - A    17:59:52  0:00 httpd
+  httpd     99104  0.0  1.0 4884 3636      - A    17:59:52  0:00 httpd
+
+Observation: the child httpd has grown by 1868K.
+
+Why so much?  In fact these results are misleading.  If you look at
+the code you will see that we have called only three of C<CGI.pm>'s
+methods.  The statement C<use CGI qw(:all)> doesn't compile all the
+available methods, it just imports their names.  This means that we do
+not use so much memory as if the methods are all compiled.  Execute
+C<compile()> only on the methods you intend to use and then you will
+see a reduction in your memory requirements.
+
+
+3. The third script:
+
+  use strict;
+  use CGI;
+  use Data::Dumper;
+  use Storable;
+  [and many lines of code, lots of globals - so the code is huge!]
+
+B<Server restarted>
+
+Nothing preloaded at startup:
+
+  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
+  root      90962  0.0  0.0 1060 1524      - A    17:16:45  0:00 httpd
+  httpd     86870  0.0  0.0 1304 1784      - A    17:16:45  0:00 httpd
+
+Script using CGI (methods), Storable, Data::Dumper called:
+
+  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
+  root      90962  0.0  0.0 1064 1436      - A    17:16:45  0:00 httpd
+  httpd     86870  0.0  1.0 4024 4548      - A    17:16:45  0:00 httpd
+
+Observation: the child httpd has grown by 2764K
+
+B<Server restarted>
+
+Preloaded CGI (compiled), Storable, Data::Dumper at startup:
+
+  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
+  root      26792  0.0  0.0 3120 1528      - A    17:19:21  0:00 httpd
+  httpd     91052  0.0  0.0 3340 1764      - A    17:19:21  0:00 httpd
+
+Script using CGI (methods), Storable, Data::Dumper called
+
+  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
+  root      26792  0.0  0.0 3124 1440      - A    17:19:21  0:00 httpd
+  httpd     91052  0.0  1.0 6568 5040      - A    17:19:21  0:00 httpd
+
+Observation: the child httpd has grown by 3276K.
+
+Ouch!  512K more!
+
+The reason is that when you preload all of the methods at startup,
+they are all precompiled.  There are many of them and they take up a
+big chunk of memory.  If you don't use the compile() method, only the
+functions that are used will be compiled.  Yes, it will slightly slow
+down the first response from each process, but the actual memory usage
+will be lower.
+
+B<Server restarted>
+
+All the above modules plus the above script precompiled at startup
+with C<Apache::RegistryLoader>:
+
+  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
+  root      43224  0.0  0.0 3256 1528      - A    17:23:12  0:00 httpd
+  httpd     26844  0.0  0.0 3488 1776      - A    17:23:12  0:00 httpd
+
+Script using CGI (methods), Storable, Data::Dumper called:
+
+  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
+  root      43224  0.0  0.0 3252 1440      - A    17:23:12  0:00 httpd
+  httpd     26844  0.0  1.0 6748 5092      - A    17:23:12  0:00 httpd
+
+Observation: the child httpd has grown even more!
+
+3316K!  This does not look good!
+
+B<Summary>:
+
+1. Preloading Perl modules gave good results everywhere.
+
+2. C<CGI.pm>'s C<compile()> method seems to use even more memory.
+It's because we never use all of the methods that CGI provides. Only
+C<compile()> the tags that you are going to use and you will save the
+overhead of the first call for each method which has not yet been
+called.  You will also save some memory since the compiled code will
+be shared with the children.
+
+3. C<Apache::RegistryLoader> might make scripts load faster on the
+first request after the child has just started but the memory usage
+is worse.
+
+
+=head1 Preload Registry Scripts
+
+C<Apache::RegistryLoader> compiles C<Apache::Registry> scripts at
+server startup. It can be a good idea to preload the scripts you are
+going to use as well, so the code will be shared by the children.
+
+Here is an example of the use of this technique.  This code is
+included in a C<PerlRequire>'d file, and walks the directory tree
+under which all registry scripts are installed.  For each C<.pl> file
+encountered, it calls the C<Apache::RegistryLoader::handler()> method
+to preload the script in the parent server, before pre-forking the
+child processes:
+
+  use File::Find 'finddepth';
+  use Apache::RegistryLoader ();
+  {
+      my $perl_dir = "perl/";
+      my $rl = Apache::RegistryLoader->new;
+      finddepth(sub {
+          return unless /\.pl$/;
+          my $url = "/$File::Find::dir/$_";
+          print "pre-loading $url\n";
+  
+          my $status = $rl->handler($url);
+          unless($status == 200) {
+              warn "pre-load of `$url' failed, status=$status\n";
+          }
+      }, $perl_dir);
+  }
+
+Note that we didn't use the second argument to C<handler()> here, as
+the module's manpage suggests. To make the loader smarter about the
+URI to filename translation, you might need to provide a C<trans()>
+function to translate the uri to filename.  URI to filename
+translation normally doesn't happen until HTTP request time, so the
+module is forced to roll its own translation.  If filename is omitted
+and a C<trans()> routine was not defined, the loader will try using
+the URI relative to B<ServerRoot>.
+
+You should check whether this makes any improvement for you though, I
+did some testing [ L<Preload Perl modules - Real
+Numbers|/Preload_Perl_modules_Real_Numb> ], and it seems that it takes
+more memory than when the scripts are called by the child.  This is
+only a first impression and needs better investigation.  If you aren't
+concerned about occasional script invocations taking a little time to
+respond while they load the code, you might not need it at all!
+
+See also L<BEGIN blocks|porting/BEGIN_blocks>
+
+
+=head1 Global vs Fully Qualified Variables 
+
+It's always a good idea to avoid global variables when possible.  Some
+variables must be either global, such as a module's C<@ISA> or
+C<$VERSION> variables or else fully qualified such as
+B<@MyModule::ISA>), so that Perl can see them,
+
+A combination of C<strict> and C<vars> pragmas keeps modules clean and
+reduces a bit of noise.  However, C<vars> pragma also creates aliases,
+as does C<Exporter>, which eat up more memory.  When possible, try to
+use fully qualified names instead of C<use vars>.
+
+For example write:
+
+  package MyPackage;
+  use strict;
+  @MyPackage::ISA = qw(...);
+  $MyPackage::VERSION = "1.00";
+
+instead of:
+
+  package MyPackage;
+  use strict;
+  use vars qw(@ISA $VERSION);
+  @ISA = qw(...);
+  $VERSION = "1.00";
+
+Also see L<Using Global Variables and Sharing Them Between
+Modules/Packages|perl/Using_Global_Variables_and_Shari>.
+
+
+=head1 Avoid Importing Functions
+
+When possible, avoid importing a module's functions into your name
+space.  The aliases which are created can take up quite a bit of
+memory.  Try to use method interfaces and fully qualified names like
+C<Package::function> or C<$Package::variable> instead.  For benchmarks
+see L<Object Methods Calls Versus Function
+Calls|performance/Object_Methods_Calls_Versus_Func>.
+
+Note: method interfaces are a little bit slower than function
+calls. You can use the C<Benchmark> module to profile your specific
+code.
+
+
+=head1 PerlSetupEnv Off
+
+C<PerlSetupEnv Off> is another optimization you might consider.
+
+I<mod_perl> fiddles with the environment to make it appear as if the
+script were being called under the CGI protocol.  For example, the
+C<$ENV{QUERY_STRING}> environment variable is initialized with the
+contents of I<Apache::args()>, and the value returned by
+I<Apache::server_hostname()> is put into C<$ENV{SERVER_NAME}>.
+
+But C<%ENV> population is expensive.  Those who have moved to the Perl
+Apache API no longer need this extra C<%ENV> population, can gain by
+turning it B<Off>.
+
+By default it is On.
+
+Note that you can still set ENV variables.  For example when you use
+the following configuration:
+
+ <Location /perl>
+   PerlSetupEnv Off
+   PerlSetEnv TEST hi
+   SetHandler perl-script
+   PerlHandler Apache::RegistryNG->handler
+   Options +ExecCGI
+ </Location>
+
+A script having a C<print Data::Dumper(\%ENV)> line, prints:
+
+  $VAR1 = {
+            'GATEWAY_INTERFACE' => 'CGI-Perl/1.1',
+            'MOD_PERL' => 'mod_perl/1.21_01-dev',
+            'PATH' => '/usr/lib/perl5/5.00503:... snipped ...',
+            'TEST' => 'hi'
+          };
+
+
+
+
+=head1 Proxying the mod_perl Server
+
+Proxy gives you a great performance increase in most cases. It's
+discussed in the section L<Adding a Proxy Server in http Accelerator
+Mode|strategy/Adding_a_Proxy_Server_in_http_Ac>.
+
+
+
+
+
+=head1 Caching Components with HTML::Mason
+
+META: complete the full description
+
+C<HTML::Mason> is a system that makes use of components to build HTML
+pages.
+
+If most of your output is generated dynamically, but each finished
+page can be separated into different components, C<HTML::Mason> can
+cache those components.  This can really improve the performance of
+your service and reduce the load on the system.
+
+Say for example that you have a page consisting of five components,
+each generated by a different SQL query, but for four of the five
+components it's the same four queries for each user so you don't have
+to rerun them again and again.  Only one component is generated by a
+unique query and will not use the cache.
+
+
+
+=head1 KeepAlive
+
+If your mod_perl server's I<httpd.conf> includes the following
+directives:
+
+  KeepAlive On
+  MaxKeepAliveRequests 100
+  KeepAliveTimeout 15
+
+you have a real performance penalty, since after completing each
+request processing, the process will wait for C<KeepAliveTimeout>
+seconds before closing the connection and thus not serving other
+requests at this time.  With this configuration you will need many
+more concurrent processes on a server with high traffic.
+
+If you use some server status reporting tools, you will see the
+process in I<K> status when it's in C<KeepAlive> status.
+
+The chances are that you don't want this feature enabled. Set it Off
+with:
+
+  KeepAlive Off
+
+the other two directives don't matter if C<KeepAlive> is C<Off>.
+
+You might want to consider enabling this option if the client's
+browser needs to request more than one object from your server for a
+single HTML page.  If this is the situation the by setting
+C<KeepAlive> C<Off> then for each page you save the HTTP connection
+overhead for all requests but the first one.
+
+For example if you have a page with 10 ad banners, which is not
+uncommon today, you server will work more effectively if a single
+process serves them all during a single connection.  However, your
+client will see a slightly slower response, since banners will be
+brought one at a time and not concurrently as is the case if each
+C<IMG> tag opens a separate connection.
+
+Since keepalive connections will not incur the additional three-way
+TCP handshake, turning it off will be kinder to the network.
+
+You have probably followed the advice to send all the requests for
+static objects to a plain Apache server.  Since most pages include
+more than one unique static image, you should keep the default
+C<KeepAlive> setting of the non-mod_perl server, i.e. keep it C<On>.
+It will probably be a good idea also to reduce the timeout a little.
+
+One option would be for the proxy/accelerator to keep the connection
+open to the client but make individual connections to the server, read
+the response, buffer it for sending to the client and close the server
+connection.  Obviously you would make new connections to the server as
+required by the client's requests.
+
+
+=head1 Upload/Download of Big Files
+
+You don't want to tie up your precious mod_perl backend server
+children doing something as long and dumb as transfering a file.
+The user won't really see any important performance benefits
+from mod_perl anyway, since the upload may take up to several minutes,
+and the overhead saved by mod_perl is typically under one second.
+
+If some particular script's main functionality is the uploading or
+downloading of big files, you probably want it to be executed on a
+plain apache server under mod_cgi.
+
+This of course assumes that the script requires none of the
+functionality of the mod_perl server, such as custom authentication
+handlers.
+
+
+
+
+
+
+
+
+
+
+
+
+
+=head1 Forking or Executing Subprocesses from mod_perl
+
+Generally you should not fork from your mod_perl scripts, since when
+you do, you are forking the entire Apache Web server, lock, stock and
+barrel.  Not only is your perl code being duplicated, but so is
+mod_ssl, mod_rewrite, mod_log, mod_proxy, mod_speling or whatever
+modules you have used in your server, all the core routines...
+
+A much better approach would be to spawn a sub-process, hand it the
+information it needs to do the task, and have it detach (close x3 +
+C<setsid()>).  This is wise only if the parent which spawns this
+process immediately continues, and does not wait for the sub-process
+to complete.  This approach is suitable for a situation when you want
+to use the Web interface to trigger a process which takes a long time,
+such as processing lots of data or sending email to thousands of
+users.  Otherwise, you should convert the code into a module, and call
+its functions or methods from CGI script.
+
+Just making a C<system()> call defeats the whole idea behind mod_perl.
+The Perl interpreter and modules should be loaded again for this
+external program to run.
+
+Basically, you would do:
+
+  $params=FreezeThaw::freeze(
+	[all data to pass to the other process]
+	);
+  system("program.pl $params");
+
+and in C<program.pl> :
+
+  use POSIX qw(setsid);
+  @params=FreezeThaw::thaw(shift @ARGV);
+  # check that @params is ok
+  close STDIN;
+  close STDOUT;
+  close STDERR;
+  # you might need to reopen the STDERR
+  # open STDERR, ">/dev/null";
+  setsid(); # to detach
+
+At this point, C<program.pl> is running in the "background" while the
+C<system()> returns and permits Apache to get on with things.
+
+This has obvious problems:  
+
+=over 4
+
+=item * 
+
+C<@params> must not be bigger than whatever limit is imposed by your
+architecture.  This could depend on your shell.
+
+=item * 
+
+The communication is one way only.
+
+=back
+
+However, you might be trying to do the "wrong thing".  If what you
+really want is to send information to the browser and then do some
+post-processing, look into the C<PerlCleanupHandler> directive.
+
+If you are interested in more details, here is what actually happens
+when you fork() and make a system call such as this fragment:
+
+  system("echo Hi"),CORE::exit(0) unless fork();
+
+Notice that I use C<CORE::exit()> and not C<exit()>, which would be
+automatically overriden by C<Apache::exit()> if used in conjunction
+with C<Apache::Registry> and friends.
+
+The above code which might be more familiar in this form:
+
+  if (fork){
+    #do nothing
+  } else {
+    system("echo Hi");
+    CORE::exit(0);
+  }
+
+=over 4
+
+=item 1
+
+The fork() gives you two possible execution paths, one for the parent
+and the other for the child.  The child gets some virtual memory,
+sharing a copy of the program text (read only) and a copy of the data
+space copy-on-write (remember why you pre-load modules in mod_perl?).
+
+In this example the parent will immediately continue with the code
+that comes after the fork, while the forked (child) process will
+execute 'C<system("echo Hi")>' and then terminate.
+
+The only work to be done before the child process goes on its separate
+way is setting up the page tables for the virtual memory.
+
+=item 2
+
+Next, Perl will find C</bin/echo> along the search path, and invoke it
+directly.  Perl system() is *not* C<system(3)> [C-library].  Only when
+the command has shell meta-chars does Perl invoke a real shell.
+That's a *very* nice optimization.  In other words, only if you do:
+
+  system "sh -c 'echo foo'"
+
+will the operating system actually exec() a copy of C</bin/sh> to
+parse your command.  But since one is almost certainly already running
+somewhere, the system will notice that (via the disk inode reference)
+and replace your virtual memory page table with one pointing to the
+existing program code plus your data space.
+
+=item 3
+
+Then the shell parses the passed command.
+
+Since it is C<echo>, it will execute it as a built-in in the latter
+example or as C</bin/echo> in the former and be done, but this is only
+an example.  You aren't calling C<system("echo Hi")> in your mod_perl
+scripts, right?
+
+=back
+
+
+Most real programs (heavy programs executed as a subprocess) would
+involve repeating the process to load the specified command or script.
+This might involve some actual demand paging from the program file if
+you execute new code.  The only place you will see real overhead from
+this scheme is when the parent process is huge (unfortunately like
+mod_perl...) and the page table becomes large as a side effect.  The
+whole point of mod_perl is to avoid having to fork() or exec()
+something on every hit.  Perl can do just about anything by itself.
+However, you probably won't get into trouble until you hit about 30
+forks/second on a so-so pentium.
+
+
+Now let's get to the gory details of forking. Normally, every process
+has its parent.  Many processes are children of the C<init> process,
+whose C<PID> is C<1>. When you fork a process you must wait() or
+waitpid() for it to finish.  If you don't wait for it, it becomes a
+zombie.  A zombie is a process that doesn't have a parent.  When the
+child quits, it reports the termination to its parent.  If no parent
+wait()s to collect the exit status of the child, it gets "confused"
+and becomes a ghost process, that can be seen, but not killed.  It
+will be killed only when you stop the httpd process that spawned it!
+
+Generally the ps() utility displays these processes with the
+C<<defunc>> tag, and you will see the zombies counter increment when
+doing top().  These zombie processes can take up system resources and
+are generally undesirable.
+
+So the proper way to do a fork is:
+
+  print "Content-type: text/plain\r\n\r\n";
+  
+  defined (my $kid = fork) or die "Cannot fork: $!\n";
+  if ($kid) {
+    waitpid($kid,0);
+    print "Parent has finished\n";
+  } else {
+      # do something
+      CORE::exit(0);
+  }
+
+In most cases the only reason you would want to fork is when you need
+to spawn a process that will take a long time to complete.  So if the
+server child that spawns this process has to wait for it to finish,
+you have gained nothing. You can neither wait for its completion, nor
+continue because you will get yet another zombie process.
+
+The simplest solution is to ignore your dead children.  This doesn't
+work everywhere, however.
+
+META: do you know where? tell me!!!  It works with linux!:)
+
+  $SIG{CHLD} = IGNORE;
+
+When you set the C<CHLD> signal handler to C<IGNORE>, all the
+processes will be collected by the C<init> process and prevent from
+becoming zombies.
+
+Note that you cannot localize this setting with C<local()>.  If you
+do, it won't have the desired effect.
+
+META: Anyone like to explain why it doesn't work?
+
+The other thing that you must do is to close all the pipes to the
+connection socket that were opened by the parent process (C<STDIN> and
+C<STDOUT>) and inherited by the child, so the parent will be able to
+complete the request and free itself for serving other requests.  You
+may need to close and reopen the C<STDERR> filehandle.  It's opened to
+append to the error_log file as inhereted by parent, so chances are
+that you will want it to leave untouched.
+
+So now the code would look like this:
+
+  print "Content-type: text/plain\r\n\r\n";
+  
+  $SIG{CHLD} = IGNORE;
+  
+  defined (my $kid = fork) or die "Cannot fork: $!\n";
+  if ($kid) {
+    waitpid($kid,0);
+    print "Parent has finished\n";
+  } else {
+      close STDIN;
+      close STDOUT;
+      close STDERR;
+      # do something time-consuming
+      CORE::exit(0);
+  }
+
+Another, more portable, but slightly more expensive solution is to use
+a double fork approach.
+
+  print "Content-type: text/plain\r\n\r\n";
+  
+  defined (my $kid = fork) or die "Cannot fork: $!\n";
+  if ($kid) {
+    waitpid($kid,0);
+  } else {
+    defined (my $grandkid = fork) or die "Kid cannot fork: $!\n";
+    if ($grandkid) {
+      CORE::exit(0);
+  
+    } else {
+      # code here
+      close STDIN;
+      close STDOUT;
+      close STDERR;
+      # do something long lasting
+      CORE::exit(0);
+    }
+  }
+
+Grandkid becomes a I<"child of init">, i.e. the parent process ID is
+1.
+
+Note that the last two solutions do allow you to know the exit status
+of the process, but in our case we don't want to.
+
+One more solution is to use a different I<SIGCHLD> handler:
+
+  use POSIX 'WNOHANG';
+  $SIG{CHLD} = sub { while( waitpid(-1,WNOHANG)>0 ) {} };
+
+Which is useful when you fork() more than one process.  The handler
+could call wait() as well, but for a variety of reasons involving the
+handling of stopped processes and the rare event in which two children
+exit at nearly the same moment, the best technique is to call
+waitpid() in a tight loop with a first argument of C<-1> and a second
+argument of C<WNOHANG>.  Together these arguments tell waitpid() to
+reap the next child that's available, and prevent the call from
+blocking if there happens to be no child ready for reaping.  The
+handler will loop until waitpid() returns a negative number or zero,
+indicating that no more reapable children remain.
+
+You will probably want to open your own log file in the spawned
+process and log some information (at least while debugging your code)
+so you know what has happened.
+
+Check also L<Apache::SubProcess|modules/Apache__SubProcess> for better
+system() and exec() implementations for mod_perl.
+
+Read I<perlipc> manpage for more information about signal handlers.
+
+
+
+
+
+
+
+
+
+=head1 Memory leakage
+
+Scripts under mod_perl can very easily leak memory!  Global variables
+stay around indefinitely, lexically scoped variables (declared with
+C<my()>) are destroyed when they go out of scope, provided there are
+no references to them from outside that scope.
+
+Perl doesn't return the memory it acquired from the kernel.  It does
+reuse it though!
+
+=head2 Reading In A Whole File
+
+  open IN, $file or die $!;
+  local $/ = undef; # will read the whole file in
+  $content = <IN>;
+  close IN;
+
+If your file is 5Mb, the child which served that script will grow by
+exactly that size.  Now if you have 20 children, and all of them will
+serve this CGI, they will consume 20*5M = 100M of RAM in total!  If
+that's the case, try to use other approaches to processing the file,
+if possible.  Try to process a line at a time and print it back to the
+file.  If you need to modify the file itself, use a temporary file.
+When finished, overwrite the source file.  Make sure to provide a
+locking mechanism!
+
+=head2 Copying Variables Between Functions
+
+Now let's talk about passing variables by value.  Let's use the
+example above, assuming we have no choice but to read the whole file
+before any data processing takes place.  Now you have some imaginary
+C<process()> subroutine that processes the data and returns it.  What
+happens if you pass the C<$content> by value?  You have just copied
+another 5M and the child has grown in size by B<another> 5M.  Watch
+your swap space!  Now multiply it again by factor of 20 you have 200M
+of wasted RAM, which will apparently be reused, but it's a waste!
+Whenever you think the variable can grow bigger than a few Kb, pass it
+by reference!
+
+Once I wrote a script that passed the content of a little flat file
+DataBase to a function that processed it by value -- it worked and it
+was fast, but after a time the DataBase became bigger, so passing it
+by value was expensive.  I had to make the decision whether to buy
+more memory or to rewrite the code.  It's obvious that adding more
+memory will be merely a temporary solution.  So it's better to plan
+ahead and pass variables by reference, if a variable you are going to
+pass might eventually become bigger than you envisage at the time you
+code the program.  There are a few approaches you can use to pass and
+use variables passed by reference. For example:
+
+  my $content = qq{foobarfoobar};
+  process(\$content);
+  sub process{
+    my $r_var = shift; 
+    $$r_var =~ s/foo/bar/gs;
+      # nothing returned - the variable $content outside has been
+      # already modified
+  }
+
+
+Don't forget:
+
+  @{$var_lr}  dereferences an array
+  %{$var_hr}  dereferences a hash
+
+For more information see C<perldoc perlref>.
+
+
+Another approach would be to use the C<@_> array directly.  This has
+the effect of passing by reference:
+
+  process($content);
+  sub process{
+    $_[0] =~ s/foo/bar/gs;
+      # nothing returned - the variable $content outside has been
+      # already modified
+  }
+
+From C<perldoc perlsub>:
+
+      The array @_ is a local array, but its elements are aliases for
+      the actual scalar parameters.  In particular, if an element
+      $_[0] is updated, the corresponding argument is updated (or an
+      error occurs if it is not possible to update)...
+
+Be careful when you write this kind of subroutine, since it can
+confuse a potential user.  It's not obvious that call like
+C<process($content);> modifies the passed variable.  Programmers (the
+users of your library in this case) are used to subroutines that
+either modify variables passed by reference or expressly return a
+result (e.g. C<$content=process($content);>).
+
+
+=head2 Work With Databases
+
+If you do some DB processing, you will often encounter the need to
+read lots of records into your program, and then print them to the
+browser after they are formatted.  I won't even mention the horrible
+case where programmers read in the whole DB and then use perl to
+process it!!!  Use a relational DB and let the SQL do the job, so you
+get only the records you need!
+
+We will use C<DBI> for this (assume that we are already connected to
+the DB--refer to C<perldoc DBI> for a complete manual of the C<DBI>
+module):
+
+  $sth->execute;
+  while(@row_ary  = $sth->fetchrow_array;) {
+	<do DB accumulation into some variable>
+  }
+  <print the output using the the data returned from the DB>
+
+In the example above the httpd_process will grow by the size of the
+variables that have been allocated for the records that matched the
+query.  Again remember to multiply it by the number of the children
+your server runs!
+
+A better approach is not to accumulate the records, but rather to
+print them as they are fetched from the DB.  Moreover, we will use the
+C<bind_col()> and C<$sth-E<gt>fetchrow_arrayref()> (aliased to
+C<$sth-E<gt>fetch()>) methods, to fetch the data in the fastest
+possible way.  The example below prints a HTML TABLE with matched
+data, the only memory that is being used is a C<@cols> array to hold
+temporary row values:
+
+  my @select_fields = qw(a b c);
+      # create a list of cols values
+  my @cols = ();
+  @cols[0..$#select_fields] = ();
+  $sth = $dbh->prepare($do_sql);
+  $sth->execute;
+    # Bind perl variables to columns.
+  $sth->bind_columns(undef,\(@cols));
+  print "<TABLE>";
+  while($sth->fetch) {
+     print "<TR>",
+           map("<TD>$_</TD>", @cols),
+           "</TR>";
+  }
+  print "</TABLE>";
+
+Note: the above method doesn't allow you to know how many records have
+been matched.  The workaround is to run an identical query before the
+code above where you use C<SELECT count(*) ...> instead of C<'SELECT *
+...>, to get the number of matched records.  It should be much faster,
+since you can remove any B<SORTBY> and similar attributes.
+
+For those who think that B<$sth-E<gt>rows> will do the job, here is
+the quote from the C<DBI> manpage:
+
+  rows();
+
+  $rv = $sth->rows;
+
+  Returns the number of rows affected by the last database altering
+  command, or -1 if not known or not available.  Generally you can
+  only rely on a row count after a do or non-select execute (for some
+  specific operations like update and delete) or after fetching all
+  the rows of a select statement.
+
+  For select statements it is generally not possible to know how many
+  rows will be returned except by fetching them all.  Some drivers
+  will return the number of rows the application has fetched so far
+  but others may return -1 until all rows have been fetched. So use of
+  the rows method with select statements is not recommended.
+
+As a bonus, I wanted to write a single sub that flexibly processes any
+query.  It would accept conditions, a call-back closure sub, select
+fields and restrictions.
+
+  # Usage:
+  # $o->dump(\%conditions,\&callback_closure,\@select_fields,@restrictions);
+  #
+  sub dump{
+    my $self = shift;
+    my %param = %{+shift}; # dereference hash
+    my $rsub = shift;
+    my @select_fields = @{+shift}; # dereference list
+    my @restrict = shift || '';
+  
+      # create a list of cols values
+    my @cols = ();
+    @cols[0..$#select_fields] = ();
+  
+    my $do_sql = '';
+    my @where = ();
+  
+      # make a @where list 
+    map { push @where, "$_=\'$param{$_}\'" if $param{$_};} keys %param;
+  
+      # prepare the sql statement
+    $do_sql = "SELECT ";
+    $do_sql .= join(" ", @restrict) if @restrict;    # append restriction list
+    $do_sql .= " " .join(",", @select_fields) ;      # append select list 
+    $do_sql .= " FROM $DBConfig{TABLE} ";            # from table
+  
+      # we will not add the WHERE clause if @where is empty
+    $do_sql .= " WHERE " . join " AND ", @where if @where;
+  
+    print "SQL: $do_sql \n" if $debug;
+  
+    $dbh->{RaiseError} = 1;	# do this, or check every call for errors
+    $sth = $dbh->prepare($do_sql);
+    $sth->execute;
+      # Bind perl variables to columns.
+    $sth->bind_columns(undef,\(@cols));
+    while($sth->fetch) {
+      &$rsub(@cols);
+    }
+      # print the tail or "no records found" message
+      # according to the previous calls
+    &$rsub();
+  
+  } # end of sub dump
+
+Now a callback closure sub can do lots of things. We need a closure to
+know what stage are we in: header, body or tail. For example, we want a
+callback closure for formatting the rows to print: 
+
+  my $rsub = eval {
+      # make a copy of @fields list, since it might go
+      # out of scope when this closure is called
+    my @fields = @fields; 
+    my @query_fields = qw(user dir tool act);   # no date field!!!
+    my $header = 0;
+    my $tail   = 0;
+    my $counter = 0;
+    my %cols = ();                     # columns name=> value hash
+  
+    # Closure with the following behavior:
+    # 1. Header's code will be executed on the first call only and
+    #    if @_ was set
+    # 2. Row's printing code will be executed on every call with @_ set
+    # 3. Tail's code will be executed only if Header's code was
+    #    printed and @_ isn't set
+    # 4. "No record found" code will be executed if Header's code
+    #    wasn't executed
+  
+    sub {
+          # Header
+	if (@_ and !$header){
+	  print "<TABLE>\n";
+	  print $q->Tr(map{ $q->td($_) } @fields );
+	  $header = 1; 
+	}
+	
+	  # Body
+	if (@_) {
+	  print $q->Tr(map{$q->td($_)} @_ );
+	  $counter++;
+	  return; 
+	}
+	
+          # Tail, will be printed only at the end
+	if ($header and !($tail or @_)){
+	  print "</TABLE>\n $counter records found";
+	  $tail = 1;
+	  return;
+	}
+	
+          # No record found
+	unless ($header){
+	  print $q->p($q->center($q->b("No record was found!\n")));
+	}
+  
+      }	 #  end of sub {}
+  };  #  end of my $rsub = eval {
+
+
+You might also want to check the section L<Limiting the Size of the
+Processes|performance/Limiting_the_Size_of_the_Process>
+and L<Limiting the Resources Used by httpd
+children|performance/Limiting_the_Resources_Used_by_h>.
+
+
+
+=head1 -DTWO_POT_OPTIMIZE and -DPACK_MALLOC Perl Options
+
+Newer Perl versions also have build time options to reduce runtime
+memory consumption. These options might shrink the size of your httpd
+by about 150k -- quite big number if you remember to multiply it by the
+number of chidren you use.
+
+C<-DTWO_POT_OPTIMIZE> macro improves allocations of data with size
+close to a power of two; but this works for big allocations (starting
+with 16K by default).  Such allocations are typical for big hashes and
+special-purpose scripts, especially image processing.
+
+Perl memory allocation is by bucket with sizes close to powers of two.
+Because of these the malloc() overhead may be big, especially for data
+of size exactly a power of two.  If C<PACK_MALLOC> is defined, perl
+uses a slightly different algorithm for small allocations (up to 64
+bytes long), which makes it possible to have overhead down to 1 byte
+for allocations which are powers of two (and appear quite often).
+
+Expected memory savings (with 8-byte alignment in C<alignbytes>) is
+about 20% for typical Perl usage.  Expected slowdown due to additional
+malloc() overhead is in fractions of a percent and hard to measure,
+because of the effect of saved memory on speed.
+
+You will find these and other memory improvement details in
+C<perl5004delta.pod>.
+
+Important: both options are On by default in perl versions 5.005 and
+higher.
+
+
+
+
+
+
+
+
+
+
+
+=head1 Checking script modification times
+
+Under C<Apache::Registry> the requested CGI script is always being
+C<stat()>'ed to check whether it was modified. It adds a very little
+overhead, but if you are into squeezing all the juice from the server,
+you might want to save this call.  If you do, take a look at
+L<Apache::RegistryBB|modules/> module.
+
+
+
+
+
+
+
+
+
+=head1 Cached stat() calls
+
+When you do a stat() (or its variations C<-M> - modification time,
+C<-A> last access time, C<-C> inode-change time, and others), the
+information is cached.  If you need to make an additional check for
+the same file, use the C<_> variable and save the overhead of this
+check.  For example when testing for existence and read permissions
+you might use:
+
+  my $filename = "./test";
+    # two stat() calls
+  print "OK\n" if -e $filename and -r $filename; 
+  my $mod_time = (-M $filename) * 24 * 60 * 60;
+  print "$filename was modified $mod_time seconds before startup\n";
+
+or the more efficient:
+
+  my $filename = "./test";
+    # two stat() calls
+  print "OK\n" if -e $filename and -r _;
+  my $mod_time = (-M _) * 24 * 60 * 60;
+  print "$filename was modified $mod_time seconds before startup\n";
+
+Two stat() syscalls saved!
+
+Remember that with mod_perl you might get negative times when you use
+the C<-M> and similar file tests.  C<-M> returns the difference in
+time between the modification time of the file and the time the script
+was started.  Because the C<^T> variable is not reset on each script
+invocation, and is equal to the time when the process was forked, you
+might want to perform:
+
+  $^T = time;
+
+at the beginning of your scripts to simulate the regular perl script
+behaviour of file tests.
+
+
+
+
+
+
+
+
+
+
+=head1 Be carefull with symbolic links
+
+As you know C<Apache::Registry> caches the scripts based on their URI.
+If you have the same script that can be reached by different URIs,
+which is possible if you have used symbolic links, you will get the
+same script cached twice!
+
+For example:
+
+  % ln -s /home/httpd/perl/news/news.pl /home/httpd/perl/news.pl
+
+Now the script can be reached through the both URIs C</news/news.pl>
+and C</news.pl>.  It doesn't really matter until you advertise the two
+URIs, and users reach the same script from both of them.
+
+To detect this, use the
+L</perl-status|debug/Apache_Status_Embedded_inter> handler to see all
+the compiled scripts and their packages. In our example, when
+requesting: http://localhost/perl-status?rgysubs you would see:
+
+  Apache::ROOT::perl::news::news_2epl
+  Apache::ROOT::perl::news_2epl
+
+after the both URIs have been requested from the same child process
+that happened to serve your request.  To make the debugging easier see
+L<run the server in single
+mode|control/Running_server_in_a_single_mode>.
+
+
+
+
+
+
+
+
+
+
+=head1 Limiting the Size of the Processes
+
+C<Apache::SizeLimit> allows you to kill off Apache httpd processes if
+they grow too large.  See perldoc C<Apache::SizeLimit> for more
+details.
+
+By using this module, you should be able to avoid using the Apache
+configuration directive C<MaxRequestsPerChild>, although for some
+folks, using both in combination does the job.
+
+
+
+
+
+
+
+
+
+
+
+=head1 Limiting the Resources Used by httpd Children
+
+C<Apache::Resource> uses the C<BSD::Resource> module, which in turn
+uses the C function C<setrlimit()> to set limits on system resources
+such as memory and cpu usage.
+
+To configure:
+
+  PerlModule Apache::Resource
+    # set child memory limit in megabytes
+    # (default is 64 Meg)
+  PerlSetEnv PERL_RLIMIT_DATA 32:48
+  
+    # set child CPU limit in seconds
+    # (default is 360 seconds)
+  PerlSetEnv PERL_RLIMIT_CPU 120
+  
+  PerlChildInitHandler Apache::Resource
+
+If you configure C<Apache::Status>, it will let you review the
+resources set in this way.
+
+The following limit values are in megabytes: C<DATA>, C<RSS>,
+C<STACK>, C<FSIZE>, C<CORE>, C<MEMLOCK>; all others are treated as
+their natural unit.  Prepend C<PERL_RLIMIT_> for each one you want to
+use.  Refer to the C<setrlimit> man page on your OS for other possible
+resources.
+
+If the value of the variable is of the form C<S:H>, C<S> is treated as
+the soft limit, and C<H> is the hard limit.  If it is just a single
+number, it is used for both soft and hard limits.
+
+To debug add:
+
+  <Perl>
+    $Apache::Resource::Debug = 1;
+    require Apache::Resource;
+  </Perl>
+  PerlChildInitHandler Apache::Resource
+
+and look in the error_log to see what it's doing.
+
+Refer to C<perldoc Apache::Resource> and C<man 2 setrlimit> for more
+info.
+
+
+
+
+
+
+
+
+
+=head1 Limiting the Request Rate Speed (Robot Blocking)
+
+A limitation of using pattern matching to identify robots is that it
+only catches the robots that you know about, and then only those that
+identify themselves by name.  A few devious robots masquerade as users
+by using user agent strings that identify themselves as conventional
+browsers.  To catch such robots, you'll have to be more sophisticated.
+
+C<Apache::SpeedLimit> comes to your aid, see:
+
+http://www.modperl.com/chapters/ch6.html#Blocking_Greedy_Clients
+
+
+
+
+
+
+
+
+=head1 Benchmarks. Impressing Your Boss and Your Colleagues.
+
+How much faster is mod_perl than mod_cgi (aka plain perl/CGI)?  There
+are many ways to benchmark the two.  I'll present a few examples and
+numbers below.  Checkout the C<benchmark> directory of the mod_perl
+distribution for more examples.
+
+If you are going to write your own benchmarking utility, use the
+C<Benchmark> module for heavy scripts and the C<Time::HiRes> module
+for very fast scripts (faster than 1 sec) where you will need better
+time precision.
+
+There is no need to write a special benchmark though.  If you want to
+impress your boss or colleagues, just take some heavy CGI script you
+have (e.g. a script that crunches some data and prints the results to
+STDOUT), open 2 xterms and call the same script in mod_perl mode in
+one xterm and in mod_cgi mode in the other. You can use C<lwp-get>
+from the C<LWP> package to emulate the browser.  The C<benchmark>
+directory of the mod_perl distribution includes such an example.
+
+See also two tools for benchmarking:
+L<ApacheBench|performance/Tuning_with_ab_ApacheBench> and L<crashme
+test|performance/Tuning_with_the_crashme_Script>
+
+
+=head2 Developers Talk
+
+Perrin Harkins writes on benchmarks or comparisons, official or unofficial:
+
+=begin html <BLOCKQUOTE>
+
+=end html
+
+I have used some of the platforms you mentioned and researched others.
+What I can tell you for sure, is that no commercially available system
+offers the depth, power, and ease of use that mod_perl has.  Either
+they don't let you access the web server internals, or they make you
+use less productive languages than Perl, sometimes forcing you into
+restrictive and confusing APIs and/or GUI development environments.
+None of them offers the level of support available from simply posting
+a message to [the mod-perl] list, at any price.
+
+As for performance, beyond doing several important things
+(code-caching, pre-forking/threading, and persistent database
+connections) there isn't much these tools can do, and it's mostly in
+your hands as the developer to see that the things which really take
+the time (like database queries) are optimized.
+
+The downside of all this is that most manager types seem to be unable
+to believe that web development software available for free could be
+better than the stuff that cost $25,000 per CPU.  This appears to be
+the major reason most of the web tools companies are still in
+business.  They send a bunch of suits to give PowerPoint presentations
+and hand out glossy literature to your boss, and you end up with an
+expensive disaster and an approaching deadline.
+
+But I'm not bitter or anything...
+
+=begin html </BLOCKQUOTE>
+
+=end html
+
+Jonathan Peterson adds:
+
+=begin html <BLOCKQUOTE>
+
+=end html
+
+Most of the major solutions have something that they do better than
+the others, and each of them has faults.  Microsoft's ASP has a very
+nice objects model, and has IMO the best data access object (better
+than DBI to use - but less portable).  It has the worst scripting
+language.  PHP has many of the advantages of Perl-based solutions, and
+is less complicated for developers.  Netscape's Livewire has a good
+object model too, and provides good server-side Java integration - if
+you want to leverage Java skills, it's good.  Also, it has a compiled
+scripting language - which is great if you aren't selling your clients
+the source code (and a pain otherwise).
+
+mod_perl's advantage is that it is the most powerful.  It offers the
+greatest degree of control with one of the more powerful languages.
+It also offers the greatest granularity.  You can use an embedding
+module (eg eperl) from one place, a session module (Session) from
+another, and your data access module from yet another.
+
+I think the C<Apache::ASP> module looks very promising.  It has very
+easy to use and adequately powerful state maintenance, a good
+embedding system, and a sensible object model (that emulates the
+Microsoft ASP one).  It doesn't replicate MS's ADO for data access,
+but C<DBI> is fine for that.
+
+I have always found that the developers available make the greatest
+impact on the decision.  If you have a team with no Perl experience,
+and a small or medium task, using something like PHP, or Microsoft ASP
+makes more sense than driving your staff into the vertical learning
+curve they'll need to use mod_perl.
+
+For very large jobs, it may be worth finding the best technical
+solution, and then recruiting the team with the necessary skills.
+
+=begin html </BLOCKQUOTE>
+
+=end html
+
+=head2 Benchmarking a Graphic Hits Counter with Persistent DB Connections
+
+Here are the numbers from Michael Parker's mod_perl presentation at
+the Perl Conference (Aug, 98).  (Sorry, there used to be links here to
+the source, but they went dead one day, so I removed them).  The
+script is a standard hits counter, but it logs the counts into a mysql
+relational DataBase:
+
+    Benchmark: timing 100 iterations of cgi, perl...  [rate 1:28]
+    
+    cgi: 56 secs ( 0.33 usr 0.28 sys = 0.61 cpu) 
+    perl: 2 secs ( 0.31 usr 0.27 sys = 0.58 cpu) 
+    
+    Benchmark: timing 1000 iterations of cgi,perl...  [rate 1:21]
+     
+    cgi: 567 secs ( 3.27 usr 2.83 sys = 6.10 cpu) 
+    perl: 26 secs ( 3.11 usr 2.53 sys = 5.64 cpu)      
+    
+    Benchmark: timing 10000 iterations of cgi, perl   [rate 1:21]
+     
+    cgi: 6494 secs (34.87 usr 26.68 sys = 61.55 cpu) 
+    perl: 299 secs (32.51 usr 23.98 sys = 56.49 cpu) 
+
+We don't know what server configurations were used for these tests,
+but I guess the numbers speak for themselves.
+
+The source code of the script was available at
+http://www.realtime.net/~parkerm/perl/conf98/sld006.htm. It's now a
+dead link.  If you know its new location, please let me know.
+
+
+
+
+
+
+
+
+
+
+
+=head2 Benchmarking Scripts with Execution Times Below 1 Second
+
+As noted before, for very fast scripts you will have to use the
+C<Time::HiRes> module, its usage is similar to C<Benchmark>'s.
+
+  use Time::HiRes qw(gettimeofday tv_interval);
+  my $start_time = [ gettimeofday ];
+  &sub_that_takes_a_teeny_bit_of_time()
+  my $end_time = [ gettimeofday ];
+  my $elapsed = tv_interval($start_time,$end_time);
+  print "The sub took $elapsed seconds."
+
+See also the L<crashme test|performance/Tuning_with_the_crashme_Script>.
+
+
+=head2 Benchmarking PerlHandler
+
+At http://perl.apache.org/dist/contrib/ you will find the
+C<Apache::Timeit> package which does C<PerlHandler> Benchmarking.
+
+
+
+
+
+
+
+
+
+
+
+=head1 Tuning Apache's Configuration Variables for the Best Performance
+
+Correct configuration of the C<MinSpareServers>, C<MaxSpareServers>,
+C<StartServers>, C<MaxClients>, and C<MaxRequestsPerChild> parameters
+is very important.  There are no defaults.  If they are too low, you
+will under-use the system's capabilities.  If they are too high, the
+chances are that the server will bring the machine to its knees.
+
+All the above parameters should be specified on the basis of the
+resources you have.  With a plain apache server, it's no big deal if
+you run too many servers (not B<far> too many, of course) since the
+processes are about 1Mb and don't eat a lot of your RAM.  Generally
+the numbers are even smaller with memory sharing.  The situation is
+different with mod_perl.  I have seen mod_perl processes of 20Mb and
+more.  Now if you have C<MaxClients> set to 50: 50x20Mb = 1Gb.  Do you
+have 1Gb of RAM?  Probably not.  So how do you tune the parameters?
+Generally by trying different combinations and benchmarking the
+server.  Again mod_perl processes can be of much smaller size with
+memory sharing.
+
+Before you start this task you should be armed with the proper weapon.
+You need the B<crashme> utility, which will load your server with the
+mod_perl scripts you possess.  You need it to have an ability to
+emulate a multiuser environment and to emulate the behavior of
+multiple clients calling the mod_perl scripts on your server
+simultaneously.  While there are commercial solutions, you can get
+away with free ones which do the same job.  You can use the
+L<ApacheBench|performance/Tuning_with_ab_ApacheBench> B<C<ab>> utility
+which comes with apache distribution, the L<crashme
+script|performance/Tuning_with_the_crashme_Script> which uses
+C<LWP::Parallel::UserAgent> or C<httperf> (see the L<Download
+page|download/>).
+
+It is important to make sure that you run the load generator (the
+client which generates the test requests) on a system that is more
+powerful than the system being tested.  After all we are trying to
+simulate Internet users, where many users are trying to reach your
+service at once.  Since the number of concurrent users can be quite
+large, your testing machine must be very powerful and capable of
+generating a heavy load.  Of course you should not run the clients and
+the server on the same machine.  If you do, your test results would be
+invalid.  Clients will eat CPU and memory that should be dedicated to
+the server, and vice versa.
+
+See also two tools for benchmarking:
+L<ApacheBench|performance/Tuning_with_ab_ApacheBench> and L<crashme
+test|performance/Tuning_with_the_crashme_Script>
+
+
+=head2 Tuning with ab - ApacheBench 
+
+ApacheBench (B<ab>) is a tool for benchmarking your Apache HTTP
+server.  It is designed to give you an idea of the performance that
+your current Apache installation can give.  In particular, it shows
+you how many requests per second your Apache server is capable of
+serving.  The B<ab> tool comes bundled with the Apache source
+distribution, and it's free. :)
+
+Let's try it.  We will simulate 10 users concurrently requesting a
+very light script at C<www.nowhere.com:81/test/test.pl>.  Each
+simulated user makes 10 requests.
+
+  % ./ab -n 100 -c 10 www.nowhere.com:81/test/test.pl
+
+The results are:
+
+  Concurrency Level:      10
+  Time taken for tests:   0.715 seconds
+  Complete requests:      100
+  Failed requests:        0
+  Non-2xx responses:      100
+  Total transferred:      60700 bytes
+  HTML transferred:       31900 bytes
+  Requests per second:    139.86
+  Transfer rate:          84.90 kb/s received
+  
+  Connection Times (ms)
+                min   avg   max
+  Connect:        0     0     3
+  Processing:    13    67    71
+  Total:         13    67    74
+
+The only numbers we really care about are:
+
+  Complete requests:      100
+  Failed requests:        0
+  Requests per second:    139.86
+
+Let's raise the request load to 100 x 10 (10 users, each makes 100
+requests):
+
+  % ./ab -n 1000 -c 10 www.nowhere.com:81/perl/access/access.cgi
+  Concurrency Level:      10
+  Complete requests:      1000
+  Failed requests:        0
+  Requests per second:    139.76
+
+As expected, nothing changes -- we have the same 10 concurrent users.
+Now let's raise the number of concurrent users to 50:
+
+  % ./ab -n 1000 -c 50 www.nowhere.com:81/perl/access/access.cgi
+  Complete requests:      1000
+  Failed requests:        0
+  Requests per second:    133.01
+
+We see that the server is capable of serving 50 concurrent users at an
+amazing 133 requests per second!  Let's find the upper limit.  Using
+C<-n 10000 -c 1000> failed to get results (Broken Pipe?).  Using C<-n
+10000 -c 500> resulted in 94.82 reqests per second.  The server's
+performance went down with the high load.
+
+The above tests were performed with the following configuration:
+
+  MinSpareServers 8
+  MaxSpareServers 6
+  StartServers 10
+  MaxClients 50
+  MaxRequestsPerChild 1500
+
+Now let's kill each child after it serves a single request.  We will
+use the following configuration:
+
+  MinSpareServers 8
+  MaxSpareServers 6
+  StartServers 10
+  MaxClients 100
+  MaxRequestsPerChild 1
+
+Simulate 50 users each generating a total of 20 requests:
+
+  % ./ab -n 1000 -c 50 www.nowhere.com:81/perl/access/access.cgi
+
+The benchmark timed out with the above configuration.... I watched the
+output of B<C<ps>> as I ran it, the parent process just wasn't capable
+of respawning the killed children at that rate.  When I raised the
+C<MaxRequestsPerChild> to 10, I got 8.34 requests per second.  Very
+bad - 18 times slower!  You can't benchmark the importance of the
+C<MinSpareServers>, C<MaxSpareServers> and C<StartServers> with this
+kind of test.
+
+Now let's reset C<MaxRequestsPerChild> to 1500, but reduce
+C<MaxClients> to 10 and run the same test:
+
+  MinSpareServers 8
+  MaxSpareServers 6
+  StartServers 10
+  MaxClients 10
+  MaxRequestsPerChild 1500
+
+I got 27.12 requests per second, which is better but still 4-5 times
+slower.  (I got 133 with C<MaxClients> set to 50.)
+
+B<Summary:> I have tested a few combinations of the server
+configuration variables (C<MinSpareServers>, C<MaxSpareServers>,
+C<StartServers>, C<MaxClients> and C<MaxRequestsPerChild>).  The
+results I got are as follows:
+
+C<MinSpareServers>, C<MaxSpareServers> and C<StartServers> are only
+important for user response times.  Sometimes user will have to wait a
+bit.
+
+The important parameters are C<MaxClients> and C<MaxRequestsPerChild>.
+C<MaxClients> should be not too big, so it will not abuse your
+machine's memory resources, and not too small, for if it is your users
+will be forced to wait for the children to become free to serve them.
+C<MaxRequestsPerChild> should be as big as possible, to take the full
+benefit of mod_perl, but watch your server at the beginning to make
+sure your scripts are not leaking memory, thereby causing your server
+(and your service) to die very fast.
+
+Also it is important to understand that we didn't test the response
+times in the tests above, but the ability of the server to respond
+under a heavy load of requests. If the test script was heavier, the
+numbers would be different but the conclusions very similar.
+
+The benchmarks were run with:
+
+  HW: RS6000, 1Gb RAM
+  SW: AIX 4.1.5 . mod_perl 1.16, apache 1.3.3
+  Machine running only mysql, httpd docs and mod_perl servers.
+  Machine was _completely_ unloaded during the benchmarking.
+
+After each server restart when I changed the server's configuration, I
+made sure that the scripts were preloaded by fetching a script at
+least once for every child.
+
+It is important to notice that none of the requests timed out, even if
+it was kept in the server's queue for more than a minute!  That is the
+way B<ab> works, which is OK for testing purposes but will be
+unacceptable in the real world - users will not wait for more than
+five to ten seconds for a request to complete, and the client
+(i.e. the browser) will time out in a few minutes.
+
+Now let's take a look at some real code whose execution time is more
+than a few milliseconds.  We will do some real testing and collect the
+data into tables for easier viewing.
+
+I will use the following abbreviations:
+
+  NR	= Total Number of Request
+  NC	= Concurrency
+  MC	= MaxClients
+  MRPC	= MaxRequestsPerChild
+  RPS	= Requests per second
+
+Running a mod_perl script with lots of mysql queries (the script under
+test is mysqld limited)
+(http://www.nowhere.com:81/perl/access/access.cgi?do_sub=query_form),
+with the configuration:
+
+  MinSpareServers  	 8
+  MaxSpareServers 	16
+  StartServers 		10
+  MaxClients 		50
+  MaxRequestsPerChild 5000
+
+gives us:
+
+     NR	  NC	RPS	comment
+  ------------------------------------------------
+     10	  10	3.33	# not a reliable figure
+    100	  10	3.94	
+   1000	  10	4.62	
+   1000	  50	4.09	
+
+B<Conclusions:> Here I wanted to show that when the application is
+slow (not due to perl loading, code compilation and execution, but
+limited by some external operation) it almost does not matter what
+load we place on the server.  The RPS (Requests per second) is almost
+the same.  Given that all the requests have been served, you have the
+ability to queue the clients, but be aware that anything that goes
+into the queue means a waiting client and a client (browser) that
+might time out!
+
+Now we will benchmark the same script without using the mysql (code
+limited by perl only):
+(http://www.nowhere.com:81/perl/access/access.cgi), it's the same
+script but it just returns the HTML form, without making SQL queries.
+
+  MinSpareServers  	 8
+  MaxSpareServers 	16
+  StartServers 		10
+  MaxClients 		50
+  MaxRequestsPerChild 5000
+
+     NR	  NC	  RPS	comment
+  ------------------------------------------------
+     10	  10	26.95	# not a reliable figure
+    100	  10	30.88	
+   1000	  10	29.31
+   1000	  50	28.01
+   1000	 100	29.74
+  10000	 200	24.92
+ 100000  400    24.95
+
+B<Conclusions:> This time the script we executed was pure perl (not
+limited by I/O or mysql), so we see that the server serves the
+requests much faster.  You can see the number of requests per second
+is almost the same for any load, but goes lower when the number of
+concurrent clients goes beyond C<MaxClients>.  With 25 RPS, the
+machine simulating a load of 400 concurrent clients will be served in
+16 seconds.  To be more realistic, assuming a maximum of 100
+concurrent clients and 30 requests per second, the client will be
+served in 3.5 seconds.  Pretty good for a highly loaded server.
+
+Now we will use the server to its full capacity, by keeping all
+C<MaxClients> clients alive all the time and having a big
+C<MaxRequestsPerChild>, so that no child will be killed during the
+benchmarking.
+
+  MinSpareServers  	50
+  MaxSpareServers 	50
+  StartServers 		50
+  MaxClients 		50
+  MaxRequestsPerChild 5000
+  
+     NR	  NC	  RPS	comment
+  ------------------------------------------------
+    100	  10	32.05
+   1000	  10	33.14
+   1000	  50	33.17
+   1000	 100	31.72
+  10000	 200	31.60
+
+Conclusion: In this scenario there is no overhead involving the parent
+server loading new children, all the servers are available, and the
+only bottleneck is contention for the CPU.
+
+Now we will change C<MaxClients> and watch the results: Let's reduce
+C<MaxClients> to 10.
+
+  MinSpareServers  	 8
+  MaxSpareServers 	10
+  StartServers 		10
+  MaxClients 		10
+  MaxRequestsPerChild 5000
+  
+     NR	  NC	  RPS	comment
+  ------------------------------------------------
+     10	  10	23.87   # not a reliable figure
+    100	  10	32.64 
+   1000	  10	32.82
+   1000	  50	30.43
+   1000	 100	25.68
+   1000	 500	26.95
+   2000	 500	32.53
+
+B<Conclusions:> Very little difference!  Ten servers were able to
+serve almost with the same throughput as 50 servers.  Why?  My guess
+is because of CPU throttling.  It seems that 10 servers were serving
+requests 5 times faster than when we worked with 50 servers.  In that
+case, each child received its CPU time slice five times less
+frequently.  So having a big value for C<MaxClients>, doesn't mean
+that the performance will be better.  You have just see the numbers!
+
+Now we will start drastically to reduce C<MaxRequestsPerChild>:
+
+  MinSpareServers  	 8
+  MaxSpareServers 	16
+  StartServers 		10
+  MaxClients 		50
+  
+     NR	  NC	MRPC	 RPS	comment
+  ------------------------------------------------
+    100	  10	  10	5.77 
+    100	  10	   5    3.32
+   1000	  50	  20	8.92
+   1000	  50	  10	5.47
+   1000	  50	   5    2.83
+   1000	 100	  10	6.51
+
+
+B<Conclusions:> When we drastically reduce C<MaxRequestsPerChild>, the
+performance starts to become closer to plain mod_cgi. 
+
+Here are the numbers of this run with mod_cgi, for comparison:
+
+  MinSpareServers  	 8
+  MaxSpareServers 	16
+  StartServers 		10
+  MaxClients 		50
+  
+     NR	  NC	RPS	comment
+  ------------------------------------------------
+    100	  10	1.12
+   1000	  50	1.14
+   1000	 100    1.13
+
+B<Conclusion>: mod_cgi is much slower. :) In the first test, when
+NR/NC was 100/10, mod_cgi was capable of 1.12 requests per second.  In
+the same circumstances, mod_perl was capable of 32 requests per
+second, nearly 30 times faster!  In the first test each client waited
+about 100 seconds to be served.  In the second and third tests they
+waited 1000 seconds!
+
+
+=head2 Tuning with httperf
+
+httperf is a utility written by David Mosberger.  Just like
+ApacheBench, it measures the performance of the webserver.
+
+A sample command line is shown below:
+
+  httperf --server hostname --port 80 --uri /test.html \
+   --rate 150 --num-conn 27000 --num-call 1 --timeout 5
+
+This command causes httperf to use the web server on the host with IP
+name hostname, running at port 80.  The web page being retrieved is
+I</test.html> and, in this simple test, the same page is retrieved
+repeatedly.  The rate at which requests are issued is 150 per second.
+The test involves initiating a total of 27,000 TCP connections and on
+each connection one HTTP call is performed.  A call consists of
+sending a request and receiving a reply.
+
+The timeout option defines the number of seconds that the client is
+willing to wait to hear back from the server.  If this timeout
+expires, the tool considers the corresponding call to have failed.
+Note that with a total of 27,000 connections and a rate of 150 per
+second, the total test duration will be approximately 180 seconds
+(27,000/150), independent of what load the server can actually
+sustain.  Here is a result that one might get:
+
+     Total: connections 27000 requests 26701 replies 26701 test-duration 179.996 s
+    
+     Connection rate: 150.0 conn/s (6.7 ms/conn, <=47 concurrent connections)
+     Connection time [ms]: min 1.1 avg 5.0 max 315.0 median 2.5 stddev 13.0
+     Connection time [ms]: connect 0.3
+     
+     Request rate: 148.3 req/s (6.7 ms/req)
+     Request size [B]: 72.0
+     
+     Reply rate [replies/s]: min 139.8 avg 148.3 max 150.3 stddev 2.7 (36 samples)
+     Reply time [ms]: response 4.6 transfer 0.0
+     Reply size [B]: header 222.0 content 1024.0 footer 0.0 (total 1246.0)
+     Reply status: 1xx=0 2xx=26701 3xx=0 4xx=0 5xx=0
+     
+     CPU time [s]: user 55.31 system 124.41 (user 30.7% system 69.1% total 99.8%)
+     Net I/O: 190.9 KB/s (1.6*10^6 bps)
+     
+     Errors: total 299 client-timo 299 socket-timo 0 connrefused 0 connreset 0
+     Errors: fd-unavail 0 addrunavail 0 ftab-full 0 other 0
+
+
+=head2 Tuning with the crashme Script
+
+This is another crashme suite originally written by Michael Schilli
+and located at
+http://www.linux-magazin.de/ausgabe.1998.08/Pounder/pounder.html .  I
+made a few modifications, mostly adding my() operators.  I also
+allowed it to accept more than one url to test, since sometimes you
+want to test more than one script.
+
+The tool provides the same results as B<ab> above but it also allows
+you to set the timeout value, so requests will fail if not served
+within the time out period.  You also get values for B<Latency>
+(seconds per request) and B<Throughput> (requests per second).  It can
+do a complete simulation of your favorite Netscape browser :) and give
+you a better picture.
+
+I have noticed while running these two benchmarking suites, that B<ab>
+gave me results from two and a half to three times better.  Both
+suites were run on the same machine, with the same load and the same
+parameters, but the implementations were different.
+
+Sample output:
+
+  URL(s):          http://www.nowhere.com:81/perl/access/access.cgi
+  Total Requests:  100
+  Parallel Agents: 10
+  Succeeded:       100 (100.00%)
+  Errors:          NONE
+  Total Time:      9.39 secs
+  Throughput:      10.65 Requests/sec
+  Latency:         0.85 secs/Request
+
+And the code:
+
+  #!/usr/apps/bin/perl -w
+  
+  use LWP::Parallel::UserAgent;
+  use Time::HiRes qw(gettimeofday tv_interval);
+  use strict;
+  
+  ###
+  # Configuration
+  ###
+  
+  my $nof_parallel_connections = 10; 
+  my $nof_requests_total = 100; 
+  my $timeout = 10;
+  my @urls = (
+  	    'http://www.nowhere.com:81/perl/faq_manager/faq_manager.pl',
+  	    'http://www.nowhere.com:81/perl/access/access.cgi',
+  	   );
+  
+  
+  ##################################################
+  # Derived Class for latency timing
+  ##################################################
+  
+  package MyParallelAgent;
+  @MyParallelAgent::ISA = qw(LWP::Parallel::UserAgent);
+  use strict;
+  
+  ###
+  # Is called when connection is opened
+  ###
+  sub on_connect {
+    my ($self, $request, $response, $entry) = @_;
+    $self->{__start_times}->{$entry} = [Time::HiRes::gettimeofday];
+  }
+  
+  ###
+  # Are called when connection is closed
+  ###
+  sub on_return {
+    my ($self, $request, $response, $entry) = @_;
+    my $start = $self->{__start_times}->{$entry};
+    $self->{__latency_total} += Time::HiRes::tv_interval($start);
+  }
+  
+  sub on_failure {
+    on_return(@_);  # Same procedure
+  }
+  
+  ###
+  # Access function for new instance var
+  ###
+  sub get_latency_total {
+    return shift->{__latency_total};
+  }
+  
+  ##################################################
+  package main;
+  ##################################################
+  ###
+  # Init parallel user agent
+  ###
+  my $ua = MyParallelAgent->new();
+  $ua->agent("pounder/1.0");
+  $ua->max_req($nof_parallel_connections);
+  $ua->redirect(0);    # No redirects
+  
+  ###
+  # Register all requests
+  ###
+  foreach (1..$nof_requests_total) {
+    foreach my $url (@urls) {
+      my $request = HTTP::Request->new('GET', $url);
+      $ua->register($request);
+    }
+  }
+  
+  ###
+  # Launch processes and check time
+  ###
+  my $start_time = [gettimeofday];
+  my $results = $ua->wait($timeout);
+  my $total_time = tv_interval($start_time);
+  
+  ###
+  # Requests all done, check results
+  ###
+  
+  my $succeeded     = 0;
+  my %errors = ();
+  
+  foreach my $entry (values %$results) {
+    my $response = $entry->response();
+    if($response->is_success()) {
+      $succeeded++; # Another satisfied customer
+    } else {
+      # Error, save the message
+      $response->message("TIMEOUT") unless $response->code();
+      $errors{$response->message}++;
+    }
+  }
+  
+  ###
+  # Format errors if any from %errors 
+  ###
+  my $errors = join(',', map "$_ ($errors{$_})", keys %errors);
+  $errors = "NONE" unless $errors;
+  
+  ###
+  # Format results
+  ###
+  
+  #@urls = map {($_,".")} @urls;
+  my @P = (
+        "URL(s)"          => join("\n\t\t ", @urls),
+        "Total Requests"  => "$nof_requests_total",
+        "Parallel Agents" => $nof_parallel_connections,
+        "Succeeded"       => sprintf("$succeeded (%.2f%%)\n",
+  				   $succeeded * 100 / $nof_requests_total),
+        "Errors"          => $errors,
+        "Total Time"      => sprintf("%.2f secs\n", $total_time),
+        "Throughput"      => sprintf("%.2f Requests/sec\n", 
+  				   $nof_requests_total / $total_time),
+        "Latency"         => sprintf("%.2f secs/Request", 
+  				   ($ua->get_latency_total() || 0) / 
+  				   $nof_requests_total),
+       );
+  
+  
+  my ($left, $right);
+  ###
+  # Print out statistics
+  ###
+  format STDOUT =
+  @<<<<<<<<<<<<<<< @*
+  "$left:",        $right
+  .
+  
+  while(($left, $right) = splice(@P, 0, 2)) {
+    write;
+  }
+
+=head2 Choosing MaxClients
+
+The C<MaxClients> directive sets the limit on the number of
+simultaneous requests that can be supported.  No more than this number
+of child server processes will be created.  To configure more than 256
+clients, you must edit the C<HARD_SERVER_LIMIT> entry in C<httpd.h>
+and recompile.  In our case we want this variable to be as small as
+possible, because in this way we can limit the resources used by the
+server children.  Since we can restrict each child's process size (see
+L<Limiting the size of the
+processes|performance/Limiting_the_Size_of_the_Process>), the
+calculation of C<MaxClients> is pretty straightforward:
+
+               Total RAM Dedicated to the Webserver
+  MaxClients = ------------------------------------
+                     MAX child's process size
+
+So if I have 400Mb left for the webserver to run with, I can set
+C<MaxClients> to be of 40 if I know that each child is limited to 10Mb
+of memory (e.g. with
+L<C<Apache::SizeLimit>|performance/Limiting_the_Size_of_the_Process>).
+
+You will be wondering what will happen to your server if there are
+more than C<MaxClients> concurrent users at any time.  This situation
+is accompanied by the following warning message in the C<error_log>:
+
+  [Sun Jan 24 12:05:32 1999] [error] server reached MaxClients setting,
+  consider raising the MaxClients setting
+
+There is no problem -- any connection attempts over the C<MaxClients>
+limit will normally be queued, up to a number based on the
+C<ListenBacklog> directive.  When a child process is freed at the end
+of a different request, the connection will be served.
+
+It B<is an error> because clients are being put in the queue rather
+than getting served immediately, despite the fact that they do not get
+an error response.  The error can be allowed to persist to balance
+available system resources and response time, but sooner or later you
+will need to get more RAM so you can start more children.  The best
+approach is to try not to have this condition reached at all, and if
+you reach it often you should start to worry about it.
+
+It's important to understand how much real memory a child occupies.
+Your children can share memory between them when the OS supports that.
+You must take action to allow the sharing to happen - See L<Preload
+Perl modules at server
+startup|performance/Preload_Perl_Modules_at_Server_S>.  If you do
+this, the chances are that your C<MaxClients> can be even higher.  But
+it seems that it's not so simple to calculate the absolute number.  If
+you come up with solution please let us know!  If the shared memory
+was of the same size throughout the child's life, we could derive a
+much better formula:
+
+               Total_RAM + Shared_RAM_per_Child * MaxClients
+  MaxClients = ---------------------------------------------
+                        Max_Process_Size - 1
+
+which is:
+
+                    Total_RAM - Max_Process_Size
+  MaxClients = ---------------------------------------
+               Max_Process_Size - Shared_RAM_per_Child
+
+
+
+Let's roll some calculations:
+
+  Total_RAM            = 500Mb
+  Max_Process_Size     =  10Mb
+  Shared_RAM_per_Child =   4Mb
+
+              500 - 10
+ MaxClients = --------- = 81
+               10 - 4
+
+With no sharing in place
+
+                 500
+ MaxClients = --------- = 50
+                 10
+
+With sharing in place you can have 60% more servers without buying
+more RAM.
+
+If you improve sharing and keep the sharing level, let's say:
+
+  Total_RAM            = 500Mb
+  Max_Process_Size     =  10Mb
+  Shared_RAM_per_Child =   8Mb
+
+              500 - 10
+ MaxClients = --------- = 245
+               10 - 8
+
+390% more servers!  You've got the point. :)
+
+=head2 Choosing MaxRequestsPerChild
+
+The C<MaxRequestsPerChild> directive sets the limit on the number of
+requests that an individual child server process will handle.  After
+C<MaxRequestsPerChild> requests, the child process will die.  If
+C<MaxRequestsPerChild> is 0, then the process will live forever.
+
+Setting C<MaxRequestsPerChild> to a non-zero limit has two beneficial
+effects: it solves some memory leakage problems and it helps to reduce
+the number of processes when the server load reduces.
+
+The first reason is the most crucial for mod_perl, since sloppy
+programming will cause a child process to consume more memory after
+each request.  If left unbounded, then after a certain number of
+requests the children will use up all the available memory and leave
+the server to die from memory starvation.  Note that sometimes
+standard system libraries leak memory too, especially on OSes with bad
+memory management (e.g. Solaris 2.5 on x86 arch).  If this is your
+case you can set C<MaxRequestsPerChild> to a small number.  This will
+allow the system to reclaim the memory that a greedy child processes
+consumed, when it exits after C<MaxRequestsPerChild> requests.  But
+beware -- if you set this number too low, you will lose some of the
+speed bonus you get from mod_perl.  Consider using C<Apache::PerlRun>
+if this is the case.  Also consider setting C<MaxSpareServers> to a
+number close to C<MaxClients>.  This will improve the response time
+but your parent process will be very busy respawning new children!
+
+Another approach is to use C<Apache::SizeLimit>.  See L<Limiting the
+size of processes|performance/Limiting_the_Size_of_the_Process>.
+
+See also L<Preload Perl modules at server
+startup|performance/Preload_Perl_Modules_at_Server_S> and L<Sharing
+Memory|performance/Sharing_Memory>.
+
+
+=head2 Choosing MinSpareServers, MaxSpareServers and StartServers
+
+With mod_perl enabled, it might take as much as 30 seconds from the
+time you start the server until it is ready to serve incoming
+requests.  This delay depends on the OS, the number of preloaded
+modules and the process load of the machine.  It's best to set
+C<StartServers> and C<MinSpareServers> to high numbers, so that if you
+get a high load just after the server has been restarted the fresh
+servers will be ready to serve requests immediately.  With mod_perl,
+it's usually a good idea to raise all 3 variables higher than normal.
+
+In order to maximize the benefits of mod_perl, you don't want to kill
+servers when they are idle, rather you want them to stay up and
+available to handle new requests immediately.  I think an ideal
+configuration is to set C<MinSpareServers> and C<MaxSpareServers> to
+similar values, maybe even the same.  Having the C<MaxSpareServers>
+close to C<MaxClients> will completely use all of your resources (if
+C<MaxClients> has been chosen to take the full advantage of the
+resources), but it'll make sure that at any given moment your system
+will be capable of responding to requests with the maximum speed
+(assuming that number of concurrent requests is not higher than
+C<MaxClients>).
+
+Let's try some numbers.  For a heavily loaded web site and a dedicated
+machine I would think of (note 400Mb is just for example):
+
+  Available to webserver RAM: 	400Mb
+  Child's memory size bounded:  10Mb
+  MaxClients:			400/10 = 40 (larger with mem sharing)
+  StartServers:			20
+  MinSpareServers: 		20
+  MaxSpareServers:		35
+
+However if I want to use the server for many other tasks, but make it
+capable of handling a high load, I'd think of:
+
+  Available to webserver RAM: 	400Mb
+  Child's memory size bounded:  10Mb
+  MaxClients:			400/10 = 40
+  StartServers:			5
+  MinSpareServers: 		5
+  MaxSpareServers:		10
+
+These numbers are taken off the top of my head, and shouldn't be used
+as a rule, but rather as examples to show you some possible scenarios.
+Use this information with caution!
+
+
+
+=head2 Summary of Benchmarking to tune all 5 parameters
+
+OK, we've run various benchmarks -- let's summarize the conclusions:
+
+=over 4
+
+=item * MaxRequestsPerChild
+
+If your scripts are clean and don't leak memory, set this variable to
+a number as large as possible (10000?). If you use
+C<Apache::SizeLimit>, you can set this parameter to 0 (equal to
+infinity). You will want this parameter to be smaller if your code
+becomes unshared over the process' life.
+
+=item *  StartServers
+
+If you keep a small number of servers active most of the time, keep
+this number low.  Keep it low especially if C<MaxSpareServers> is also
+low, as if there is no load Apache will kill its children before they
+have been utilized at all. If your service is heavily loaded, make
+this number close to C<MaxClients>, and keep C<MaxSpareServers> equal
+to C<MaxClients>.
+
+=item * MinSpareServers
+
+If your server performs other work besides web serving, make this low
+so the memory of unused children will be freed when the load is light.
+If your server's load varies (you get loads in bursts) and you want
+fast response for all clients at any time, you will want to make it
+high, so that new children will be respawned in advance and are
+waiting to handle bursts of requests.
+
+=item *  MaxSpareServers
+
+The logic is the same as for C<MinSpareServers> - low if you need the
+machine for other tasks, high if it's a dedicated web host and you
+want a minimal delay between the request and the response.
+
+=item * MaxClients
+
+Not too low, so you don't get into a situation where clients are
+waiting for the server to start serving them (they might wait, but not
+for very long).  However, do not set it too high.  With a high
+MaxClients, if you get a high load the server will try to serve all
+requests immediately.  Your CPU will have a hard time keeping up, and
+if the child size * number of running children is larger than the
+total available RAM your server will start swapping.  This will slow
+down everything, which in turn will make things even slower, until
+eventually your machine will die.  It's important that you take pains
+to ensure that swapping does not normally happen.  Swap space is an
+emergency pool, not a resource to be used routinely. If you are low on
+memory and you badly need it, buy it.  Memory is cheap.
+
+But based on the test I conducted above, even if you have plenty of
+memory like I have (1Gb), increasing C<MaxClients> sometimes will give
+you no improvement in performance.  The more clients are running, the
+more CPU time will be required, the less CPU time slices each process
+will receive.  The response latency (the time to respond to a request)
+will grow, so you won't see the expected improvement.  The best
+approach is to find the minimum requirement for your kind of service
+and the maximum capability of your machine.  Then start at the minimum
+and test like I did, successively raising this parameter until you
+find the region on the curve of the graph of latency and/or throughput
+against MaxClients where the improvement starts to diminish.  Stop
+there and use it.  When you make the measurements on a production
+server you will have the ability to tune them more precisely, since
+you will see the real numbers.
+
+Don't forget that if you add more scripts, or even just modify the
+existing ones, the processes will grow in size as you compile in more
+code.  Probably the parameters will need to be recalculated.
+
+=back
+
+
+=head1 Persistent DB Connections
+
+Another popular use of mod_perl is to take advantage of its ability to
+maintain persistent open database connections.  The basic approach is
+as follows:
+
+  # Apache::Registry script
+  -------------------------
+  use strict;
+  use vars qw($dbh);
+  
+  $dbh ||= SomeDbPackage->connect(...);
+
+Since C<$dbh> is a global variable for the child, once the child has
+opened the connection it will use it over and over again, unless you
+perform C<disconnect()>.
+
+Be careful to use different names for handlers if you open connections
+to different databases!
+
+C<Apache::DBI> allows you to make a persistent database connection.
+With this module enabled, every C<connect()> request to the plain
+C<DBI> module will be forwarded to the C<Apache::DBI> module.  This
+looks to see whether a database handle from a previous C<connect()>
+request has already been opened, and if this handle is still valid
+using the ping method.  If these two conditions are fulfilled it just
+returns the database handle.  If there is no appropriate database
+handle or if the ping method fails, a new connection is established
+and the handle is stored for later re-use.  B<There is no need to
+delete the C<disconnect()> statements from your code>.  They will not
+do anything, the C<Apache::DBI> module overloads the C<disconnect()>
+method with a NOP.  When a child exits there is no explicit
+disconnect, the child dies and so does the database connection.  You
+may leave the C<use DBI;> statement inside the scripts as well.
+
+The usage is simple -- add to C<httpd.conf>:
+
+  PerlModule Apache::DBI
+
+It is important to load this module before any other C<DBI>,
+C<DBD::*> and C<ApacheDBI*> modules!
+
+  db.pl
+  ------------
+  use DBI;
+  use strict;
+  
+  my $dbh = DBI->connect( 'DBI:mysql:database', 'user', 'password',
+                          { autocommit => 0 }
+                        ) || die $DBI::errstr;
+  
+  ...rest of the program
+
+=head2 Preopening Connections at the Child Process' Fork Time
+
+If you use C<DBI> for DB connections, and you use C<Apache::DBI> to
+make them persistent, it also allows you to preopen connections to the
+DB for each child with the C<connect_on_init()> method, thus saving a
+connection overhead on the very first request of every child.
+
+  use Apache::DBI ();
+  Apache::DBI->connect_on_init("DBI:mysql:test",
+			       "login",
+			       "passwd",
+			       {
+				RaiseError => 1,
+				PrintError => 0,
+				AutoCommit => 1,
+			       }
+			      );
+
+This is a simple way to have apache children establish connections on
+server startup.  This call should be in a startup file C<require()d>
+by C<PerlRequire> or inside a <Perl> section.  It will establish a
+connection when a child is started in that child process.  See the
+C<Apache::DBI> manpage for the requirements for this method.
+
+=head2 Caching prepare() Statements
+
+You can also benefit from persistent connections by replacing
+prepare() with prepare_cached().  That way you will always be sure
+that you have a good statement handle and you will get some caching
+benefit.  The downside is that you are going to pay for DBI to parse
+your SQL and do a cache lookup every time you call prepare_cached().
+
+Be warned that some databases (e.g PostgreSQL and Sybase) don't
+support caches of prepared plans.  With Sybase you could open multiple
+connections to achieve the same result, although this is at the risk
+of getting deadlocks depending on what you are trying to do!
+
+=head2 Handling Timeouts
+
+Some databases disconnect the client after a certain time inactive.
+This problem is known as the B<morning bug>.  The C<ping()> method
+ensures that this will not happen.  Some C<DBD> drivers don't have
+this method, check the C<Apache::DBI> manpage to see how to write a
+C<ping()> method.
+
+Another approach is to change the client's connection timeout.  For
+mysql users, starting from mysql-3.22.x you can set a C<wait_timeout>
+option at mysqld server startup to change the default value.  Setting
+it to 36 hours will probably fix the timeout problem in most cases.
+
+=head1 Jeff's guide to mod_perl database performance
+
+=head2 Analysis of the Problem
+
+A common web application architecture is one or more application
+servers which handle requests from client browsers by consulting one
+or more database servers and performing a transform on the data.  When
+an application must consult the database on every request, the
+interaction with the database server becomes the central performance
+issue.  Spending a bit of time optimizing your database access can
+result in significant application performance improvements.  In this
+analysis, a system using Apache, mod_perl, C<DBI>, and Oracle will be
+considered.  The application server uses Apache and mod_perl to
+service client requests, and C<DBI> to communicate with a remote
+Oracle database.
+
+In the course of servicing a typical client request, the application
+server must retrieve some data from the database and execute a stored
+procedure.  There are several steps that need to be done to complete
+the request:
+
+ 1: Connect to the database server
+ 2: Prepare a SQL SELECT statement
+ 3: Execute the SELECT statement
+ 4: Retrieve the results of the SELECT statement
+ 5: Release the SELECT statement handle
+ 6: Prepare a PL/SQL stored procedure call
+ 7: Execute the stored procedure
+ 8: Release the stored procedure statement handle
+ 9: Commit or rollback
+ 10: Disconnect from the database server
+
+In this document, an application will be described which achieves
+maximum performance by eliminating some of the steps above and
+optimizing others.
+
+=head2 Optimizing Database Connections
+
+A naive implementation would perform steps 1 through 10 from above on
+every request.  A portion of the source code might look like this:
+
+  # ...
+  my $dbh = DBI->connect('dbi:Oracle:host', 'user', 'pass')
+	|| die $DBI::errstr;
+  
+  my $baz = $r->param('baz');
+  
+  eval {
+	my $sth = $dbh->prepare(qq{
+		SELECT foo 
+	          FROM bar 
+        	 WHERE baz = $baz
+	});
+	$sth->execute;
+  
+	while (my @row = $sth->fetchrow_array) {
+		# do HTML stuff
+	}
+	
+	$sth->finish;
+  
+	my $sph = $dbh->prepare(qq{
+		BEGIN
+			my_procedure(
+				arg_in => $baz
+			);
+		END;
+	});
+	$sph->execute;
+	$sph->finish;
+	
+	$dbh->commit;
+  };
+  if ($@) {
+	$dbh->rollback;
+  }
+  
+  $dbh->disconnect;
+  # ...
+
+In practice, such an implementation would have hideous performance
+problems.  The majority of the execution time of this program would
+likely be spent connecting to the database.  An examination shows that
+step 1 is comprised of many smaller steps:
+
+ 1: Connect to the database server
+ 1a: Build client-side data structures for an Oracle connection
+ 1b: Look up the server's alias in a file
+ 1c: Look up the server's hostname
+ 1d: Build a socket to the server
+ 1e: Build server-side data structures for this connection
+
+The naive implementation waits for all of these steps to happen, and
+then throws away the database connection when it is done!  This is
+obviously wasteful, and easily rectified.  The best solution is to
+hoist the database connection step out of the per-request lifecycle so
+that more than one request can use the same database connection.  This
+can be done by connecting to the database server once, and then not
+disconnecting until the Apache child process exits.  The
+C<Apache::DBI> module does this transparently and automatically with
+little effort on the part of the programmer.
+
+C<Apache::DBI> intercepts calls to C<DBI>'s connect and disconnect
+methods and replaces them with its own.  C<Apache::DBI> caches
+database connections when they are first opened, and it ignores
+disconnect commands.  When an application tries to connect to the same
+database, C<Apache::DBI> returns a cached connection, thus saving the
+significant time penalty of repeatedly connecting to the database. You
+will find a full treatment of C<Apache::DBI> at L<Persistent DB
+Connections|performance/Persistent_DB_Connections>
+
+When C<Apache::DBI> is in use, none of the code in the example needs
+to change. The code is upgraded from naive to respectable with the use
+of a simple module!  The first and biggest database performance
+problem is quickly dispensed with.
+
+=head2 Utilizing the Database Server's Cache
+
+Most database servers, including Oracle, utilize a cache to improve
+the performance of recently seen queries.  The cache is keyed on the
+SQL statement.  If a statement is identical to a previously seen
+statement, the execution plan for the previous statement is reused.
+This can be a considerable improvement over building a new statement
+execution plan.
+
+Our respectable implementation from the last section is not making use
+of this caching ability.  It is preparing the statement: 
+
+  SELECT foo FROM bar WHERE baz = $baz
+
+The problem is that C<$baz> is being read from an HTML form, and is
+therefore likely to change on every request.  When the database server
+sees this statement, it is going to look like:
+
+  SELECT foo FROM bar WHERE baz = 1
+
+and on the next request, the SQL will be:
+
+  SELECT foo FROM bar WHERE baz = 42
+
+Since the statements are different, the database server will not be
+able to reuse its execution plan, and will proceed to make another
+one.  This defeats the purpose of the SQL statement cache.
+
+The application server needs to make sure that SQL statements which
+are the same look the same.  The way to achieve this is to use
+placeholders and bound parameters.  The placeholder is a blank in the
+SQL statement, which tells the database server that the value will be
+filled in later.  The bound parameter is the value which is inserted
+into the blank before the statement is executed.
+
+With placeholders, the SQL statement looks like: 
+
+  SELECT foo FROM bar WHERE baz = :baz
+
+Regardless of whether C<baz> is 1 or 42, the SQL always looks the
+same, and the database server can reuse its cached execution plan for
+this statement.  This technique has eliminated the execution plan
+generation penalty from the per-request runtime.  The potential
+performance improvement from this optimization could range from modest
+to very significant.
+
+Here is the updated code fragment which employs this optimization:
+
+  # ...
+  my $dbh = DBI->connect('dbi:Oracle:host', 'user', 'pass')
+	|| die $DBI::errstr;
+  
+  my $baz = $r->param('baz');
+  
+  eval {
+	my $sth = $dbh->prepare(qq{
+		SELECT foo 
+	          FROM bar 
+        	 WHERE baz = :baz
+	});
+	$sth->bind_param(':baz', $baz);
+	$sth->execute;
+  
+	while (my @row = $sth->fetchrow_array) {
+		# do HTML stuff
+	}
+	
+	$sth->finish;
+  
+	my $sph = $dbh->prepare(qq{
+		BEGIN
+			my_procedure(
+				arg_in => :baz
+			);
+		END;
+	});
+	$sph->bind_param(':baz', $baz);
+	$sph->execute;
+	$sph->finish;
+	
+	$dbh->commit;
+  };
+  if ($@) {
+	$dbh->rollback;
+  }
+  # ...
+
+=head2 Eliminating SQL Statement Parsing
+
+The example program has certainly come a long way and the performance
+is now probably much better than that of the first revision.  However,
+there is still more speed that can be wrung out of this server
+architecture.  The last bottleneck is in SQL statement parsing.  Every
+time C<DBI>'s prepare() method is called, C<DBI> parses the SQL
+command looking for placeholder strings, and does some housekeeping
+work. Worse, a context has to be built on the client and server sides
+of the connection which the database will use to refer to the
+statement. These things take time, and by eliminating these steps the
+time can be saved.
+
+To get rid of the statement handle construction and statement parsing
+penalties, we could use C<DBI>'s prepare_cached() method. This method
+compares the SQL statement to others that have already been executed.
+If there is a match, the cached statement handle is returned.  But the
+application server is still spending time calling an object method
+(very expensive in Perl), and doing a hash lookup.  Both of these
+steps are unnecessary, since the SQL is very likely to be static and
+known at compile time.  The smart programmer can take advantage of
+these two attributes to gain better database performance.  In this
+example, the database statements will be prepared immediately after
+the connection to the database is made, and they will be cached in
+package scalars to eliminate the method call.
+
+What is needed is a routine that will connect to the database and
+prepare the statements.  Since the statements are dependent upon the
+connection, the integrity of the connection needs to be checked before
+using the statements, and a reconnection should be attempted if
+needed.  Since the routine presented here does everything that
+C<Apache::DBI> does, it does not use C<Apache::DBI> and therefore has
+the added benefit of eliminating a cache lookup on the connection.
+
+Here is an example of such a package:
+
+  package My::DB;
+  
+  use strict;
+  use DBI;
+  
+  sub connect {
+	if (defined $My::DB::conn) {
+		eval {
+			$My::DB::conn->ping;
+		};
+		if (!$@) {
+			return $My::DB::conn;
+		}
+	}
+  
+	$My::DB::conn = DBI->connect(
+		'dbi:Oracle:server', 'user', 'pass', {
+			PrintError => 1,
+			RaiseError => 1,
+			AutoCommit => 0
+		}
+	) || die $DBI::errstr; #Assume application handles this
+  
+	$My::DB::select = $My::DB::conn->prepare(q{
+		SELECT foo
+		  FROM bar
+		 WHERE baz = :baz
+	});
+	
+	$My::DB::procedure = $My::DB::conn->prepare(q{
+		BEGIN
+			my_procedure(
+				arg_in => :baz
+			);
+		END;
+	});
+  
+	return $My::DB::conn;
+  }
+  
+  1;
+
+Now the example program needs to be modified to use this package.
+
+  # ...
+  my $dbh = My::DB->connect;
+  
+  my $baz = $r->param('baz');
+  
+  eval {
+	my $sth = $My::DB::select;
+	$sth->bind_param(':baz', $baz);
+	$sth->execute;
+  
+	while (my @row = $sth->fetchrow_array) {
+		# do HTML stuff
+	}
+  
+	my $sph = $My::DB::procedure;
+	$sph->bind_param(':baz', $baz);
+	$sph->execute;
+	 
+	$dbh->commit;
+  };
+  if ($@) {
+	$dbh->rollback;
+  }
+  # ...
+
+
+Notice that several improvements have been made. Since the statement
+handles have a longer life than the request, there is no need for each
+request to prepare the statement, and no need to call the statement
+handle's finish method. Since C<Apache::DBI> and the prepare_cached()
+method are not used, no cache lookups are needed.
+
+=head2 Conclusion
+
+The number of steps needed to service the request in the example
+system has been reduced significantly.  In addition, the hidden cost
+of building and tearing down statement handles and of creating query
+execution plans is removed.  Compare the new sequence with the
+original:
+
+ 1: Check connection to database
+ 2: Bind parameter to SQL SELECT statement
+ 3: Execute SELECT statement
+ 4: Fetch rows
+ 5: Bind parameters to PL/SQL stored procedure
+ 6: Execute PL/SQL stored procedure
+ 7: Commit or rollback
+
+It is probably possible to optimize this example even further, but I
+have not tried.  It is very likely that the time could be better spent
+improving your database indexing scheme or web server buffering and
+load balancing.  If there are any suggestions for further optimization
+of the application-database interaction, please mail them to me at
+jwb@cp.net.
+
+Jeffrey Baker,
+4 October 1999
+
+=head1 Using $|=1 Under mod_perl and Better print() Techniques.
+
+As you know, C<local $|=1;> disables the buffering of the currently
+selected file handle (default is C<STDOUT>).  If you enable it,
+C<ap_rflush()> is called after each C<print()>, unbuffering Apache's
+IO.
+
+If you are using multiple C<print()> calls (_bad_ style in generating
+output) or if you just have too many of them, then you will experience
+a degradation in performance.  The severity depends on the number of
+print() calls that you make.
+
+Many old CGI scripts were written like this:
+
+  print "<BODY BGCOLOR=\"black\" TEXT=\"white\">";
+  print "<H1>";
+  print "Hello";
+  print "</H1>";
+  print "<A HREF=\"foo.html\"> foo </A>";
+  print "</BODY>";
+
+This example has multiple C<print()> calls, which will cause
+performance degradation with C<$|=1>.  It also uses too many
+backslashes.  This makes the code less readable, and it is also more
+difficult to format the HTML so that it is easily readable as the
+script's output.  The code below solves the problems:
+
+  print qq{
+    <BODY BGCOLOR="black" TEXT="white">
+      <H1>
+        Hello
+      </H1>
+      <A HREF="foo.html"> foo </A>
+    </BODY>
+  };
+
+I guess you see the difference. Be careful though, when printing a
+C<<HTML>> tag. The correct way is:
+
+  print qq{<HTML>
+    <HEAD></HEAD>
+    <BODY>
+  }
+
+
+If you try the following:
+
+  print qq{
+    <HTML>
+    <HEAD></HEAD>
+    <BODY>
+  }
+
+Some older browsers expect the first characters after the headers and
+empty line to be C<<HTML>> with *no* spaces before the opening left
+angle-bracket.  If there are any othere characters, they might not
+accept the output as HTML and print it as a plain text.  Even if it
+works with your browser, it might not work for others.
+
+Now let's go back to the C<$|=1> topic.  I still disable buffering,
+for two reasons:
+
+=over 4
+
+=item * I use relatively few C<print()> calls.  I achieve this by
+arranging for my C<print()> statements to print multiline HTML, and
+not one line per C<print()> statement.
+
+=item * I want my users to see the output immediately.  So if I am
+about to produce the results of a DB query which might take some time
+to complete, I want users to get some titles while they are waiting.
+This improves the usability of my site.  Ask yourself which you like
+better: getting the output a bit slower, but steadily from the moment
+you've pressed the B<Submit> button, or having to watch the "falling
+stars" for a while and then to receive the whole output at once, even
+if it's a few milliseconds faster - assuming the browser didn't time
+out during the wait.
+
+=back
+
+An even better solution is to keep the buffering enabled, and use a
+Perl API C<rflush()> call to flush the buffers when needed.  This way
+you can place the first part of the page that you are going to send to
+user in the buffer, and flush it a moment before you are going to do
+some lenghty operation, like DB query.  So you kill two birds with one
+stone: you show some of the data to the user immediately, so she will
+feel that something is actually happening, and you have no performance
+hit from disabled buffering.
+
+  use CGI ();
+  my $r = shift;
+  my $q = new CGI;
+  print $q->header('text/html');
+  print $q->start_html;
+  print $q->p("Searching...Please wait");
+  $r->rflush;
+    # imitate a lenghty operation
+  for (1..5) {
+    sleep 1;
+  }
+  print $q->p("Done!");
+
+B<Conclusion>: Do not blindly follow suggestions, but think what is best for
+you in each case.
+
+
+=head1 More Reducing Memory Usage Tips
+
+One of the most important issues in improving performance is the
+reduction of memory usage.  The less memory each server uses, the more
+server processes you can start, and thus the more performance you have
+(from the user's point of view, the speed of response).
+
+See L<Global vs Fully Qualified
+Variables|performance/Global_vs_Fully_Qualified_Variab>
+
+See L<Memory "leakages"|performance/Memory_leakage>
+
+
+
+
+
+=head1 Measuring the Subroutines Memory Usage
+
+With help of C<Apache::Status> you can check what is the size of each
+and every subroutine.
+
+=over
+
+=item * Build and install mod_perl as you always do, make sure it's a
+version 1.22 or higher.
+
+=item * Configure /perl-status if you didn't before:
+
+  <Location /perl-status>
+    SetHandler perl-script
+    PerlHandler Apache::Status
+    order deny,allow
+    #deny from all
+    #allow from ...
+  </Location>
+
+=item * Add to httpd.conf
+
+  PerlSetVar StatusOptionsAll On
+  PerlSetVar StatusTerse On
+  PerlSetVar StatusTerseSize On
+  PerlSetVar StatusTerseSizeMainSummary On
+
+  PerlModule B::TerseSize
+
+=item * Start the server (best in httpd -X mode)
+
+=item * From your favorite Netscape browser fetch
+http://localhost/perl-status
+
+=item * Click on 'Loaded Modules' or 'Compiled Registry Scripts'
+
+=item * Click on module or script of your choice (you might need to run some
+script/handler before you will see it here unless it was preloaded)
+
+=item * Click on 'Memory Usage' at the bottom
+
+=item * You should see all the subroutines and their respective sizes.
+
+=back
+
+Now you can start to optimize your code. Or test which of the several
+implementations is of the least size.
+
+For example let's compare OO vs methods C<CGI.pm>'s interfaces:
+
+As you will see below the first OO script uses about 2k bytes while
+the second script (methods interface) uses about 18k.
+
+Here are the code and the numbers:
+
+Code:
+
+=over
+
+=item 1
+
+  cgi_oo.pl
+  ---------
+  use CGI ();
+  my $q = new CGI;
+  print $q->header;
+  print $q->b("Hello");
+
+=item 2
+
+  cgi_mtd.pl
+  ---------
+  use CGI qw(:standard);
+  print header();
+  print b("Hello");
+
+=back
+
+After executing each script in a single server mode (-X) that's what
+I've seen:
+
+=over
+
+=item 1
+
+  Totals: 1966 bytes | 27 OPs
+
+  handler 1514 bytes | 27 OPs
+  exit     116 bytes |  0 OPs
+
+=item 2
+
+  Totals: 17969 bytes | 19 OPs
+
+  handler              1117 bytes | 19 OPs
+  start_multipart_form  132 bytes |  0 OPs
+  use_named_parameters  132 bytes |  0 OPs
+  end_multipart_form    130 bytes |  0 OPs
+  restore_parameters    130 bytes |  0 OPs
+  server_software       127 bytes |  0 OPs
+  server_protocol       127 bytes |  0 OPs
+  path_translated       127 bytes |  0 OPs
+  save_parameters       127 bytes |  0 OPs
+  scrolling_list        126 bytes |  0 OPs
+  request_method        126 bytes |  0 OPs
+  password_field        126 bytes |  0 OPs
+  checkbox_group        126 bytes |  0 OPs
+  query_string          124 bytes |  0 OPs
+  import_names          124 bytes |  0 OPs
+  virtual_host          124 bytes |  0 OPs
+  remote_ident          124 bytes |  0 OPs
+  content_type          124 bytes |  0 OPs
+  image_button          124 bytes |  0 OPs
+  remote_addr           123 bytes |  0 OPs
+  remote_host           123 bytes |  0 OPs
+  URL_ENCODED           123 bytes |  0 OPs
+  tmpFileName           123 bytes |  0 OPs
+  server_port           123 bytes |  0 OPs
+   [many more report lines truncated]
+
+=back
+
+
+
+=head1 Code Profiling
+
+The profiling process helps you to determine which subroutines or just
+snippets of code take the longest execution time and which subroutines
+are called most often.  Probably you will want to optimize those.
+
+Let's write some code to mess with:
+
+META: build a hash and sort it by value, key... then rewrite the
+comparison subroutine to use the Shwartzian transform.. and more
+
+Think about some more web oriented examples...!
+
+  map {push @list, int rand(100)} (1..1000);
+
+  sub mysort {
+    map ...
+  }
+
+META: remove all the diagnostics section below it's irrelevant here.
+(just reuse the explanations)
+
+In the L<diagnostics pragma|debug/diagnostics_pragma> section, I
+showed that leaving it in production code is a bad idea, as it
+significantly slows down the execution time.  We verified that by
+using the C<Benchmark> module.  Now let's see how to use a profiler to
+find what subroutine C<diagnostics> spends most of its time in. Once
+we know it could be a good idea to optimize this part of the code.  We
+won't optimize the code here as this is beyond the scope of this
+document - and since this is a core Perl module, the chances are that
+it's already fairly well optimized.
+
+We can use C<Devel::DProf> to help us.  Let's use this code:
+
+  diagnostics.pl
+  --------------
+  use diagnostics;
+  test_code();
+  sub test_code{
+    for my $i (1..10) {
+      my $j = $i**2;
+    }
+    $a = "Hi"; 
+    $b = "Bye";
+    if ($a == $b) {
+      $c = $a;
+    }
+  }
+
+Run it with the profiler enabled, and then create the profiling
+stastics with the help of dprofpp:
+
+  % perl -d:DProf diagnostics.pl
+  % dprofpp
+
+  Total Elapsed Time = 0.993458 Seconds
+    User+System Time = 0.933458 Seconds
+  Exclusive Times
+  %Time ExclSec CumulS #Calls sec/call Csec/c  Name
+   81.5   0.761  0.932      1   0.7610 0.9319  main::BEGIN
+   12.8   0.120  0.101   3161   0.0000 0.0000  diagnostics::unescape
+   6.43   0.060  0.060      2   0.0300 0.0300  diagnostics::BEGIN
+   2.14   0.020  0.020      3   0.0067 0.0067  diagnostics::transmo
+   1.07   0.010  0.010      2   0.0050 0.0050  Config::FETCH
+   0.00   0.000 -0.000      2   0.0000      -  Exporter::import
+   0.00   0.000 -0.000      2   0.0000      -  Exporter::export
+   0.00   0.000 -0.000      1   0.0000      -  Config::BEGIN
+   0.00   0.000 -0.000      1   0.0000      -  diagnostics::import
+   0.00   0.000  0.020      3   0.0000 0.0066  diagnostics::warn_trap
+   0.00   0.000  0.020      3   0.0000 0.0066  diagnostics::splainthis
+   0.00   0.000 -0.000      1   0.0000      -  Config::TIEHASH
+   0.00   0.000 -0.000      3   0.0000      -  diagnostics::shorten
+   0.00   0.000 -0.000      3   0.0000      -  diagnostics::autodescribe
+   0.00   0.000  0.010      1   0.0000 0.0099  main::test_code
+
+It's not easy to see what is responsible for this enormous overhead,
+even if C<main::BEGIN> seems to be running most of the time.  To get
+the full picture we must see the OPs tree, which shows us who calls
+whom, so we run:
+
+  % dprofpp -T
+
+and the output is:
+
+ main::BEGIN
+   diagnostics::BEGIN
+      Exporter::import
+         Exporter::export
+   diagnostics::BEGIN
+      Config::BEGIN
+      Config::TIEHASH
+      Exporter::import
+         Exporter::export
+   Config::FETCH
+   Config::FETCH
+   diagnostics::unescape
+   .....................
+   B<3159 times [diagnostics::unescape] snipped> .
+   .....................
+   diagnostics::unescape
+   diagnostics::import
+ diagnostics::warn_trap
+   diagnostics::splainthis
+      diagnostics::transmo
+      diagnostics::shorten
+      diagnostics::autodescribe
+ main::test_code
+   diagnostics::warn_trap
+      diagnostics::splainthis
+         diagnostics::transmo
+         diagnostics::shorten
+         diagnostics::autodescribe
+   diagnostics::warn_trap
+      diagnostics::splainthis
+         diagnostics::transmo
+         diagnostics::shorten
+        diagnostics::autodescribe
+
+
+So we see that two executions of C<diagnostics::BEGIN> and 3161 of
+C<diagnostics::unescape> are responsible for most of the running
+overhead.
+
+META: but we see that it might be run only once in mod_perl, so the
+numbers are better. Am I right?  check it!
+
+
+If we comment out the C<diagnostics> module, we get:
+
+  Total Elapsed Time = 0.079974 Seconds
+    User+System Time = 0.059974 Seconds
+  Exclusive Times
+  %Time ExclSec CumulS #Calls sec/call Csec/c  Name
+   0.00   0.000 -0.000      1   0.0000      -  main::test_code
+
+
+It is possible to profile code running under mod_perl with the
+C<Devel::DProf> module, available on CPAN.  However, you must have
+apache version 1.3b3 or higher and the C<PerlChildExitHandler> enabled
+during the httpd build process.  When the server is started,
+C<Devel::DProf> installs an C<END> block to write the C<tmon.out>
+file.  This block will be called at server shutdown. Here is how to
+start and stop a server with the profiler enabled:
+
+  % setenv PERL5OPT -d:DProf
+  % httpd -X -d `pwd` &
+  ... make some requests to the server here ...
+  % kill `cat logs/httpd.pid`
+  % unsetenv PERL5OPT
+  % dprofpp
+
+The C<Devel::DProf> package is a Perl code profiler.  It will collect
+information on the execution time of a Perl script and of the subs in
+that script (remember that C<print()> and C<map()> are just like any
+other subroutines you write, but they come bundled with Perl!)
+
+Another approach is to use C<Apache::DProf>, which hooks
+C<Devel::DProf> into mod_perl.  The C<Apache::DProf> module will run a
+C<Devel::DProf> profiler inside each child server and write the
+C<tmon.out> file in the directory C<$ServerRoot/logs/dprof/$$> when
+the child is shutdown (where C<$$> is a number of the child
+process).  All it takes is to add to C<httpd.conf>:
+
+  PerlModule Apache::DProf
+
+Remember that any PerlHandler that was pulled in before
+C<Apache::DProf> in the C<httpd.conf> or <startup.pl>, will not have
+its code debugging info inserted.  To run C<dprofpp>, chdir to
+C<$ServerRoot/logs/dprof/$$> and run:
+
+  % dprofpp
+
+
+
+
+
+
+
+=head1 Object Methods Calls Versus Function Calls
+
+Which approach is more efficient: OOP methods or function calls?
+C<CGI.pm>, for example, allows you to work in both modes.
+
+  use CGI;
+  my $q = new CGI;
+  $q->param('x',5);
+  my $x = $q->param('x');
+
+versus
+
+  use CGI qw(:standard);
+  param('x',5);
+  my $x = param('x');
+
+As usual, let's benchmark and compare:
+
+  meth_vs_func.pl
+  ---------------
+  use Benchmark;
+  
+  use CGI qw(:standard);
+  $CGI::NO_DEBUG = 1;
+  my $q = new CGI;
+  my $x;
+  timethese
+    (20000, 
+     {
+      'Method'   => sub {$q->param('x',5); $x = $q->param('x'); },
+      'Function' => sub {param('x',5); $x = param('x');},
+     });
+
+The benchmark is written is such a way that all the initializations
+are done at the beginning, so that we get as accurate a picture of the
+performance as we can.  Let's do it:
+
+  % ./meth_vs_func.pl
+  
+  Function: 29 wallclock secs (25.19 usr +  0.13 sys = 25.32 CPU)
+    Method: 28 wallclock secs (22.94 usr +  0.10 sys = 23.04 CPU)
+
+We are are interested in the 'total CPU times' and not the 'wallclock
+seconds'.  It's possible that the load on the system was different for
+the two tests while benchmarking, so the wallclock times give us no
+useful information.
+
+As we can see methods are about 6% slower than functions.  This number
+is true for all methods in C<CGI.pm> and other OOP modules as well.
+Why?  Because the difference between functions and methods is the time
+taken to resolve the pointer from the object, to find the Module it
+belongs to and then the actual method.
+
+If you maintain the data object in a package's global variable like
+C<CGI.pm> does, you also save a little more time since you don't have
+to pass it to the function.  One parameter less to pass, less stack
+operations, less time to get to the guts of the function.
+
+But this little overhead is insignificant for most of us, relative to
+the benefits it gives when we have a big project to take care of.  And
+with big projects it's much easier to use the object oriented
+approach.
+
+In addition there is a real memory hit when you import all of the
+function into your process' memory.  This can significantly enlarge
+memory requirements, particularly when there are many child processes.
+
+In addition to polluting the namespace, when a process imports symbols
+from any module or any script it grows by the size of the space
+allocated for those symbols.  The more you import (e.g. qw(:standard)
+vs qw(:all)) the more memory will be used.  Let's say the overhead is
+of size X.  Now take the number of scripts in which you deploy the
+function method interface, let's call that Y.  Finally let's say that
+you have a number of processes equal to Z.
+
+You will need X*Y*Z size of additional memory, taking X=10k, Y=10,
+Z=30, we get 10k*10*30 = 3Mb!!!  Now you understand the difference.
+
+Let's benchmark C<CGI.pm> using C<GTop.pm>.  First we will try it with
+no exporting at all.
+
+  use GTop ();
+  use CGI ();
+  print GTop->new->proc_mem($$)->size;
+
+  1,949,696
+
+Now exporting a few dozens symbols:
+
+  use GTop ();
+  use CGI qw(:standard);
+  print GTop->new->proc_mem($$)->size;
+
+  1,966,080
+
+And finally exporting all the symbols (about 130)
+
+  use GTop ();
+  use CGI qw(:all);
+  print GTop->new->proc_mem($$)->size;
+
+  1,970,176
+
+Results:
+
+  import symbols  size(bytes)  delta(bytes) relative to ()
+  --------------------------------------
+  ()              1949696             0
+  qw(:standard)   1966080         16384
+  qw(:all)        1970176         20480
+
+So in my example above X=20k => 20K*10*30 = 6Mb. You will need 6Mb
+more when importing all the C<CGI.pm>'s symbols than when you import
+none at all.
+
+
+Generally you use more than one script, run more than one process and
+probably import more symbols from the additional modules that you
+deploy. So the real numbers are much bigger.
+
+The function method is faster in the general case, because of the
+time overhead to resolve the pointer from the object.
+
+If you are looking for performance improvement, you will have to face
+the fact that having to type C<My::Module::my_method> might save you a
+good chunk of memory if the above call must not be called with a
+reference to an object, but even then it can be passed by value.
+
+
+I strongly endorse L<Apache::Request (libapreq) - Generic Apache
+Request Library|modules/Apache_Request_libapreq_Gen>.  Its is written
+in C, giving it a significant memory and performance benefit.  It has
+all the functionality of C<CGI.pm> except HTML generation functions.
+
+
+
+
+=head1 Sending Plain HTML as Compressed Output
+
+See L<Apache::GzipChain - compress HTML (or anything) in the
+OutputChain|modules/Apache_GzipChain_compress_HTM>
+
+
+
+=head1 Increasing Shared Memory With mergemem
+
+C<mergemem> is an experimental utility for linux, which looks *very*
+interesting for us mod_perl users:
+
+        http://www.ist.org/mergemem/
+
+It looks like it could be run periodically on your server to find and
+merge duplicate pages.  There are caveats: it would halt your httpds
+during the merge (it appears to be very fast, but still ...).
+
+This software comes with a utility called memcmp to tell you how much
+you might save.
+
+B<If you have tried this utility, please let us know what do you think
+about it! Thanks>
+
+
+=cut

@@ -1,0 +1,471 @@
+title: mod_perl and dbm files
+
+=head1 Where and Why to use dbm files
+
+If you need a light database, with an easy API, using simple key-value
+pairs to store and manipulate the records, this is a solution that
+should be amongst the first you consider.  The maximum practical size
+of a dbm database depends on your hardware and the desired response
+times of course, but as a rough guide consider 5000 to 10000 records
+to be reasonable.
+
+Some of the earliest databases implemented on Unix were dbm files, and
+many are still in use today.  As of this writing the Berkeley DB is
+the most powerful dbm implementation.
+
+With dbm, the whole database is rarely read into a memory. Combine
+this feature with the use of smart storage techniques, and dbm files
+can be manipulated much faster than their flat file brothers.  Flat
+file databases can become very slow on insert, update and delete
+operations, especially when the number of records exceeds a couple of
+thousand. The situation is worse if you need to run a sort algorithm
+on a flat file.
+
+Several different indexing algorithms can be used with dbm:
+
+=over
+
+=item *
+
+The C<HASH> algorithm gives a C<0(1)> complexity of search and update,
+fast insert and delete, but a slow sort. (You have to do it yourself.)
+
+=item *
+
+The C<BTREE> algorithm allows arbitrary key/value pairs to be stored
+in a sorted, balanced binary tree, which allows us to get a sorted
+sequence of data pairs in C<0(1)>, but at the expense of much slower
+insert, update, delete operations than is the case with C<HASH>.
+
+=item *
+
+The C<RECNO> algorithm is more complicated, and enables both
+fixed-length and variable-length flat text files to be manipulated
+using the same key/value pair interface as in C<HASH> and C<BTREE>.
+In this case the key will consist of a record (line) number.
+
+=back
+
+Most often you will want to use the C<HASH> method, but your choice
+depends very much on your application.
+
+B<dbm> databases are not limited to storing key/value pairs.  They can
+store more complicated data structures with the help of the C<MLDBM>
+module. This module can dump and restore the whole symbol table of
+your script, including arrays, hashes and other complicated data
+structures.
+
+It is important to note that you cannot simply switch a dbm file from
+one storage algorithm to another. The only way to change the algorithm
+is to dump the data to a flat file and then restore it using the new
+storage method. You can use a script like this:
+
+  #!/usr/bin/perl -w
+  
+  #
+  # This script gets as a parameter a Berkeley DB file(s) which is stored
+  # with DB_BTREE algorithm, and will backup it with .bak and create
+  # instead the db with the same records but stored with DB_HASH
+  # algorithm
+  #
+  # Usage: btree2hash.pl filename(s)
+  
+  use strict;
+  use DB_File;
+  use File::Copy;
+  
+    # Do checks 
+  die "Usage: btree2hash.pl filename(s))\n" unless @ARGV;
+  
+  foreach my $filename (@ARGV) {
+  
+    die "Can't find $filename: $!\n" unless -e $filename and -r $filename;
+  
+      # First backup the file
+    move("$filename","$filename.btree") 
+      or die "can't move $filename $filename.btree:$!\n";
+  
+    my %btree;
+    my %hash;
+  
+      # tie both dbs (db_hash is a fresh one!)
+    tie %btree , 'DB_File',"$filename.btree", O_RDWR|O_CREAT, 
+        0660, $DB_BTREE or die "Can't tie %btree";
+    tie %hash ,  'DB_File',"$filename" , O_RDWR|O_CREAT, 
+        0660, $DB_HASH  or die "Can't tie %hash";
+  
+      # copy DB
+    %hash = %btree;
+  
+      # untie
+    untie %btree ;
+    untie %hash ;
+  }
+
+Note that some dbm implementations come with other conversion utilities as
+well.
+
+=head1 mod_perl and dbm
+
+Where does mod_perl fit into the picture?
+
+If you are using a read only dbm file you can have it work faster if
+you keep it open (tied) all the time, so when your CGI script wants to
+access the database it is already tied and ready to be used. It will
+work with dynamic (read/write) databases as well but you need to use
+locking and data flushing to avoid data corruption.
+
+Although mod_perl and dbm can give huge performance gains to your CGIs
+scripts, you should be very careful. You need to consider locking, and
+the consequences of C<die()> and unexpected process deaths.
+
+If your locking mechanism cannot handle dropped locks, a stale lock
+can deactivate your whole site. You can enter a deadlock situation if
+two processes simultaneously try to acquire locks on two separate
+databases.  Each has locked only one of the databases, and cannot
+continue without locking the second. Yet this will never be freed
+because it is locked by the other process.  If your processes all ask
+for their DB files in the same order, this situation cannot occur.
+
+If you modify the DB you should be make very sure that you flush the
+data and synchronize it, especially when the process serving your CGI
+unexpectedly dies.  In general your application should be tested very
+thoroughly before you put it into production to handle important data.
+
+=head1 Locking dbm handlers
+
+Let's make the lock status a global variable, so it will persist from
+request to request. If we request a lock - READ (shared) or WRITE
+(exclusive), we obtain the current lock status first.
+
+If we are making a I<READ> lock request, it is granted as soon as the
+file becomes unlocked or if it is already I<READ> locked. The lock
+status becomes I<READ> on success.
+
+If we make a I<WRITE> lock request, it is granted as soon as the file
+becomes unlocked. The lock status becomes I<WRITE> on success.
+
+The treatment of the I<WRITE> lock request is most important.
+
+If the DB is I<READ> locked, a process that makes a WRITE request will
+poll until there are no reading or writing processes left. Lots of
+processes can successfully read the file, since they do not block each
+other.  This means that a process that wants to write to the file (so
+first it needs to obtain an exclusive lock) may never get a chance to
+squeeze in. The following diagram represents a possible scenario where
+everybody can read but no one can write:
+
+  [-p1-]                 [--p1--]
+     [--p2--]
+   [---------p3---------]
+                 [------p4-----]
+     [--p5--]   [----p5----]
+
+The result is a starving process, which will timeout the request, and
+it will fail to update the DB. This is a good reason not to cache the
+dbm handle with dynamic dbm files. It will work perfectly with static
+DBM files without any need to lock files at all.
+
+Ken Williams solved the above problem with his
+C<L<Tie::DB_Lock|dbm/Tie__DB_Lock>> module, which I will present in on
+of the next sections.
+
+There are three locking wrappers for C<DB_File> in CPAN right now. Each
+one implements locking differently and has different goals in mind. It
+is therefore worth knowing the difference, so that you can pick the
+right one for your application.
+
+
+=head1 Flawed Locking Methods Which Must Not Be Used
+
+B<Caution>: The suggested locking methods in the Camel book and
+C<DB_File> man page (at least before the version 1.72) are flawed. If you
+use them in an environment where more than one process can modify the
+dbm file, it can get corrupted!!! The following is an explanation of
+why this happens.
+
+You may not use a tied file's filehandle for locking, since you get
+the filehandle after the file has been already tied. It's too late to
+lock. The problem is that the database file is locked B<after> it is
+opened. When the database is opened, the first 4k (in my dbm library)
+are read and then cached in memory. Therefore, a process can open the
+database file, cache the first 4k, and then block while another
+process writes to the file.  If the second process modifies the first
+4k of the file, when the original process gets the lock is now has an
+inconsistent view of the database.  If it writes using this view it
+may easily corrupt the database on disk.
+
+This problem can be difficult to trace because it does not cause
+corruption every time a process has to wait for a lock. One can do
+quite a bit of writing to a database file without actually changing
+the first 4k. But once you suspect this problem you can easily
+reproduce it by making your program modify the records in the first 4k
+of the DB.
+
+
+=head1 Lock Wrappers Overview
+
+There are five locking wrappers known to me:
+
+=over
+
+=item *
+
+C<Tie::DB_Lock> -- C<DB_File> wrapper which creates copies of the
+database file for read access, so that you have kind of a
+multiversioning concurrent read system. However, updates are still
+serial. Use for databases where reads may be lengthy and consistency
+problems may occur. L<More information|dbm/Tie__DB_Lock>.
+
+=item *
+
+C<Tie::DB_LockFile> -- C<DB_File> wrapper that has the ability to lock
+and unlock the database while it is being used. Avoids the
+tie-before-flock problem by simply re-tie-ing the database when you
+get or drop a lock. Because of the flexibility in dropping and
+re-acquiring the lock in the middle of a session, this can be massaged
+into a system that will work with long updates and/or reads if the
+application follows the hints in the POD documentation. Refer to
+C<Tie::DB_LockFile> manpage for more information.
+
+=item *
+
+C<DB_File::Lock> -- extremely lightweight C<DB_File> wrapper that
+simply flocks a lockfile before tie-ing the database and drops the
+lock after the untie.  Allows one to use the same lockfile for
+multiple databases to avoid deadlock problems, if desired. Use for
+databases where updates are reads are quick and simple flock locking
+semantics are enough. Refer to C<DB_File::Lock> manpage for more
+information.
+
+=item *
+
+C<DB_File::Lock2> -- does the same thing as C<DB_File::Lock>, but has
+a little different implementation, as I wrote it before David Harris
+has released his C<DB_File::Lock> and I didn't want to kill mine, I'll
+keep it here for a while :).  C<DB_File::Lock2> is covered
+L<here|dbm/DB_File__Lock2>.
+
+=item *
+
+Another approach (not exactly a wrapper) is to use lock on tie (only
+supported by a few operating systems). On some Operating Systems like
+FreeBSD, it's possible to lock on tie:
+
+  tie my %t, 'DB_File', $TOK_FILE, O_RDWR | O_EXLOCK, 0664;
+
+and only release the lock by untieing the file. Notice the C<O_EXLOCK>
+flag, which is not available on all Operating Systems.
+
+=back
+
+
+=head1 Tie::DB_Lock
+
+C<Tie::DB_Lock> ties hashes to databases using shared and exclusive
+locks. This module, by Ken Williams, solves the problems raised in the
+previous section.
+
+The main difference from what I have described above is that
+C<Tie::DB_Lock> copies a dbm file on read. Reading processes do not
+have to keep the file locked while they read it, and writing processes
+can still access the file while others are reading.  This works best
+when you have lots of long-duration reading, and a few short bursts of
+writing.
+
+The drawback of this module is the heavy IO performed when every
+reader makes a fresh copy of the DB. With big dbm files this can be
+quite a disadvantage and can slow the server down considerably.
+
+An alternative would be to have one copy of the dbm image shared by
+all the reading processes. This can cut the number of files that are
+copied, and puts the responsibility of copying the read-only file on
+the writer, not the reader. It would need some care to make sure it
+does not disturb readers when putting a new read-only copy into place.
+
+
+
+
+=head1 DB_File::Lock2
+
+Here is C<DB_File::Lock2> which does the locking by using an external
+lockfile.  This allows you to gain the lock before the file is
+tied. Note that it's not yet on CPAN and so is listed here in its
+entirety. Note also that this code still needs some testing, so B<be
+careful> if you use it on a production machine.
+
+  package DB_File::Lock2;
+  require 5.004;
+  
+  use strict;
+  
+  BEGIN {
+      # RCS/CVS compliant:  must be all one line, for MakeMaker
+    $DB_File::Lock2::VERSION = do { my @r = (q$Revision: 1.7 $ =~ /\d+/g); sprintf "%d."."%02d" x $#r, @r };
+  
+  }
+  
+  use DB_File ();
+  use Fcntl qw(:flock O_RDWR O_CREAT);
+  use Carp qw(croak carp verbose);
+  use Symbol ();
+  
+  @DB_File::Lock2::ISA    = qw( DB_File );
+  %DB_File::Lock2::lockfhs = ();
+  
+  use constant DEBUG => 0;
+  
+    # file creation permissions mode
+  use constant PERM_MODE => 0660;
+  
+    # file locking modes
+  %DB_File::Lock2::locks =
+    (
+     read  => LOCK_SH,
+     write => LOCK_EX,
+    );
+  
+  # SYNOPSIS:
+  # tie my %mydb, 'DB_File::Lock2', $filepath, 
+  #     ['read' || 'write', 'HASH' || 'BTREE']
+  # while (my($k,$v) = each %mydb) {
+  #   print "$k => $v\n";
+  # }
+  # untie %mydb;
+  #########
+  sub TIEHASH {
+    my $class     = shift;
+    my $file      = shift;
+    my $lock_mode = lc shift || 'read';
+    my $db_type   = shift || 'HASH';
+  
+    die "Dunno about lock mode: [$lock_mode].\n
+         Valid modes are 'read' or 'write'.\n"
+      unless $lock_mode eq 'read' or $lock_mode eq 'write';
+  
+    # Critical section starts here if in write mode!
+  
+      # create an external lock
+    my $lockfh = Symbol::gensym();
+    open $lockfh, ">$file.lock" or die "Cannot open $file.lock for writing: $!\n";
+    unless (flock $lockfh, $DB_File::Lock2::locks{$lock_mode}) {
+      croak "cannot flock: $lock_mode => $DB_File::Lock2::locks{$lock_mode}: $!\n";
+    }
+  
+    my $self = $class->SUPER::TIEHASH
+      ($file,
+       O_RDWR|O_CREAT,
+       PERM_MODE,
+       ($db_type eq 'BTREE' ? $DB_File::DB_BTREE : $DB_File::DB_HASH )
+      );
+  
+      # remove the package name in case re-blessing occurs
+    (my $id = "$self") =~ s/^[^=]+=//;
+  
+      # cache the lock fh
+    $DB_File::Lock2::lockfhs{$id} = $lockfh;
+  
+    return $self;
+  
+  } # end of sub new
+  
+  
+  # DESTROY is automatically called when a tied variable
+  # goes out of scope, on explicit untie() or when the program is
+  # interrupted, e.g. with a die() call.
+  # 
+  # It unties the db by forwarding it to the parent class,
+  # unlocks the file and removes it from the cache of locks.
+  ###########
+  sub DESTROY{
+    my $self = shift;
+  
+    $self->SUPER::DESTROY(@_);
+  
+      # now it safe to unlock the file, (close() unlocks as well). Since
+      # the object has gone we remove its lock filehandler entry
+      # from the cache.
+    (my $id = "$self") =~ s/^[^=]+=//; # see 'sub TIEHASH'
+    close delete $DB_File::Lock2::lockfhs{$id};
+  
+      # Critical section ends here if in write mode!
+  
+    print "Destroying ".__PACKAGE__."\n" if DEBUG;
+  
+  }
+  
+  ####
+  END {
+    print "Calling the END from ".__PACKAGE__."\n" if DEBUG;
+  
+  }
+  
+  1;
+
+
+And you use it like this:
+
+  use DB_File::Lock2 ();
+
+A simple tie, READ lock and untie
+
+  use DB_File::Lock2 ();
+  my $dbfile = "/tmp/test";
+  tie my %mydb, 'DB_File::Lock2', $dbfile, 'read';
+  print $mydb{foo} if exists $mydb{foo};
+  untie %mydb;
+
+You can even skip the C<untie()> call. When C<$mydb> goes out of scope
+everything will be done automatically. However it is better use the
+explicit call, to make sure the critical sections between lock and
+unlock are as short as possible. This is especially important when
+requesting an exclusive (write) lock.
+
+The following example shows how it might be convenient to skip the
+explicit C<untie()>. In this example, we don't need to save the
+intermediate result, we just return and the cleanup is done
+automatically.
+
+  use DB_File::Lock2 ();
+  my $dbfile = "/tmp/test";
+  print user_exists("stas") ? "Yes" : "No";
+  sub user_exists{
+    my $username = shift || '';
+  
+    warn("No username passed\n"), return 0 unless $username;
+  
+    tie my %mydb, 'DB_File::Lock2', $dbfile, 'read';
+  
+    # if we match the username return 1, else 0
+    return $mydb{$username} ? 1 : 0;
+  
+  } # end of sub user_exists
+
+
+Now let's write all the upper case characters and their respective
+ASCII values to a dbm file. Then read the file and print them the
+contents of the DB, unsorted.
+
+  use DB_File::Lock2 ();
+  my $dbfile = "/tmp/test";
+  
+    # write 
+  tie my %mydb, 'DB_File::Lock2', $dbfile,'write';
+  for (0..26) {
+    $mydb{chr 65+$_} = $_;
+  }
+  untie %mydb;
+  
+    # now, read them and printout (unsorted)
+  tie %mydb, 'DB_File::Lock2', $dbfile;
+  while (my($k,$v) = each %mydb) {
+    print "$k => $v\n";
+  }
+  untie %mydb;
+
+If your CGI was interrupted in the middle, C<DESTROY> block will take
+care of unlocking the dbm file and flush any changes. So your DB will
+be safe against possible corruption because of unclean program
+termination.
+
+=cut

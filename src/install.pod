@@ -1,0 +1,2980 @@
+title: mod_perl Installation
+
+=head1 Installing mod_perl in 10 Minutes and 10 Command Lines
+
+Did you know that it takes about 10 minutes to build and install
+mod_perl enabled Apache on a pretty average processor and decent
+amount of system memory? It goes like that:
+
+  % cd /usr/src
+  % lwp-download http://www.apache.org/dist/apache_x.x.x.tar.gz
+  % lwp-download http://perl.apache.org/dist/mod_perl-x.xx.tar.gz
+  % tar zvxf apache_x.x.x.tar.gz
+  % tar zvxf mod_perl-x.xx.tar.gz
+  % cd mod_perl-x.xx
+  % perl Makefile.PL APACHE_SRC=../apache_x.x.x/src \
+    DO_HTTPD=1 USE_APACI=1 EVERYTHING=1
+  % make && make test && make install
+  % cd ../apache_x.x.x
+  % make install
+
+That's all!
+
+* Of course replace I<x.x.x> with the real version numbers of mod_perl
+and Apache.
+
+* GNU C<tar> utility knows to uncompress as well (with C<z> flag).
+
+What's left is to add a few configuration lines to a C<httpd.conf>, an
+Apache configuration file, start the server and enjoy mod_perl.
+
+If you have stumbled upon a problem at any of the above steps, don't
+despair -- the next section will explain in details each and every
+step.
+
+=head1 The Gory Details
+
+We saw that the basic mod_perl installation is quite simple and takes
+about 10 command that can be copied and pasted from these
+pages. However, sometimes you need to make different optimizations by
+passing only specific parameters (compared to C<EVERYTHING=1>),
+bundling other components with mod_perl and etc. You may want to build
+mod_perl as loadable object, that can be upgraded without rebuilding
+the Apache itself.
+
+To accomplish this you will want to understand various techniques for
+mod_perl configuration and building. You need to know what
+configuration parameters are available and when each of them should be
+used.
+
+Like with Perl, simple things are simple with mod_perl, but when you
+need to accomplish some more complicated tasks you have to invest some
+time into a deeper understanding of the process. In this chapter we
+will take the following route. I'll start with a detailed explanation
+of the four stages of the mod_perl installation process, then continue
+with different passes each installation might take according to your
+goal, following by a few copy-and-paste real world installation
+scenarios.  Toward the end of the chapter we will see various
+approaches that make the installations easier, by automating most of
+the process' steps , finally I'll cover some of the general issues
+users get stumbled with while installing mod_perl.
+
+We can clearly separate the installation process into the following
+stages: Sources Configuration, Building, Testing and Installation
+itself.
+
+
+
+
+
+
+=head2 Sources Configuration (perl Makefile.PL ...)
+
+Before building and installing mod_perl you have to configure
+it. You configure mod_perl as any other Perl module:
+
+  % perl Makefile.PL [parameters]
+
+In this section we will go through most of the parameters mod_perl can
+accept and explain each one of them.
+
+But first let's see what configuration mechanisms we have in our
+hands. Basically from the configuration point, all of them define a
+special set of parameters to be passed to C<perl
+Makefile.PL>. Depending on the chosen configuration, the final product 
+might be a stand-alone http binary, a loadable object or else.
+
+The source configuration mechanism in Apache 1.3 provides four major
+highlights mod_perl can benefit from:
+
+=over 4
+
+=item Per-module configuration scripts (ConfigStart/End)
+
+This is a mechanism modules can use to link themselves into the
+configuration processing. It is useful for automatically adjusting
+configuration and build parameters from the modules sources. It is
+triggered by C<ConfigStart>/C<ConfigEnd> sections inside
+I<modulename>C<.module> files.
+
+=item Apache Autoconf-style Interface (APACI)
+
+This is the new top-level C<configure> script from Apache 1.3 which
+provides a GNU Autoconf-style interface. It is useful for configuring
+the source tree without manually editing any C<src/Configuration>
+files. Any parameterization can be done via command line options to the
+C<configure> script. Internally this is just a nifty a wrapper to the
+old C<src/Configure> script.
+
+Since Apache 1.3 this is a De facto way to install mod_perl as clean as
+possible. This currently is a pure Unix-based solution because the
+complete Apache 1.3 source configuration mechanism currently is only
+workable under Unix. It doesn't work under the Win32 platform, so
+mod_perl cannot use it there, too.
+
+=item B<Dynamic Shared Object (DSO) support>
+
+This is beside Windows NT support one of most interesting features in
+Apache 1.3. Its a way to build Apache modules as so-called C<dynamic
+shared objects> (usually named I<modulename>C<.so>) which can be
+loaded via the C<LoadModule> directives from within Apache's
+C<httpd.conf> file. The benefit is that the modules is part of the
+C<httpd> program only on-demand, i.e. only when the user wants the
+module it is loaded into the address space of the C<httpd>
+module. This is for instance interesting for memory consumption and
+easy upgrade issues.
+
+The DSO mechanism is provided by Apache's C<mod_so.c> which needs to
+be compiled into the C<httpd> program. This is automatically done when
+DSO is enabled for module C<mod_xxx> via C<configure
+--enable-module=xxx> or by explicitly adding C<mod_so> via C<configure
+--enable-module=so>.
+
+=item B<APache eXtenSion (APXS) support tool>
+
+This is a new support tool from Apache 1.3 which can be used to build
+an Apache module as a DSO even B<outside> the Apache source-tree. One
+can say APXS is what MakeMaker and XS is for Perl. It knows the
+platform dependent build parameters for making DSO files and provides
+an easy way to run the build commands with them.
+
+=back
+
+Taking these four features together provides a way to integrate
+mod_perl into Apache in a very clean and smooth way. I<No patching of
+the Apache source tree is needed in the standard situation and even
+not only the source tree itself is needed in the APXS situation>.
+
+To benefit from the above described features a new hybrid build
+environment was created for the Apache-side of mod_perl. The
+Apache-side consists of the C source files of mod_perl which have to
+be compiled into the C<httpd> program.  They are usually copied to the
+subdirectory C<src/modules/perl/> in the Apache source tree. To
+integrate this subtree into the Apache build process a lot of
+adjustments were done by mod_perl's C<Makefile.PL> in the past. And
+additionally the C<Makefile.PL> controlled the Apache build process.
+
+The side-effect of this approach was that it is both a not very clean
+and especially captive way. Because it assumed mod_perl is the only
+third-party modules which has to be integrated into Apache. This is
+very problematic.
+
+The new approach described below avoids these problems. It only
+prepares the C<src/modules/perl/> subtree inside the Apache source
+tree I<without> adjusting or editing anything else. This way no
+conflicts can occur. Instead mod_perl is activated (and then
+configures itself) when the Apache source tree is configured via
+standard APACI calls later.
+
+We will return to each of the above configuration mechanisms when
+describing different installation passes, once the overview of the
+four building steps is completed.
+
+
+=head3 Configuration parameters
+
+C<perl Makefile.PL> accepts various parameters. In this section we
+will learn what are they and when should they be used.
+
+=head4 APACHE_SRC
+
+You will be asked the following question during the configuration
+stage:
+
+  "Configure mod_perl with ../apache_xxx/src ?"
+
+C<APACHE_SRC> should be used to define the Apache's source tree
+directory. For example:
+
+  APACHE_SRC=../apache-x.x.x/src
+
+Unless C<APACHE_SRC> specified, I<Makefile.PL> makes an intelligent
+guess by looking at the directories at the same level as mod_perl
+sources and suggests a directory with the highest version of Apache
+found there.
+
+Answering I<'y'> confirms either I<Makefile.PL>'s guess about the
+location of the tree, or the directory you have specified with
+C<APACHE_SRC>.
+
+If you use C<DO_HTTPD=1> or C<NO_HTTPD> -- the first apache source
+tree found or the one you have defined will be used for the rest of
+the build process.
+
+=head4 DO_HTTPD, NO_HTTPD, PREP_HTTPD
+
+Unless any of C<DO_HTTPD>, C<NO_HTTPD> or C<PREP_HTTPD> used you will
+be prompted by the following question:
+
+  "Shall I build httpd in ../apache-x.x.x/src for you?"
+
+Answering I<'y'> will make sure an httpd binary will be built in
+I<../apache-x.x.x/src> when running C<make>.
+
+To avoid this prompt when the answer is I<Yes> use:
+
+  DO_HTTPD=1
+
+Note that if you set C<DO_HTTPD=1>, but not used
+C<APACHE_SRC=../apache-x.x.x/src> -- the first apache source tree
+found will be used to configure and build against.
+
+C<PREP_HTTPD=1> just means default 'C<n>' to the second prompt --
+meaning, I<do not build httpd (make) in the apache source tree>. But
+it still will ask you about Apache's source location even if you have
+used the C<APACHE_SRC> parameter. Providing the C<APACHE_SRC>
+parameter will just save C<perl Makefile.PL> a need to make a guess.
+
+To avoid the two prompts and avoid building httpd, use:
+
+  NO_HTTPD=1
+
+If you choose not to build the binary, you will have to do that
+manually. We will talk about it later. In any case, you need to run
+C<make install> in the mod_perl source tree, so the perl side of
+mod_perl will be installed. Certainly, C<make test> wouldn't work
+until before you get the server built.
+
+
+=head4 Callback Hooks
+
+By default, all callback hooks except for C<PerlHandler> are turned
+off.  You may edit I<src/modules/perl/Makefile>, or enable when
+running C<perl Makefile.PL>.
+
+Possible parameters are:
+
+  PERL_POST_READ_REQUEST
+  PERL_TRANS
+  PERL_INIT
+
+  PERL_HEADER_PARSER
+  PERL_AUTHEN
+  PERL_AUTHZ
+  PERL_ACCESS
+  PERL_TYPE
+  PERL_FIXUP
+  PERL_LOG
+  PERL_CLEANUP
+  PERL_CHILD_INIT
+  PERL_CHILD_EXIT
+  PERL_DISPATCH
+  
+  PERL_STACKED_HANDLERS
+  PERL_METHOD_HANDLERS
+  PERL_SECTIONS
+  PERL_SSI
+
+As with any parameters that are either defined or not, use C<foo=1> to
+enable them (e.g. C<PERL_AUTHEN=1>).
+
+To enable all callback hooks use:
+
+  ALL_HOOKS=1
+
+=head4 EVERYTHING
+
+To enable all possible hooks, set:
+
+  EVERYTHING=1
+
+
+
+=head4 PERL_TRACE
+
+To enable tracing set: C<PERL_TRACE=1>
+
+
+
+=head4 APACHE_HEADER_INSTALL
+
+By default, the Apache headers files are installed into
+I<$Config{sitearchexp}/auto/Apache/include> directory.
+
+The reason for installing the header files is to make life simple for
+module authors/users when building/installing a module that taps into
+some Apache C functions, e.g. C<Embperl>, C<Apache::Peek>, etc.
+
+If you wish not to install these files use:
+
+  APACHE_HEADER_INSTALL=0
+
+
+
+=head4 PERL_STATIC_EXTS
+
+Normally, if an extension is linked static with Perl it is listed in
+C<Config.pm>'s C<$Config{static_exts}>, in which case, mod_perl will
+also link this extension static with httpd.  However, if an extension
+is linked static with Perl after it is installed, it is not listed in
+Config.pm.  You may either edit Config.pm and add these extensions, or
+configure mod_perl like so:
+
+ perl Makefile.PL "PERL_STATIC_EXTS=Something::Static Another::One" 
+
+
+=head4 PERL_MARK_WHERE
+
+Generally for C<Apache::Registry> scripts, the reported line number
+for warnings and errors that end up in the I<error_log> file is not
+correct. This is due to the fact that C<Apache::Registry>
+auto-magically wraps the scripts running under its handler into a
+special code that enables the caching of the compiled scripts. 
+
+If configured with C<PERL_MARK_WHERE=1>, mod_perl will attempt to show
+the exact line the error or warning happened at.
+
+=head4 APACI_ARGS
+
+When you use <USE_APACI=1> parameter, you can tell the C<perl
+Makefile.PL> to pass any arguments you want to the Apache's 
+C<./configure> utility, e.g:
+
+  % perl Makefile.PL USE_APACI=1 \
+  APACI_ARGS=--sbindir=/usr/local/sbin/httpd_perl, \
+         --sysconfdir=/usr/local/etc/httpd_perl, \
+         --localstatedir=/usr/local/var/httpd_perl, \
+         --runtimedir=/usr/local/var/httpd_perl/run, \
+         --logfiledir=/usr/local/var/httpd_perl/logs, \
+         --proxycachedir=/usr/local/var/httpd_perl/proxy
+
+Notice that B<all> C<APACI_ARGS> (above) must be passed as one long
+line if you work with C<t?csh>!!! However it works correctly the way
+it shown above with C<(ba)?sh> (by breaking the long lines with
+'C<\>'). If you work with C<t?csh> it does not work, since C<t?csh>
+passes C<APACI_ARGS> arguments to C<./configure> by keeping the new
+lines untouched, but stripping the original 'C<\>', which makes the
+all the arguments but the first one, ignored by the configuration
+process.
+
+
+
+=head4 APACHE_PREFIX
+
+If you want to use a non-default Apache installation prefix, use
+C<APACHE_PREFIX> parameter, e.g.:
+
+  % perl Makefile.PL APACHE_PREFIX=/usr/local/ [...]
+
+Should be used together with L<APACI_ARGS|install/APACI_ARGS> option.
+
+
+
+
+
+=head3 Reusing Configuration Parameters
+
+It's quite hard to remember what parameters were used in mod_perl
+build, when you have to upgrade the server. So it's better to save
+them into a file. For example if you create a file at
+I<~/.mod_perl_build_options>, with contents:
+
+  APACHE_SRC=../apache_x.x.x/src DO_HTTPD=1 USE_APACI=1 \
+  EVERYTHING=1
+
+You can build the server with the following command:
+
+  % perl Makefile.PL `cat ~/.mod_perl_build_options`
+  % make && make test && make install
+
+But wait, mod_perl has a standard method to perform the above trick.
+If a file name I<makepl_args.mod_perl> is found in the same directory
+as the mod_perl build location with any of these options, it will be
+read in by I<Makefile.PL>.
+
+  % ls -1 /usr/src
+  apache_x.x.x/
+  makepl_args.mod_perl
+  mod_perl-x.xx/
+  
+  % cat makepl_args.mod_perl
+  APACHE_SRC=../apache_x.x.x/src DO_HTTPD=1 USE_APACI=1 \
+  EVERYTHING=1
+  
+  % cd mod_perl-x.xx
+  % perl Makefile.PL
+  % make && make test && make install
+
+Now the parameters from I<makepl_args.mod_perl> file will be used, as
+if they were directly typed in.
+
+You can put this file into your home directory and then you should
+call prefix it with a leading dot:
+
+  .makepl_args.mod_perl
+
+There is a sample I<makepl_args.mod_perl> in the I<eg/> directory of
+mod_perl distribution package, in which you might find a few options
+to enable experimental features to play with too!
+
+But if you have found yourself with a compiled mod_perl and no traces
+of the specified parameters left, usually you can still find them out,
+if the sources were not C<make clean>'d. You will find the Apache
+specific parameters in C<apache_x.x.x/config.status> and mod_perl's at
+in C<mod_perl_x.xx/apaci/mod_perl.config>.
+
+
+
+
+
+
+
+
+=head3 Discovering whether some option was configured
+
+To find out whether some parameter was included in the server, you can
+take a look at the symbols inside the httpd executable with help of
+C<nm> or similar utility. For example if you want to see whether you
+have enabled C<PERL_AUTH=1> while building the mod_perl, you do:
+
+  % nm httpd | grep perl_authenticate
+
+But it would work if you have an unstripped httpd binary. C<make
+install> by default strips the binary before installing it.
+
+Another approach is to configure L</perl-status
+location|debug/Apache_Status_Embedded_inter> and run
+http://localhost/perl-status?hooks to check the enabled hooks.
+
+Yet another approach is to try to use this parameter in the
+configuration file, and if it wasn't enabled Apache will tell you
+that, when you will start the server, by reporting an unknown
+directive (e.g. when you attempt to use C<PerlAuthenHandler> handler
+without building with C<PERL_AUTHEN=1> parameter)
+
+
+
+
+
+=head3 Using an alternative Configuration file
+
+By default mod_perl provides its own copy of I<Configuration> file to
+Apache's C<./configure> utility. If you wish to pass it your own copy,
+do:
+
+  % perl Makefile.PL CONFIG=Configuration.custom
+
+Where B<Configuration.custom> is the name of any file relative to the
+apache source tree you build against.
+
+
+=head3  perl Makefile.PL Troubleshooting
+
+
+=head4 "A test compilation with your Makefile configuration failed..."
+
+When you see this during the C<perl Makefile.PL> stage:
+
+  ** A test compilation with your Makefile configuration
+  ** failed. This is most likely because your C compiler
+  ** is not ANSI. Apache requires an ANSI C Compiler, such
+  ** as gcc. The above error message from your compiler
+  ** will also provide a clue.
+   Aborting!
+
+you've got a problem with your compiler. There is chance that it's
+improperly installed or not installed at all. Sometimes the reason is
+that your perl executable was built on a different machine, and the
+software installed on your maching is not the same. Generally this
+happens when you install the prebuilt packages, like RPM or DEB.  What
+happens is that the dependencies weren't properly defined in the perl
+binary package and you were allowed to install it, while some
+essential package is not installed.
+
+The most frequent pitfall is a missing gdbm library. See L<Missing or
+Misconfigured libgdbm.so|install/Missing_or_Misconfigured_libgdbm> for
+more info.
+
+But why guess, when we can actually see the real error message and
+understand what the real problem is. To get a real error message, edit
+the Apache I<src/Configure> script.  Down around line 2140 you will
+see a line like:
+
+   if ./helpers/TestCompile sanity; then
+
+change it to:
+
+   if ./helpers/TestCompile -v sanity; then
+
+and try again.  Now you should get a useful error message.
+
+
+
+
+=head4 Missing or Misconfigured libgdbm.so
+
+On some RedHat systems you might encounter a problem during the C<perl
+Makefile.PL> stage, when the installed perl was built with C<gdbm>
+library, but the library isn't actually installed. If this is your
+situation make sure you install it, before proceeding with the build
+process.
+
+You can check how the Perl was built, by running C<perl -V> command:
+
+  % perl -V | grep libs
+
+On my machine I get:
+
+  libs=-lnsl -lndbm -lgdbm -ldb -ldl -lm -lc -lposix -lcrypt
+
+Sometimes the problem is even more obscure, you do have libgdbm
+installed but it's not properly installed. Take a look at:
+
+  % ls /usr/lib/libgdbm.so*
+
+If you get all three files like I do:
+
+  lrwxrwxrwx   /usr/lib/libgdbm.so -> libgdbm.so.2.0.0
+  lrwxrwxrwx   /usr/lib/libgdbm.so.2 -> libgdbm.so.2.0.0
+  -rw-r--r--   /usr/lib/libgdbm.so.2.0.0
+
+you are all set. On some installations the I<libgdbm.so> symbolic link
+is missing, so you get only:
+
+  lrwxrwxrwx   /usr/lib/libgdbm.so.2 -> libgdbm.so.2.0.0
+  -rw-r--r--   /usr/lib/libgdbm.so.2.0.0
+
+To fix this problem add the missing symbolic link:
+
+  % cd /usr/lib
+  % ln -s libgdbm.so.2.0.0 libgdbm.so
+
+Now you should be able to build mod_perl without any problems.
+
+
+
+=head4 undefined reference to `PL_perl_destruct_level'
+
+When manually building mod_perl using the shared library:
+
+  cd mod_perl-x.xx
+  perl Makefile.PL PREP_HTTPD=1
+  make
+  make test
+  make install
+  
+  cd ../apache_x.x.x
+  ./configure --with-layout=RedHat --target=perlhttpd 
+  --activate-module=src/modules/perl/libperl.a
+
+you might get:
+
+  gcc -c  -I./os/unix -I./include   -DLINUX=2 -DTARGET=\"perlhttpd\" -DUSE_HSREGEX 
+  -DUSE_EXPAT -I./lib/expat-lite `./apaci` buildmark.c
+  gcc  -DLINUX=2 -DTARGET=\"perlhttpd\" -DUSE_HSREGEX -DUSE_EXPAT 
+  -I./lib/expat-lite `./apaci`    \
+        -o perlhttpd buildmark.o modules.o modules/perl/libperl.a 
+  modules/standard/libstandard.a main/libmain.a ./os/unix/libos.a ap/libap.a 
+  regex/libregex.a lib/expat-lite/libexpat.a  -lm -lcrypt
+  modules/perl/libperl.a(mod_perl.o): In function `perl_shutdown':
+  mod_perl.o(.text+0xf8): undefined reference to `PL_perl_destruct_level'
+  mod_perl.o(.text+0x102): undefined reference to `PL_perl_destruct_level'
+  mod_perl.o(.text+0x10c): undefined reference to `PL_perl_destruct_level'
+  mod_perl.o(.text+0x13b): undefined reference to `Perl_av_undef'
+  [more error snipped]
+
+This happens when you have perl built statically linked, with no
+shared I<libperl.a>. Build a dynamically linked perl with I<libperl.a>
+and the problems will disappear.
+
+=head2 mod_perl Building (make)
+
+After configuration completion you build the server, by calling:
+
+  % make
+
+which compiles the source files and creates an httpd binary or/and a
+separate library for each module, which can be loaded at run time or
+inserted into the httpd binary sometime later when the C<make> will be
+called from Apache source directory.
+
+Note: it's important that you don't put the mod_perl source tree,
+inside the Apache's sources subdirectory -- since Apache::src seems to
+not work then!
+
+
+=head3 make Troubleshooting
+
+
+=head4 undefined reference to 'Perl_newAV'
+
+This and similar error messages show up during C<make> process.
+Generally happens when you have a broken Perl installation. Make sure
+it's not installed from a broken RPM or another binary package, if it
+is -- build Perl from source or use another properly built binary
+package. Run C<perl -V> to learn what version of Perl you are using
+and other important details.
+
+
+=head4 unrecognized format specifier for...
+
+  From: Scott Fagg <scott.fagg@arup.com.au>
+  
+  I'm using apache 1.3.9 , mod_fastcgi 2.2.2 and mod_perl 1.21
+  
+  Originally my build of these three together worked, however when i
+  went to rebuild a few months later i recieved a lot of "unrecognized
+  format specifier" errors. A search of the internet showed that i
+  wasn't the only one but i couldn't find a solution mentioned.
+  
+  Puzzled i tried to track down the problem. Using clean source i
+  could build apache/mod_perl/mod_fastcgi on my RedHat 5.2 workstation
+  but never on my RedHat
+  5.2 server.
+  
+  The only tinkering i'd done with the server was to use SFIO to
+  rebuild perl and get mod_fastcgi working the first time i used
+  fastcgi.
+  
+  By removing the SFIO .h files, the apache/mod_perl compile would get
+  further and the 'unrecognized format specifier' errors disappeared,
+  but naturally other pieces of code refused to compile complaining
+  about the missing sfio files.
+  
+  A quick check of the mod_fast site noted that it no longer needed
+  SFIO, so i removed it and replaced my rebuilt sfio-perl binaries
+  with clean ones (from a redhat RPM) and was able to rebuild apache
+  with mod_perl + mod_fastcgi ( + php) All of my mod_perl stuff works
+  and so too does my fastcgi.
+  
+  Hope that helps some one. I wasn't able to find any answers to the
+  problem while searching the net.
+
+
+
+
+=head2 Built Server Testing (make test)
+
+After building the server, it's a good idea to throughly test
+it, by calling:
+
+  % make test
+
+Fortunately mod_perl comes with a bunch of tests, which attempt to try
+to use all the features you asked for at the configuration stage. If
+any of the test fails, the C<make test> stage would fail.
+
+Running C<make test> will start a freshly built httpd on port 8529
+running under the uid and gid of the C<perl Makefile.PL> process, the
+httpd will be terminated when the tests are finished.
+
+Each file in the testing suite generally includes more than one test,
+but when you do the testing, the program will solely report how many
+were passed and the total number of tests defined in the test
+file. However if not all the tests in the file fail you want to know
+which ones did. To gain this information, you should run the tests in
+a verbose mode. You can enable this mode by using C<TEST_VERBOSE>
+parameter:
+
+  % make test TEST_VERBOSE=1
+
+To change the default port the testing happens on (8529 as of this
+writing), do:
+
+  % perl Makefile.PL PORT=xxxx
+
+To simply start the newly built httpd run:
+
+  % make start_httpd
+
+To shutdown this httpd run:
+
+  % make kill_httpd
+
+NOTE to Ben-SSL users: httpsd does not seem to handle I</dev/null> as
+the location of certain files, you'll have to change these by hand.
+Tests are run with C<SSLDisable> directive.
+
+
+
+
+
+
+
+=head3 Manual Testing
+
+Tests are invoked by running the C<./TEST> script located at I<./t>
+directory.  Use -v option for verbose tests.  You might run an
+individual test like this:
+
+  % t/TEST -v modules/file.t
+
+or all tests in a test sub-directory:
+
+  % t/TEST modules
+
+C<TEST> script worries to start the server before the test is getting
+executed. If for some reason it fails, use C<make start_httpd> to
+start it explicitly.
+
+
+=head3 make test Troubleshooting
+
+=head4 make test fails
+
+You cannot run C<make test> before you build the httpd, if you told
+C<perl Makefile.PL> not to build the httpd executable, there is no
+httpd to make the test against. Go to Apache source tree and run
+C<make>, then return to mod_perl source tree and continue with server
+testing.
+
+=head4 mod_perl.c is incompatible with this version of apache
+
+You will see this message when you try to run a httpd, if you have had
+a stale old apache header layout in one of the C<include> paths during
+the build process. Do run C<find> (or C<locate>) utility in order to
+locate C<ap_mmn.h> file. In my case I have had a
+C</usr/local/include/ap_mmn.h> which was installed by RedHat install
+process. If this is the case get rid of it, and rebuild it again.
+
+For all RedHat fans, before you are going to build the apache by
+yourself, do:
+
+ % rpm -e apache
+
+to remove the pre-installed RPM package first!
+
+
+=head4 make test......skipping test on this platform
+
+While doing C<make test> you would notice that some of the tests are
+being reported as skipped. The real reason is that you are missing
+some optional modules for these test to be passed. For a hint you
+might want to peek at the content of each test (you will find them all
+in the C<./t> directory (mnemonic - t, tests). I'll list a few
+examples, but of course the requirements might be changed in the
+future.
+
+  modules/cookie......skipping test on this platform
+
+Install libapreq
+
+  modules/psections...skipping test on this platform
+
+Install C<Devel::Symdump> / C<Data::Dumper>
+
+  modules/request.....skipping test on this platform
+
+Install libapreq (C<Apache::Request>)
+
+  modules/sandwich....skipping test on this platform
+
+Install Apache::Sandwich
+
+  modules/stage.......skipping test on this platform
+
+Install Apache::Stage
+
+  modules/symbol......skipping test on this platform
+
+Install Devel::Symdump
+
+Chances are that all of these are installed if you use C<CPAN.pm> to
+C<install Bundle::Apache>.
+
+=head4 make test fails due to misconfigured localhost
+
+C<make test> suit uses the I<localhost> to accomplish the tests that
+require network. Make sure you have this exact entry in I</etc/hosts>:
+
+  127.0.0.1       localhost.localdomain   localhost
+
+Also make sure that you have the loopback device [lo] configured.
+[hint: try 'ifconfig lo' to test for existance]
+
+
+
+
+
+
+=head2 Installation (make install)
+
+After testing the server, the last step left is to install it. First
+install all the perl side files:
+
+   % make install
+
+The go to the Apache source tree and complete the Apache files
+installation (config files, httpd and other utilities):
+
+  % cd ../apache_x.x.x
+  % make install
+
+Now the installation should be considered completed. You may configure
+your server now and start using it.
+
+
+
+
+
+=head2 Building Apache and mod_perl by Hand
+
+If you wish to process the httpd build separately from the mod_perl,
+you should use C<NO_HTTPD=1> option during the C<perl Makefile.PL>
+stage, then configure various things by hand and proceed with building
+process. You shouldn't run C<perl Makefile> before following the steps
+described in this section.
+
+These are the configurations you should make before the build stage,
+if you choose to manually build mod_perl:
+
+=over 4
+
+=item mod_perl's Makefile
+
+When C<perl Makefile.PL> is executed,
+I<$APACHE_SRC/modules/perl/Makefile> will be modified to enable
+various options (e.g. ALL_HOOKS=1). Instead of tweaking the options
+during the the C<perl Makefile.PL>, you may also edit
+I<mod_perl-x.xx/src/modules/perl/Makefile> before running C<perl
+Makefile.PL>.
+
+This is an optional step.
+
+=item Configuration
+
+Add to I<apache_x.x.x/src/Configuration> :
+
+  AddModule modules/perl/libperl.a
+
+We suggest you add this entry at the end of the I<Configuration> file
+if you want your callback hooks to have precedence over core handlers.
+
+Add the following to C<EXTRA_LIBS>:
+
+  EXTRA_LIBS=`perl -MExtUtils::Embed -e ldopts`
+
+Add the following to C<EXTRA_CFLAGS>:
+
+  EXTRA_CFLAGS=`perl -MExtUtils::Embed -e ccopts` 
+
+=item mod_perl source files
+
+Return to the mod_perl directory and copy the mod_perl source files
+into the apache build directory:
+
+  % cp -r src/modules/perl apache_x.x.x/src/modules/
+
+=back
+
+When you have done with the configuration parts, run:
+
+  % perl Makefile.PL NO_HTTPD=1 DYNAMIC=1  EVERYTHING=1\
+   APACHE_SRC=../apache_x.x.x/src
+
+C<DYNAMIC=1> enables a build of a shared mod_perl library. Add other
+options if required.
+
+  % make install
+
+Now you may proceed with plain Apache build process.  Note that in
+order for your changes to the I<apache_x.x.x/src/Configuration> file
+to take effect, you must run C<apache_x.x.x/src/Configure> instead of
+the default I<apache_x.x.x/configure> script:
+
+  % cd ../apache_x.x.x/src
+  % ./Configure
+  % make
+  % make install
+
+
+
+
+
+
+=head1 Installation Scenarios for Standalone mod_perl 
+
+There are various ways available to build Apache with the new hybrid
+build environment:
+
+
+
+
+=head2 The All-In-One Way
+
+If your goal is just to build and install Apache with mod_perl out of
+their source trees and have no special interests in further adjusting
+or enhancing Apache proceed as before:
+
+  % tar zvxf apache_x.x.x.tar.gz
+  % tar zvxf mod_perl-x.xx.tar.gz
+  % cd mod_perl-x.xx
+  % perl Makefile.PL APACHE_SRC=../apache_x.x.x/src \
+    DO_HTTPD=1 USE_APACI=1 EVERYTHING=1
+  % make && make test && make install
+  % cd ../apache_x.x.x
+  % make install
+
+This builds Apache statically with mod_perl, installs Apache under the
+default C</usr/local/apache> tree and mod_perl into the C<site_perl>
+hierarchy of your existing Perl installation. All in one step.
+
+
+
+
+
+=head2 The Flexible Way
+
+This is the standard situation when you want to be flexible while
+building: Statically building mod_perl into the C<httpd> binary of
+Apache but via different steps, so you have a chance for other
+third-party Apache modules, etc.
+
+=over 4
+
+=item 1 Prepare the Apache source tree
+
+The first step is as before extracts the distributions:
+
+  % tar zvxf apache_x.x.x.tar.gz
+  % tar zvxf mod_perl-x.xx.tar.gz
+
+=item 2 Install mod_perl's Perl-side and prepare the Apache-side
+
+The second step is to install the Perl-side of mod_perl into the Perl
+hierarchy and prepare the C<src/modules/perl/> subdirectory inside the
+Apache source tree:
+
+ $ cd mod_perl-x.xx
+ $ perl Makefile.PL \
+     APACHE_SRC=../apache_x.x.x/src \
+     NO_HTTPD=1 \
+     USE_APACI=1 \
+     PREP_HTTPD=1 \
+     EVERYTHING=1 \
+     [...]
+ $ make
+ $ make test
+ $ make install
+ $ cd ..
+
+The C<APACHE_SRC> set the path to your Apache source tree, the
+C<NO_HTTPD> option forces this path and only this path to be used, the
+C<USE_APACI> option triggers the new hybrid build environment and the
+C<PREP_HTTPD> forces only a preparation of the
+C<APACHE_SRC/modules/perl/> tree but no automatic builds.
+
+Then the configuration process prepares the Apache-side of mod_perl in
+the Apache source tree but doesn't touch anything else inside it. It
+then just builds the Perl-side of mod_perl and installs it into the
+Perl installation hierarchy.
+
+Important: If you use C<PREP_HTTPD> as described above, to complete
+the build you must go into an apache source directory and run C<make>
+and C<make install>.
+
+=item 3 Additionally prepare other third-party modules
+
+Now you still have a chance to prepare more third-party modules.  For
+instance the PHP3 language can be added similarly to the above
+mod_perl procedure.
+
+=item 4 Build the Apache package
+
+Finally it's a time to build the Apache package and thus also the
+Apache-side of mod_perl and any other prepared third-party modules:
+
+ $ cd apache_x.x.x
+ $ ./configure \
+     --prefix=/path/to/install/of/apache \
+     --activate-module=src/modules/perl/libperl.a \
+     [...]
+ $ make
+ $ make test
+ $ make install
+
+The C<--prefix> option is needed if you want to change the default
+target directory of apache installation and the C<--activate-module>
+option activates mod_perl for the configuration process and thus also
+for the build process.
+
+The last three steps build, test and install the Apache-side of the
+mod_perl enabled server (probably including other third-party
+components, otherwise you wouldn't choose this scenario)
+
+=back
+
+The scenario we just saw enables you to insert mod_perl into Apache
+without having to mangle the Apache source tree for mod_perl plus the
+freedom of being able to adding more third-party modules.
+
+
+
+
+=head2 Build mod_perl as DSO inside Apache source tree via APACI
+
+B<Warning>: With Apache 1.3 there is support for building modules as
+Dynamic Shared Objects (DSO).  So there is support for DSO in mod_perl
+now, too.  I<BUT THIS IS STILL EXPERIMENTAL, SO BE WARNED!>
+
+We already said that the new mod_perl build environment is a hybrid
+one. What does it mean? It means for instance that the same
+C<src/modules/perl/> stuff can be used to build mod_perl as a DSO,
+too. I<And again without having to edit anything specially for
+this>. When you want to build C<libperl.so> (sorry for the name,
+C<libmodperl.so> would be more correct, but because of historic Apache
+issues the name has to be C<libperl.so>. Don't confuse this with the
+real C<libperl.a> or even C<libperl.so> from the Perl installation)
+all you have to do is to add one single option to the above steps.
+
+You have two options here, depending on which way you have chosen
+above: If you choose the All-In-One way from above then add:
+
+  USE_DSO=1
+
+to the C<perl Makefile.PL> options. If you choose the Flexible way
+then add:
+
+  --enable-shared=perl
+
+to the Apache's C<./configure> options.
+
+As you can see only an additional C<USE_DSO=1> or
+C<--enable-shared=perl> option is needed.  Anything else is done
+automatically: C<mod_so> is automatically enabled, the Makefiles are
+adjusted automatically and even the C<install> target from APACI now
+additionally installs the C<libperl.so> into the Apache installation
+tree.  And even more: The C<LoadModule> and C<AddModule> directives
+(which dynamically load and inserts the mod_perl into a httpd) are
+automatically added to the C<httpd.conf> file.
+
+=head2 Build mod_perl as DSO outside Apache source tree via APXS
+
+Above we've seen how to build mod_perl as DSO I<inside> the Apache
+source tree. But there is a nifty alternative: Building mod_perl as
+DSO I<outside> the Apache source tree via the new Apache 1.3 support
+tool C<apxs> (APache eXtension). The advantage is obvious: You can
+extend an already installed Apache with mod_perl even if you don't
+have the sources (for instance you installed an Apache binary package
+from your vendor).
+
+Here are the building steps:
+
+  % tar zvxf mod_perl-x.xx.tar.gz
+  % cd mod_perl-x.xx
+  % perl Makefile.PL \
+    USE_APXS=1 \
+    WITH_APXS=/path/to/bin/apxs \
+    EVERYTHING=1 \
+     [...]
+  % make && make test && make install
+
+This will build the DSO C<libperl.so> B<outside> the Apache source
+tree with the new Apache 1.3 support tool C<apxs> and install it into
+the existing Apache hierarchy.
+
+
+
+
+
+
+
+
+=head1 Installation Scenarios for mod_perl and Other Components
+
+(META: please send more scenarios of mod_perl + other components
+installation guidelines. Thanks!)
+
+You have seen a very detailed installation scenarios, since mod_perl
+is used with many other components that plug into Apache, you
+definitely want to know how to build them together with
+mod_perl. Since all the steps are simple assuming that you understood
+how the build process works, I'll show only the commands to be
+executed, with no comments unless there is something we haven't
+discussed before.
+
+Generally each and every scenario that I'm going to show consist of
+downloading source distributions of components to be used, un-packing
+them, configuring them and proceeding with Apache build process using
+the appropriate to each component parameters, followed by C<make test>
+and C<make install>.
+
+All these scenarios were tested on Linux platform, you might need to
+refer to the specific component's documentation if something doesn't
+work for you as described below. The intention of this section is not
+to show how to install other non-mod_perl components alone, but how to
+do this in bundle with mod_perl.
+
+Also, notice that the links I've used below are likely to change when
+you read this document. That's why I have used the I<x.x.x>
+convention, instead of using hardcoded version numbers. Remember to
+replace I<x.xx> place-holders with version numbers of the distributions
+you are about to use. To find out the latest stable version number,
+visit the components sites. So if I say
+http://perl.apache.org/dist/mod_perl-x.xx.tar.gz , go to
+http://perl.apache.org/dist/ in order to learn the version number.
+
+Unless told different, all the components install themselves into a
+default location. When you run C<make install> the installation
+program tells you where it's going to install the files.
+
+
+
+=head2 mod_perl and mod_ssl (+openssl)
+
+mod_ssl provides strong cryptography for the Apache 1.3 webserver via
+the Secure Sockets Layer (SSL v2/v3) and Transport Layer Security (TLS
+v1) protocols by the help of the Open Source SSL/TLS toolkit OpenSSL,
+which is based on SSLeay from Eric A. Young and Tim J. Hudson.
+
+Download the sources:
+
+  % lwp-download http://www.apache.org/dist/apache_x.xx.tar.gz
+  % lwp-download http://perl.apache.org/dist/mod_perl-x.xx.tar.gz
+  % lwp-download http://www.modssl.org/source/mod_ssl-x.x.x-x.x.x.tar.gz
+  % lwp-download http://www.openssl.org/source/openssl-x.x.x.tar.gz
+
+Un-pack:
+
+  % tar zvxf mod_perl-x.xx
+  % tar zvxf apache_x.x.x.tar.gz
+  % tar zvxf mod_ssl-x.x.x-x.x.x.tar.gz
+  % tar zvxf openssl-x.x.x.tar.gz
+
+Configure, build and install openssl:
+
+  % cd openssl-x.x.x
+  % ./config
+  % make && make test && make install
+
+Configure:
+
+  % cd mod_ssl-x.x.x-x.x.x
+  % ./configure --with-apache=../apache_x.x.x
+  % cd ../mod_perl-x.xx
+  % perl Makefile.PL USE_APACI=1 EVERYTHING=1 \
+        DO_HTTPD=1 SSL_BASE=/usr/local/ssl \
+        APACHE_PREFIX=/usr/local/apachessl \
+        APACHE_SRC=../apache_x.x.x/src \
+        APACI_ARGS=--enable-module=ssl,--enable-module=rewrite
+
+Build, test and install:
+
+  % make && make test && make install
+  % cd ../apache_x.x.x
+  % make certificate
+  % make install
+
+Now proceed with mod_ssl and mod_perl parts of the server
+configurations, before starting the server.
+
+When the server started you should see the following or alike in the
+I<error_log> file:
+
+  [Fri Nov 12 16:14:11 1999] [notice] Apache/1.3.9 (Unix)
+  mod_perl/1.21_01-dev mod_ssl/2.4.8 OpenSSL/0.9.4 configured
+  -- resuming normal operations
+
+
+
+=head2 mod_perl and mod_ssl Rolled from RPMs
+
+Just as in previous section this one shows an installation of mod_perl
+and mod_sll, but this time using a with all the sources/binaries
+coming prepackaged in RPMs.
+
+(As always replace xxx with proper version numbers. And C<i386> with
+your platform if different from x86.)
+
+=over
+
+=item 1
+
+  % get apache-mod_ssl-x.x.x.x-x.x.x.src.rpm
+
+Source: http://www.modssl.org
+
+=item 1
+
+  % get openssl-x.x.x.i386.rpm
+
+Source: http://www.openssl.org/
+
+=item 1
+
+  % lwp-download http://perl.apache.org/dist/mod_perl-x.xx.tar.gz
+
+Source: http://perl.apache.org/dist
+
+=item 1
+
+  % lwp-download http://www.engelschall.com/sw/mm/mm-x.x.xx.tar.gz
+
+Source: http://www.engelschall.com/sw/mm/
+
+=item 1
+
+  % rpm -ivh openssl-x.x.x.i386.rpm
+
+=item 1
+
+  % rpm -ivh apache-mod_ssl-x.x.x.x-x.x.x.src.rpm
+
+=item 1
+
+  % cd /usr/src/redhat/SPECS
+
+=item 1
+
+  % rpm -bp apache-mod_ssl.spec
+
+=item 1
+
+  % cd /usr/src/redhat/BUILD/apache-mod_ssl-x.x.x.x-x.x.x
+
+=item 1
+
+  % tar xvzf mod_perl-x.xx.tar.gz
+
+=item 1
+
+  % cd mod_perl-x.xx
+
+=item 1
+
+  % perl Makefile.PL APACHE_SRC=../apache_x.x.x/src \
+     DO_HTTPD=1 \
+     USE_APACI=1 \
+     PREP_HTTPD=1 \
+     EVERYTHING=1 \
+
+Add or remove parameters if appropriate.
+
+=item 1
+
+  % make
+
+=item 1
+
+  % make install
+
+=item 1
+
+  % cd ../mm-x.x.xx/
+
+=item 1
+
+  % ./configure --disable-shared
+
+=item 1
+
+  % make
+
+=item 1
+
+  % cd ../mod_ssl-x.x.x-x.x.x
+
+=item 1
+
+  % ./configure \
+        --with-perl=/usr/bin/perl \
+        --with-apache=../apache_x.x.x\
+        --with-ssl=SYSTEM \
+        --with-mm=../mm-x.x.x \
+        --with-layout=RedHat \
+        --disable-rule=WANTHSREGEX \
+        --enable-module=all \
+        --enable-module=define \
+        --activate-module=src/modules/perl/libperl.a \
+        --enable-shared=max \
+        --disable-shared=perl \
+        --enable-suexec --suexec-caller=nobody \
+        --suexec-uidmin=500 --suexec-gidmin=500
+
+=item 1
+
+  % make
+
+=item 1
+
+  % make certificate 
+
+with whatever option is suitable to your config.
+
+=item 1
+
+  % make install
+
+=back
+
+You should be all set.
+
+Note: If you use the standard config for mod_ssl don't forget to run
+apache as : "C<httpd -DSSL>"
+
+
+
+
+
+
+
+
+
+
+
+=head2 mod_perl and apache-ssl (+openssl)
+
+Apache-SSL is a secure Webserver, based on Apache and
+SSLeay/OpenSSL. It is licensed under a BSD-style license, which means,
+in short, that you are free to use it for commercial or non-commercial
+purposes, so long as you retain the copyright notices.
+
+Download the sources:
+
+  % lwp-download http://www.apache.org/dist/apache_x.xx.tar.gz
+  % lwp-download http://perl.apache.org/dist/mod_perl-x.xx.tar.gz
+  % lwp-download http://www.apache-ssl.org/.../apache_x.x.x+ssl_x.xx.tar.gz
+  % lwp-download http://www.openssl.org/source/openssl-x.x.x.tar.gz
+
+Un-pack:
+
+  % tar zvxf mod_perl-x.xx
+  % tar zvxf apache_x.x.x.tar.gz
+  % tar zvxf openssl-x.x.x.tar.gz
+
+Configure and install openssl:
+
+  % cd openssl-x.x.x
+  % ./config
+  % make && make test && make install
+
+Patch Apache with SSLeay paths
+
+  % cd apache_x.xx
+  % tar -zxf ../apache_x.x.x+ssl_x.xx.tar.gz
+  % FixPatch
+  Do you want me to apply the fixed-up Apache-SSL patch for you? [n] y
+
+  % <edit the src/Configuration file if needed>
+  % cd -
+
+Configure:
+
+  % cd ../mod_perl-x.xx
+  % perl Makefile.PL USE_APACI=1 EVERYTHING=1 \
+        DO_HTTPD=1 SSL_BASE=/usr/local/ssl \
+        APACHE_SRC=../apache_x.x.x/src \
+
+Build, test and install:
+
+  % make && make test && make install
+  % cd ../apache_x.x.x
+  % make certificate
+  % make install
+
+Note, that you might need to modify the 'make test' stage, as it takes
+much longer for this server to get started and C<make test> waits only
+a few seconds before it timeouts.
+
+Now proceed with apache_ssl and mod_perl parts of the server
+configuration files, before starting the server.
+
+
+
+
+
+
+=head2 mod_perl and Stronghold
+
+Stronghold is a secure SSL Web server for Unix which allows you to
+give your web site full-strength, 128-bit encryption.
+
+You must first build and install Stronghold without mod_perl,
+following Stronghold's install procedure. For more information visit:
+http://www.c2.net/products/sh2/ .
+
+Download the sources:
+
+  % lwp-download http://perl.apache.org/dist/mod_perl-x.xx.tar.gz
+
+Un-pack:
+
+  % tar zvxf mod_perl-x.xx.tar.gz
+
+Configure (assuming that you have the Stronghold sources extracted at
+I</usr/local/stronghold>:
+
+  % cd mod_perl-x.xx
+  % perl Makefile.PL APACHE_SRC=/usr/local/stronghold/src \
+    DO_HTTPD=1 USE_APACI=1 EVERYTHING=1
+
+Build:
+
+  % make 
+
+Before running C<make test>, you must add your C<StrongholdKey> to
+I<t/conf/httpd.conf>. If you are configuring by hand, be sure to edit
+I<src/modules/perl/Makefile> and uncomment C<#APACHE_SSL> directive.
+
+Test and Install:
+
+  % make test && make install
+  % cd /usr/local/stronghold
+  % make install
+
+=head3 Note For Solaris 2.5 users
+
+There has been a report related to the C<REGEX> that comes with
+Stronghold, after building Apache with mod_perl would produce core
+dumps.  To get around this:
+
+In I<$STRONGHOLD/src/Configuration>, Change:
+
+  Rule WANTHSREGEX=default
+
+To:
+
+  Rule WANTHSREGEX=no
+
+
+
+
+
+
+=head1 mod_perl Installation with CPAN.pm's Interactive Shell
+
+To install mod_perl and all the required packages is much easier with
+help of C<CPAN.pm> module, which provides you among other features a
+shell interface to a CPAN repository (CPAN = Comprehensive Perl
+Archive Network, which is a repository of thousands Perl modules,
+scripts and documentation. See http://cpan.org for more info)
+
+First thing first is to download an Apache source code, unpack it into
+a directory the name of which you will need very soon. 
+
+Now execute:
+
+  % perl -MCPAN -eshell
+
+If it's a first time that you use it, it will ask you about 10
+questions to configure the module. It's quite easy to accomplish this
+task, when following the very helpful hints coming along with the
+questions. When you done, you will see a C<cpan> prompt:
+
+  cpan> 
+
+CPAN will download mod_perl for you, unpack it, will check
+prerequisites, detect the missing third party modules if any, download
+and install them. All you need to install mod_perl is to type at the
+prompt:
+
+  cpan> install mod_perl
+
+You will see (I'll use C<x.xx> instead of real version numbers, since
+these change very frequently):
+
+  Running make for DOUGM/mod_perl-x.xx.tar.gz
+  Fetching with LWP:
+  http://www.perl.com/CPAN-local/authors/id/DOUGM/mod_perl-x.xx.tar.gz
+  
+  CPAN.pm: Going to build DOUGM/mod_perl-x.xx.tar.gz
+  
+  Enter `q' to stop search
+  Please tell me where I can find your apache src
+  [../apache-x.x.x/src]
+
+It will search for a latest apache sources and suggest a
+directory. Here you need to type in the directory you have unpacked
+the apache in unless it CPAN detected and suggested the right
+directory... The next question is about the C<src> directory which
+resides at the root level of the unpacked Apache distribution. In most
+cases CPAN would "guess" the correct directory.
+
+  Please tell me where I can find your apache src
+  [../apache-x.x.x/src] 
+
+Answer yes to all the following questions, unless you have a reason
+not to do that.
+
+  Configure mod_perl with /usr/src/apache_x.x.x/src ? [y] 
+  Shall I build httpd in /usr/src/apache_x.x.x/src for you? [y] 
+
+Now it will build the apache with enabled mod_perl. The only thing
+left to do is to go to apache sources root directory (when you quit
+C<CPAN> shell or use using another terminal) and run:
+
+  % make install
+
+which will complete the installation by installing Apache headers and
+the binary at the appropriate directories.
+
+The only caveat of described process is that you don't have a control
+over a configuration process. Actually, it's an easy to solve problem
+-- you can tell <CPAN.pm> to pass whatever parameters you want to
+C<perl Makefile.PL>. You do this with C<o conf makepl_arg> command:
+
+  cpan> o conf makepl_arg 'DO_HTTPD=1 USE_APACI=1 EVERYTHING=1'
+
+You just enlist all the parameters like you were to pass to a familiar
+C<perl Makefile.PL>. If you add
+C<APACHE_SRC=/usr/src/apache_x.x.x/src> and C<DO_HTTPD=1> parameters,
+you will be not asked a single question. Of course use a correct path
+to the apache source distribution.
+
+Now proceed with C<install mod_perl>, like before. When the
+installation is completed, remember to unset the C<makepl_arg>
+variable, by executing:
+
+  cpan> o conf makepl_arg ''
+
+In case you have the C<makepl_arg> previously (before you altered it for
+a mod_perl installation) set to some value, you will probably want to
+save it somewhere, and restore when you done with mod_perl
+installation. To read the original value, use:
+
+  cpan> o conf makepl_arg
+
+You can install all the modules you might want to use with
+mod_perl. You install them all by typing a singe command:
+
+  cpan> install Bundle::Apache
+
+It'll install mod_perl if isn't yet installed and many other packages
+like: C<ExtUtils::Embed>, C<MIME::Base64>, C<URI::URL>,
+C<Digest::MD5>, C<Net::FTP>, C<LWP>, C<HTML::TreeBuilder>, C<CGI>,
+C<Devel::Symdump>, C<Apache::DB>, C<Tie::IxHash>, C<Data::Dumper> and
+etc.
+
+A helpful hint: If you have a system with all the perl modules you use
+and you want to replicate them all at some other place, and if you
+cannot just copy the whole C</usr/lib/perl5> directory because of a
+possible binary incompatibility of the other system, making your own
+bundle comes as a handy solution.  To accomplish that the command
+C<autobundle> can be used on the CPAN shell command line. This command
+writes a bundle definition file for all modules that are installed for
+the currently running perl interpreter.
+
+With a clever bundle file you can then simply say
+
+  cpan> install Bundle::my_bundle
+
+then answer a few questions and then go out for a coffee.
+
+
+
+
+
+
+
+
+
+=head1 Installing on multiple machines
+
+You may wish to build httpd once, then copy it to other machines.  The
+Perl side of mod_perl needs the apache headers files to compile, to
+avoid dragging and build apache on all your other machines, there are
+a few Makefile targets to help you out:
+
+  % make tar_Apache
+
+This will tar all files mod_perl installs in your Perl's I<site_perl>
+directory, into a file called I<Apache.tar>.  You can then unpack this
+under I<site_perl> directory on another machine.
+
+  % make offsite-tar
+
+This will copy all header files from the apache source directory you
+configured mod_perl against, then it will C<make dist> which creates a
+mod_perl-x.xx.tar.gz, ready to unpack on another machine to compile
+and install the Perl side of mod_perl.
+
+If you really want to make your life easy you should use one of the
+more advanced packaging systems. For example, almost all Linux OS
+distributions use packaging tools on top of plain tar.gz, allowing to
+track prerequisites for each package, easy installation, upgrade and
+cleanup. Once of the most used packagers is RPM (Red Hat Package
+Manager) See http://www.rpm.org for more information.
+
+So what you have to do is to prepare a SRPM (source distribution
+package), then build a binary release, which then can be installed on
+any number of machines in a matter of seconds. 
+
+It would work even on live machines! If you have two identical
+machines (both software and hardware, hardware is less critical,
+depending on your setup). One is a live server and the other --
+development, if you build an RPM with mod_perl binary distribution,
+install it on the development machine and find it working and
+stable. You can install the RPM package on the live server without any
+fear. Just make sure that the I<httpd.conf> is correct, since it
+generally includes parameters unique to the live machine, like
+hostname.
+
+When you installed the package just restart the server. It can be a
+good idea to keep the previous package of the system, so in case
+something is going wrong you can remove the installed package and put
+the old once back.
+
+(META: Do you care to share a step by step scenario of preparation of
+SRPMs for mod_perl? Thanks!!!)
+
+
+
+
+
+
+
+
+
+
+
+
+=head1 using RPM, DEB and other packages to install mod_perl
+
+META: meanwhile only RPM. please submit the info about DEB and other
+available packages.
+
+=head2 Static debian package
+
+David Huggins-Daines has built a static apache/mod_perl 1.3.9/1.21
+debian package.
+
+David has hacked the Debian package to build with static mod_perl in
+the Apache binary, source and binary packages are at:
+
+http://elgin.plcom.on.ca/debian/dists/unstable/main/
+
+Or put this in your I</etc/apt/sources.list> and "apt-get install apache-perl":
+
+  % deb http://elgin.plcom.on.ca/debian unstable main
+
+(note: this server may be up and down for a bit, it's also the
+development machine for David's project at work that uses mod_perl...)
+
+These aren't official packages, of course.  Hopefully the memory
+leakage on DSO problem can be resolved before we release potato, it is
+a rather severe bug IMHO.
+
+
+=head2 A word on mod_perl RPM packages
+
+The virtues of RPM packages is the subject of much debate among
+mod_perl users. While RPMs do take the pain away from package
+installation and maintenance for most applications, the nuances of
+mod_perl make RPMs somewhat less than ideal for those just getting
+started. The following help and advice is for those new to mod_perl,
+Apache, Linux, and RPMs. If you know what you are doing, this is
+probably old hat - contributing your past experiences is, as always,
+welcome by the community.
+
+=head2 Getting Started
+
+If you are new to mod_perl and are using this Guide and the Eagle book
+to help you on your way, it is probably better to grab the latest
+Apache and mod_perl sources and compile the sources yourself. Not only
+will you find that this is less daunting than you suspect, but it will
+probably save you a few headaches down the line for several reasons.
+
+First, given the pace at which the open source community produces
+software, RPMs, especially those found on distribution CDs, are often
+several versions out of date. The most recent version will not only be
+more stable, but will likely incorporate some new functionality that
+you will eventually want to play with.
+
+It is also unlikely that the file system's layout of an RPM package
+will match what you see in either the Eagle book or this Guide. If you
+are new to mod_perl, Apache, or both, you will probably want to get
+familiar with file system used by the examples given here before
+trying something less standard.
+
+Finally, the RPMs found on a typical distribution CDs use mod_perl
+build with Apache's Dynamic Shared Objects (C<DSO>) support. While
+mod_perl can be successfully used as a DSO module, it adds a layer of
+complexity that you may want to live without for now.
+
+All that being said, should you still feel that rolling your own
+mod_perl enabled Apache server is not likely, here are a few helpful
+hints...
+
+=head2 Compiling RPM source files
+
+It is possible to compile the source files provided my RPM packages,
+but if you are using RPMs to ease mod_perl installation, that is not
+the way to do it. Both Apache and mod_perl RPMs are designed to be
+install-and-go. If you really want to compile mod_perl to your own
+specific needs, your best bet is to get the most recent sources from
+CPAN.
+
+=head2 Mix and Match RPM and source
+
+It is probably not the best idea to use a self-compiled Apache with a
+mod_perl RPM (or vice versa). Sticking with one format or the other at
+first will result in fewer headaches and more hair.
+
+
+=head2 Installing a single apache+mod_perl RPM
+
+If you use an apache+mod_perl RPM, chances are C<rpm -i> or C<glint>
+(GUI for RPM) will have you up and running immediately, no compilation
+necessary. If you encounter problems, try downloading from another
+mirror site or searching http://rpmfind.net/ for a different package -
+there are plenty out there to choose from. 
+
+David Harris has started the efforts to build a better RPM/SRPM
+mod_perl packages.  You will find them at:
+http://www.davideous.com/modperlrpm/distrib/
+
+Features of this RPM:
+
+=over
+
+=item *
+
+Installs mod_perl as an "add in" to the RedHat Apache package, but
+does not install mod_perl as a DSO and all the problems that brings.
+
+=item *
+
+Includes the four header files required for building C<libapreq>
+(C<Apache::Request>)
+
+=item *
+
+Distributes plain text forms of the pod documentation files that come
+with mod_perl.
+
+=item *
+
+Checks the module magic number on the existing apache package to see
+if things are compatible
+
+=back
+
+Notes on this un-conventional RPM packaging of mod_perl
+
+by David Harris <dharris@drh.net> on Oct 13, 1999
+
+This package will install the mod_perl library files on your machine
+along with the following two Apache files:
+
+  /usr/lib/apache/mod_include_modperl.so
+  /usr/sbin/httpd_modperl
+
+This package does not install a complete apache subtree built with
+mod_perl, but rather just the two above files that are different for
+mod_perl.  This conceptually thinks of mod_perl as a kind of an "add
+on" that we would like to add to the regular apache tree. However, we
+are prevented from distributing mod_perl as an actual DSO, because it
+is not recommended by the mod_perl developers and various features
+must be turned off. So, instead, we distribute a httpd binary with
+mod_perl statically linked (httpd_modperl) and the special modified
+mod_include.so required for this binary (mod_include_modperl.so).  You
+can use the exact same configuration files and other DSO modules, but
+you just "enable" the mod_perl "add on" by following the below
+directions.
+
+To enable mod_perl, do the following:
+
+  (1) Configure /etc/rc.d/init.d/httpd to run httpd_modperl instead of
+      httpd by changing the "daemon" command line.
+  (2) Replace mod_include.so with mod_include_modperl.so in the
+      module loading section of /etc/httpd/conf/httpd.conf
+  (3) Uncomment the "AddModule mod_perl.c" line in /etc/httpd/conf/httpd.conf
+
+Or run the following command: (and the other version to disable
+mod_perl)
+
+  /usr/sbin/modperl-enable on
+  /usr/sbin/modperl-enable off
+
+=head2 Compiling libapreq (Apache::Request) with the RH 6.0 mod_perl RPM
+
+There have been many reports of libapreq - which provides the
+C<Apache::Request> module - not working properly with various RPM
+packages. However, it is possible to integrate libapreq with mod_perl
+RPMs, it just requires a few additional steps.
+
+=over
+
+=item 1
+
+Make certain you have the C<apache-devel-x.x.x-x.i386.rpm> package
+installed.  Also, download the latest version of libapreq from CPAN.
+
+=item 2
+
+Install the source RPM for your mod_perl RPM and then do a build prep,
+which unpacks the sources. From there, copy four header files
+(I<mod_perl.h>, I<mod_perl_version.h>, I<mod_perl_xs.h>, and
+I<mod_PL.h>) to C</usr/include/apache>.
+
+=over
+
+=item *
+
+2.1 Get the SRPM from
+C<somemirror.../redhat-6.0/SRPMS/mod_perl-1.19-2.src.rpm>.
+
+=item *
+
+2.2 Install the SRPM. (This creates files in C</usr/src/redhat/SPECS>
+and C</usr/src/redhat/SOURCES>). Run:
+
+ % rpm -ih mod_perl-1.19-2.src.rpm
+
+=item *
+
+2.3 Do a C<"prep"> build of the package, which just unpackages the
+sources and applies any patches.
+
+  % rpm -bp /usr/src/redhat/SPECS/mod_perl.spec
+  Executing: %prep
+  + umask 022
+  + cd /usr/src/redhat/BUILD
+  + cd /usr/src/redhat/BUILD
+  + rm -rf mod_perl-1.19
+  + /bin/gzip -dc /usr/src/redhat/SOURCES/mod_perl-1.19.tar.gz
+  + tar -xf -
+  + STATUS=0
+  + [ 0 -ne 0 ]
+  + cd mod_perl-1.19
+  ++ /usr/bin/id -u
+  + [ 0 = 0 ]
+  + /bin/chown -Rf root .
+  ++ /usr/bin/id -u
+  + [ 0 = 0 ]
+  + /bin/chgrp -Rf root .
+  + /bin/chmod -Rf a+rX,g-w,o-w .
+  + echo Patch #0:
+  Patch #0:
+  + patch -p1 -b --suffix .rh -s
+  + exit 0
+
+NOTE: What you have just done in steps 2.1 through 2.3 was just a
+fancy un-packing of the source tree that builds the RPM into
+C</usr/src/redhat/BUILD/mod_perl-1.19>. You could un-pack the
+C<mod_perl-x.xx.tar.gz> file somewhere and then do the following steps
+on that source tree. But this is more "pure" because I'm grabbing the
+header files from the same tree that built the RPM. But this does not
+matter because RedHat is not patching that file.  So, it might be
+better if you just tell the person to grab the mod_perl source and
+unpack it to get these files.. less fuss and mess.
+
+=item *
+
+2.4 Look at the files you will copy: (this is not really a step, but
+useful to show)
+
+  % find /usr/src/redhat/BUILD/mod_perl-1.19 -name '*.h'
+  /usr/src/redhat/BUILD/mod_perl-1.19/src/modules/perl/mod_perl.h
+  /usr/src/redhat/BUILD/mod_perl-1.19/src/modules/perl/mod_perl_xs.h
+  /usr/src/redhat/BUILD/mod_perl-1.19/src/modules/perl/mod_perl_version.h
+  /usr/src/redhat/BUILD/mod_perl-1.19/src/modules/perl/perl_PL.h
+
+=item *
+
+2.5 Copy the files into C</usr/include/apache>.
+
+  % find /usr/src/redhat/BUILD/mod_perl-1.19 -name '*.h' \
+    -exec cp {} /usr/include/apache \;
+
+NOTE: You should not have to do a:
+
+  % mkdir /usr/include/apache
+
+because that directory should be created by apache-devel.
+
+=back
+
+=item 3
+
+Apply this patch to libapreq:
+http://www.davideous.com/modperlrpm/distrib/libapreq-0.31_include.patch
+
+
+=item 4
+
+Follow the libapreq directions as usual:
+
+  % perl Makefile.PL
+  % make && make test && make install
+
+=back
+
+
+=head2 Installing separate Apache and mod_perl RPMs
+
+If you are trying to install separate Apache and mod_perl RPMs, like
+those provided by RedHat distributions, you may be in for a bit of a
+surprise. Installing the Apache RPM will go just fine, and
+http://localhost will bring up some type of web page for your viewing
+pleasure. However, installation of the mod_perl RPM, followed by the
+L<How can I tell whether mod_perl is 
+running|install/How_can_I_tell_whether_mod_perl_>
+tests, will show that Apache is not mod_perl enabled. This is because
+mod_perl needs to be added as a separate module using Apache's Dynamic
+Shared Objects.
+
+To use mod_perl as a DSO, make the following modifications to your
+Apache configuration files:
+
+
+  httpd.conf:
+  ----------
+  LoadModule perl_module modules/libperl.so
+  AddModule mod_perl.c
+
+  srm.conf (or httpd.conf in later versions of Apache):
+  ----------
+  PerlModule Apache::Registry 
+  Alias /perl/ /home/httpd/perl/ 
+  <Location /perl 
+    SetHandler perl-script 
+    PerlHandler Apache::Registry 
+    PerlSendHeader On 
+    Options +ExecCGI
+  </Location
+
+After a complete shutdown and startup of the server, mod_perl should
+be up and running.
+
+
+
+
+
+
+
+
+
+=head2 Testing the mod_perl API
+
+Some people have reported that even when the server responds
+positively to the L<How can I tell whether mod_perl is 
+running|install/How_can_I_tell_whether_mod_perl_>
+tests, the mod_perl API will not function properly. You may want to
+run the below script to verify the availability of the mod_perl API.
+
+	use strict;
+	my $r = shift;
+	$r->send_http_header('text/html');
+	$r->print("It worked!!!\n");
+
+
+
+
+
+
+
+
+
+=head1 Installation Without Superuser Privileges
+
+As you have already learned, mod_perl enabled Apache consists of two
+main components: perl modules and Apache itself. Let's tackle each
+task at a time.
+
+I'll show a complete installation example using a I<stas> as a
+username, and assume that I</home/stas> is a home directory of that
+user.
+
+
+
+
+
+
+
+
+
+=head2 Installing Perl Modules into a Directory of Choice
+
+Since without a superuser permissions you aren't allowed to install
+modules into a system directories like I</usr/lib/perl5>, you need to
+find out how to install the modules under your home directory. The
+task is a very one.
+
+First you have to decide where the modules to be installed.  The
+simplest approach is to simulate a relevant to perl portion of the
+C</> file system, under your home directory. Actually we need only two
+directories:
+
+  /home/stas/bin
+  /home/stas/lib
+
+But we don't have to create them, since it'll be done automatically
+when the first module will be installed. 99% of the files will go into
+the I<lib> directory, occasionally when some module comes with perl
+scripts, these will go into a I<bin> directory, and the directory
+itself will be created if it wasn't there before.
+
+Let's install a I<CGI.pm> package, which among C<CGI.pm> includes a
+few other C<CGI::*> modules. As usually, download the package from
+CPAN repository, unpack it and I<chdir> to the created directory.
+
+Now we do a standard C<perl Makefile.PL> to prepare a I<Makefile>, but
+this time we tell the C<MakeMaker> to use non-default perl
+installation directories.
+
+  % perl Makefile.PL PREFIX=/home/stas
+
+C<PREFIX=/home/stas> is the only different part of the standard perl
+modules installation process. Note that if you don't like how
+C<MakeMaker> choose to select the rest of the directories or if you
+are using an older version of it, which requires an explicit
+declaration of all target directories you should do:
+
+  % perl Makefile.PL PREFIX=/home/stas \
+    INSTALLPRIVLIB=/home/stas/lib/perl5 \
+    INSTALLSCRIPT=/home/stas/bin \
+    INSTALLSITELIB=/home/stas/lib/perl5/site_perl \
+    INSTALLBIN=/home/stas/bin \
+    INSTALLMAN1DIR=/home/stas/lib/perl5/man  \
+    INSTALLMAN3DIR=/home/stas/lib/perl5/man3
+
+The rest is as usual:
+
+  % make
+  % make test
+  % make install
+
+We see that C<make install> installs all the files in my private
+repository. Note that all the missing directories are created
+automatically, so there is no need to create them in first place. Here
+is what it does (this is a slightly truncated output):
+
+  Installing /home/stas/lib/perl5/CGI/Cookie.pm
+  Installing /home/stas/lib/perl5/CGI.pm
+  Installing /home/stas/lib/perl5/man3/CGI.3
+  Installing /home/stas/lib/perl5/man3/CGI::Cookie.3
+  Writing /home/stas/lib/perl5/auto/CGI/.packlist
+  Appending installation info to /home/stas/lib/perl5/perllocal.pod
+
+
+If you have to use the explicit target parameters, instead of a single
+C<PREFIX> parameter, you will find it useful to create a file called
+for example I<~/.perl_dirs> (where I<~> is C</home/stas> in our
+example) and to populate it with:
+
+    PREFIX=/home/stas \
+    INSTALLPRIVLIB=/home/stas/lib/perl5 \
+    INSTALLSCRIPT=/home/stas/bin \
+    INSTALLSITELIB=/home/stas/lib/perl5/site_perl \
+    INSTALLBIN=/home/stas/bin \
+    INSTALLMAN1DIR=/home/stas/lib/perl5/man  \
+    INSTALLMAN3DIR=/home/stas/lib/perl5/man3
+
+From now on any time you want to install perl modules locally you
+simply execute:
+
+  % perl Makefile.PL `cat ~/.perl_dirs`
+  % make
+  % make test
+  % make install
+
+Using the last tip, you can easily maintain several Perl module
+repositories, for example one for production perl and another for
+development. When the only difference is either you call:
+
+  % perl Makefile.PL `cat ~/.perl_dirs.production`
+
+or
+
+  % perl Makefile.PL `cat ~/.perl_dirs.develop`
+
+
+
+
+
+
+
+
+
+
+
+
+
+=head2 Making Your Scripts Find the Locally Installed Modules
+
+Perl modules are generally being dispatched into a five main
+directories. You find out these directories, execute:
+
+  % perl -V
+
+and in the generated output, among other important information about
+your perl installation you will see at the end:
+
+  Characteristics of this binary (from libperl):
+  Built under linux
+  Compiled at Apr  6 1999 23:34:07
+  @INC:
+    /usr/lib/perl5/5.00503/i386-linux
+    /usr/lib/perl5/5.00503
+    /usr/lib/perl5/site_perl/5.005/i386-linux
+    /usr/lib/perl5/site_perl/5.005
+    .
+
+It shows us the content of the C<@INC> perl special variable, which is
+being used by perl to look for its modules, as an equivalent to a
+C<PATH> environment variable in Unix shells which is being used to find
+the binaries to be executed.
+
+Of course this is the information of the I<5.00503> version of perl
+installed on my x86 architecture PC running Linux. That's why you see
+I<i386-linux> and I<5.00503>. If your system runs a different
+operating system, processor or chipset architecture and version of
+perl, directories would have a different names.
+
+I also have a perl-5.00561 installed under C</usr/local/lib/>
+so when I do:
+
+  % /usr/local/bin/perl5.00561 -V
+
+I see:
+
+  @INC:
+    /usr/local/lib/perl5/5.00561/i586-linux
+    /usr/local/lib/perl5/5.00561
+    /usr/local/lib/site_perl/5.00561/i586-linux
+    /usr/local/lib/site_perl
+
+Notice, that it's still I<linux> but a newer perl version uses a
+version of my Pentium processor (thus the I<i586> and not I<i386> as
+it was before), which makes a use of compiler optimization for a
+Pentium processors, when the binary perl extensions are being created.
+
+C<i386-linux> like directories are the ones, where all the platform
+specific files are supposed to go, such as compiled C files glued to
+Perl with C<XS> or C<SWIG>.
+
+The above discussion is important to us, because since we have
+installed the perl modules into a non-standard directories, somehow we
+have to make Perl know where to look for the four directories.  There
+are two ways to accomplish this task. You should either set the
+C<PERL5LIB> environment variable or modify the C<@INC> variable in
+yours scripts.
+
+Assuming that we use perl-5.00503, in our example the directories are:
+
+    /home/sbekman/lib/perl5/5.00503/i386-linux
+    /home/sbekman/lib/perl5/5.00503
+    /home/sbekman/lib/perl5/site_perl/5.005/i386-linux
+    /home/sbekman/lib/perl5/site_perl/5.005
+
+As I've mentioned it before, you find out the exact directories by
+executing C<perl -V> and replacing the global's perl installation's
+base directory with your home directory.
+
+Modifying C<@INC> is quite easy. The best approach is to use C<lib>
+module, by adding the following snippet at the top of all your scripts
+that require the locally installed modules.
+
+  use lib qw(/home/stas/lib/perl5/5.00503/
+             /home/stas/lib/perl5/site_perl/5.005);
+
+Another way is to explicitly write the code to alter C<@INC>:
+
+  BEGIN {
+    unshift @INC,
+      qw(/home/stas/lib/perl5/5.00503
+         /home/stas/lib/perl5/5.00503/i386-linux
+         /home/stas/lib/perl5/site_perl/5.005
+         /home/stas/lib/perl5/site_perl/5.005/i386-linux);
+        }
+
+Notice, that with C<lib> module, we don't have to enlist the
+corresponding architecture specific directories, since it adds them
+automatically if they are exist (well, to be exact, when
+C<$dir/$archname/auto> directory exists).
+
+Also, notice that both approaches prepend the directories to be
+searched to C<@INC>, which allows you to install a more recent module
+into your local repository and perl will use it instead of the older
+one installed in the main system repository.
+
+Both approaches, modify the value of C<@INC> at the compilation time,
+C<lib> module uses the I<BEGIN> block as well, but internally. 
+
+Now, let's assume the following scenario.  I have installed C<LWP>
+package in my local repository. Now I want to install another module
+(e.g. mod_perl) and it has C<LWP> listed in its prerequisites list. I
+know that I've C<LWP> installed, but when I run C<perl Makefile.PL>
+for the module I'm about to install, I'm being told that I don't have
+C<LWP> installed.
+
+If we think for a moment, there is no way for Perl to know that we
+have some locally installed modules. All it does, is searching the
+directories listed in C<@INC> and since the latter contains only the
+default five directories, no wander it cannot find locally installed
+C<LWP> package. There is no script we could add the C<@INC>
+modification code, but there is a C<PERL5LIB> variable that I've
+mentioned before, that solves this problem. If you are using a
+C<t?csh> for interactive work, do:
+
+  setenv PERL5LIB /home/stas/lib/perl5/5.00503:
+  /home/stas/lib/perl5/site_perl/5.005
+
+It should be a single line with directories separated by colons (C<:>)
+and no spaces. If you are a C<bash> user, do:
+
+  export PERL5LIB=/home/stas/lib/perl5/5.00503:
+  /home/stas/lib/perl5/site_perl/5.005
+
+Again make it a single line.  Actually bash allows to have a multi-line
+settings with help of backslash (C<\>). So you can set it this way:
+
+  export PERL5LIB=/home/stas/lib/perl5/5.00503:\
+  /home/stas/lib/perl5/site_perl/5.005
+
+As with C<use lib>, perl automatically prepends the architecture
+specific directories to C<@INC> if those exist.
+
+When you have done with this setting, verify the value of the newly
+configured C<@INC>, by executing C<perl -V> as before. Now you should
+see the modified value of C<@INC>:
+
+  % perl -V
+  
+  Characteristics of this binary (from libperl): 
+  Built under linux
+  Compiled at Apr  6 1999 23:34:07
+  %ENV:
+    PERL5LIB="/home/stas/lib/perl5/5.00503:/home/stas/lib/perl5/site_perl/5.005"
+  @INC:
+    /home/stas/lib/perl5/5.00503/i386-linux
+    /home/stas/lib/perl5/5.00503
+    /home/stas/lib/perl5/site_perl/5.005/i386-linux
+    /home/stas/lib/perl5/site_perl/5.005
+    /usr/lib/perl5/5.00503/i386-linux
+    /usr/lib/perl5/5.00503
+    /usr/lib/perl5/site_perl/5.005/i386-linux
+    /usr/lib/perl5/site_perl/5.005
+    .
+
+The moment everything works as you want it to, add this setting into a
+I<.tcshrc> or I<.bashrc> file, according to the interactive shell you
+use, so the next time you open a new shell, this setting would be
+already in place.
+
+Note that if you have a C<PERL5LIB> setting, you don't need to alter
+the C<@INC> value in your scripts, only if you are executing them from
+the interactive shell or in any other way that sets the C<PERL5LIB>
+variable. For example, if someone else tries to execute your scripts
+but doesn't have this setting in the shell she attempts to execute
+the script from, Perl will fail to find your locally installed
+modules.
+
+So the best approach is to have both: the C<PERL5LIB> environment
+variable and the explicit C<@INC> extension code at the beginning of
+the scripts as described before.
+
+
+
+
+
+
+
+
+
+
+
+
+
+=head2 CPAN.pm Shell and Locally Installed Modules
+
+As we saw in the section describing the usage of C<CPAN.pm> shell to
+install mod_perl, it saves us a great deal of time, by doing all the
+job for us, even detecting the missing modules listed in prerequisites,
+bringing and installing them. So you might wander whether you can use
+C<CPAN.pm> to maintain your local repository as well. The answer is
+yes and I'm going to show how can you make installing modules locally
+a bliss.
+
+First thing is to configure the CPAN to use our local settings, when
+you start the C<CPAN> interactive shell, it searches for configuration
+files first for I<~/.cpan/CPAN/MyConfig.pm> file and then for the the
+one installed system wide. The two file on my setup are (when I'm
+logged as user C<stas>):
+
+    /home/stas/.cpan/CPAN/MyConfig.pm
+    /usr/lib/perl5/5.00503/CPAN/Config.pm
+
+If there is no CPAN configured on your system, when you start its
+shell for the first time, it will ask you a dozen configuration
+questions and create this file for you. 
+
+In case you've got it already configured, you should have a
+C</usr/lib/perl5/5.00503/CPAN/Config.pm>. If you have a different perl
+version alter the path to use your perl's version number. Create the
+directory where the local configuration file will go:
+
+  % mkdir -p /home/stas/.cpan/CPAN
+
+C<mkdir -p> creates the whole pass at once. Now copy the system wide
+configuration file to your local one.
+
+  % cp /usr/lib/perl5/5.00503/CPAN/Config.pm /home/stas/.cpan/CPAN/MyConfig.pm
+
+The only thing left is to replace the base directory of <.cpan>, to
+the one under your home, On my machine I replace C</usr/.cpan> (that's
+where my system's C<.cpan> directory resides) with C</home/stas>,
+using Perl of course!
+
+  % perl -pi -e 's|/usr/|/home/stas/|' /home/stas/.cpan/CPAN/MyConfig.pm
+
+Now when you have the local configuration file ready. either after you
+created it by hand copying the global C<CPAN/Config.pm> or by letting
+C<CPAN.pm> to create it for you, we have to tell it what special
+parameters we need to pass when executing C<perl Makefile.PL> stage.
+
+Open the file in your favorite editor and replace line:
+
+  'makepl_arg' => q[],
+
+with:
+
+  'makepl_arg' => q[PREFIX=/home/stas],
+
+And you've finished the configuration. Now start it as usual (assuming
+that you are logged as the same user you have prepared the local
+installation for (I<stas> in our example):
+
+  % perl -MCPAN -e shell
+
+From now on any module you will try to install will be installed
+locally. If you need to install some system modules, just become a
+superuser and install them the same way, this time the global
+configuration file will be used.
+
+If you have used more than just the C<PREFIX> variable, modify the
+<MyConfig.pm> to use them, e.g if you have used:
+
+    perl Makefile.PL PREFIX=/home/stas \
+    INSTALLPRIVLIB=/home/stas/lib/perl5 \
+    INSTALLSCRIPT=/home/stas/bin \
+    INSTALLSITELIB=/home/stas/lib/perl5/site_perl \
+    INSTALLBIN=/home/stas/bin \
+    INSTALLMAN1DIR=/home/stas/lib/perl5/man  \
+    INSTALLMAN3DIR=/home/stas/lib/perl5/man3
+
+replace C<PREFIX=/home/stas> in line:
+
+  'makepl_arg' => q[PREFIX=/home/stas],
+
+with all the variables from above:
+
+  'makepl_arg' => q[PREFIX=/home/stas \
+    INSTALLPRIVLIB=/home/stas/lib/perl5 \
+    INSTALLSCRIPT=/home/stas/bin \
+    INSTALLSITELIB=/home/stas/lib/perl5/site_perl \
+    INSTALLBIN=/home/stas/bin \
+    INSTALLMAN1DIR=/home/stas/lib/perl5/man  \
+    INSTALLMAN3DIR=/home/stas/lib/perl5/man3],
+
+If you arrange all the above parameters in one line, you can remove
+the backslashes (C<\>).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+=head2 Making a Local Apache Installation
+
+Just like with perl modules, when you don't have permissions to
+install files into a system area, you have to install them locally
+under your home directory. It's almost the same as a plain
+installation, but you will have to run the server listening to port
+number > 1024, since these are the ports only root processes can
+listen to.
+
+Another important issue you would have to solve is how to add an
+automatic startup and shutdown scripts to the directories use by the
+rest of the system services. You will have to ask your system
+administrator to assist you with this issue.
+
+Now to install Apache locally, all you have to do is to tell a
+C<.configure> script in the Apache source directory what target
+directories to be used. If following a convention that I use, which
+makes your home directory looking like the C</> (base) directory, the
+invocation parameters would be:
+
+  ./configure --prefix=/home/stas
+
+Apache will use the prefix for the rest of its target directories
+instead of the default C</usr/local/apache>. If you want to see what are
+they, before you proceed, add the I<--show-layout> option:
+
+  ./configure --prefix=/home/stas --show-layout
+
+You might want to put all the Apache files under C</home/stas/apache>
+following the Apache's defaults convention. To accomplish that do:
+
+  ./configure --prefix=/home/stas/apache
+
+If you want to modify some or all of the automatically created names
+of directories, when you omit their explicit parameters, just set them
+to the desired values, e.g:
+
+  ./configure --prefix=/home/stas/apache \
+    --sbindir=/home/stas/apache/sbin
+    --sysconfdir=/home/stas/apache/etc
+    --localstatedir=/home/stas/apache/var \
+    --runtimedir=/home/stas/apache/var/run \
+    --logfiledir=/home/stas/apache/var/logs \
+    --proxycachedir=/home/stas/apache/var/proxy
+
+That's all!
+
+Also remember that you can start the script only under a user and
+group you belong to. Set the appropriate C<User> and C<Group>
+directives in the C<httpd.conf> to correct values.
+
+
+
+
+
+
+
+
+
+
+
+
+
+=head2 Actual Local mod_perl Enabled Apache Installation
+
+Now when we have learned how to install perl modules and Apache
+locally, let's see how we use the acquired knowledge to install
+mod_perl enabled Apache in our home directory. It's almost as simple
+as doing each one at separate, but a single nuance you should know
+about and I'll mention it at the end of this section.
+
+So if you have unpacked Apache and mod_perl sources under the
+C</home/stas/src> directory and they look like:
+
+  % ls /home/stas/src
+  /home/stas/src/apache_x.x.x
+  /home/stas/src/mod_perl-x.xx
+
+where I<x.xx> are the version numbers as usual and you want the perl
+modules from the mod_perl package to be installed under
+C</home/stas/lib/perl5> and Apache files under C</home/stas/apache>,
+the following commands will do that for you.
+
+  % perl Makefile.PL \
+  PREFIX=/home/stas \
+  APACHE_PREFIX=/home/stas/apache \
+  APACHE_SRC=../apache_x.x.x/src \
+  DO_HTTPD=1 \
+  USE_APACI=1 \
+  EVERYTHING=1
+  % make && make test && make install 
+  % cd ../apache_x.x.x
+  % make install
+
+If you need something to be passed to C<.configure> script as we have
+seen in the previous section use the C<APACI_ARGS> parameter, e.g:
+
+  APACI_ARGS=--sbindir=/home/stas/apache/sbin, \
+    --sysconfdir=/home/stas/apache/etc, \
+    --localstatedir=/home/stas/apache/var, \
+    --runtimedir=/home/stas/apache/var/run, \
+    --logfiledir=/home/stas/apache/var/logs, \
+    --proxycachedir=/home/stas/apache/var/proxy
+
+Note that the above multiline splitting will work only with C<bash>
+shell, C<tcsh> users have to list all the parameters in a single line.
+
+Basically the installation is complete. The only nuance is a C<@INC>
+variable, that wouldn't be correctly set if you rely on the
+C<PERL5LIB> environment variable, unless you set it explicitly in the
+startup file, which is get required before any other module that
+resides in your local repository is being loaded. But a much nicer
+approach is to use the C<lib> pragma as we saw before, but in a little
+different way - we use it in the startup file and it affects all the
+code that will be executed under mod_perl handlers. e.g:
+
+  PerlRequire /home/stas/apache/perl/startup.pl
+
+where C<startup.pl> starts with:
+
+  use lib qw(/home/stas/lib/perl5/5.00503/
+             /home/stas/lib/perl5/site_perl/5.005);
+
+Note that you can still use the hard-coded C<@INC> modifications in the
+scripts themselves, but you should know that C<@INC> would be reset to
+its original value after the scripts would be compiled for the first
+time and all the hard-coded settings of C<@INC> would be forgot.
+
+That's because scripts modify C<@INC> in C<BEGIN> blocks and mod_perl
+executes the C<BEGIN> blocks only when it does script compilation,
+that's why when you execute the script for a second time, C<@INC>
+would be reset to its original value.
+
+The only place you can alter this "original" value is during the
+server configuration stage either in the startup file or by setting:
+
+  PerlSetEnv Perl5LIB /home/stas/lib/perl5/5.00503/:/home/stas/lib/perl5/site_perl/5.005
+
+in the C<httpd.conf>.
+
+Now the rest of the mod_perl configuration and using is absolutely the
+same as if you were installing mod_perl as a super user.
+
+One more important thing to keep in mind is a system resources
+consuming. mod_perl is memory hungry -- if you run a lot of mod_perl
+processes on a public, multiuser (not dedicated) machine -- most
+likely the system administrator of this machine will ask you to use
+less resources and even to shut down your mod_perl server and to find
+another home for it. You have a few solutions:
+
+=over 4
+
+=item *
+
+Reduce resources usage (see L<Limiting the size of the
+processes|performance/Limiting_the_Size_of_the_Process>).
+
+=item *
+
+Ask your ISP whether they can setup a dedicated machine for you in
+their computer room, so you will be able to install as much memory as
+you need and have the ISP to administer the system. But if you get a
+dedicated machine chances are that you will want to have a root access
+if you are able to manage the administering your self, keeping on the
+list of ISP's responsibilities only the following items: keeping a
+constant electricity supply, making sure that the network link is up,
+and protecting the machine from possible physical break-ins (when
+someone breaks into a computer room either to steal the information
+from your machine, or to damage it physically). Another good idea is
+to let the ISP to install security patches if you have a trust in them
+or just incapable of doing that.
+
+=item *
+
+Look for another ISP with lots of resources or one that supports
+mod_perl. You can find a list of these ISP at http://perl.apache.org .
+
+=back
+
+
+
+
+
+
+
+
+
+
+
+=head2 Local mod_perl Enabled Apache Installation with CPAN.pm
+
+Again, CPAN makes installation and upgrades simpler. You have seen how
+to install mod_perl enabled server using solely the C<CPAN.pm>'s
+interactive shell. You have seen how to install perl modules and
+Apache locally. Now all is left is to merge all these techniques into
+a single "local mod_perl Enabled Apache Installation with CPAN.pm"
+technique.
+
+Assuming that you have configured C<CPAN.pm> to install perl modules
+locally, the installation is a very simple task. Start the C<CPAN.pm>
+shell, set the arguments to be passed to C<perl Makefile.PL> (modify
+the example setting to suit your needs), and tell <CPAN.pm> to do the
+rest of the work for you:
+
+  % perl -MCPAN -eshell
+  cpan> o conf makepl_arg 'DO_HTTPD=1 USE_APACI=1 EVERYTHING=1 \
+        PREFIX=/home/stas APACHE_PREFIX=/home/stas/apache'
+  cpan> install mod_perl
+
+Since when you use C<CPAN.pm> for local installations the value of
+C<makepl_arg> should be restored to its original value, when the
+mod_perl installation is complete. The simplest solution is to quit
+the interactive shell and reenter it if you need to install more
+modules. Doing that will reset the C<makepl_arg> to its original
+value.
+
+If you want to continue working with C<CPAN> without quitting the
+shell, you've got to remember the value of C<makepl_arg>, and restore
+it upon mod_perl installation completion. It's quite a cumbersome task
+as of the this writing. I believe C<CPAN.pm> will be improved to
+handle these issues more easily, when you read this.
+
+So if you are still with me, start the shell as usual:
+
+  % perl -MCPAN -eshell
+
+Read the value of the C<makepl_arg>:
+
+  cpan> o conf makepl_arg 
+
+  PREFIX=/home/stas
+
+It should be something like C<PREFIX=/home/stas> if you configured
+C<CPAN.pm> to install modules locally. Save this value:
+
+  cpan> o conf makepl_arg.save PREFIX=/home/stas
+
+Now set a new value, to be used by mod_perl.
+
+  cpan> o conf makepl_arg 'DO_HTTPD=1 USE_APACI=1 EVERYTHING=1 \
+        PREFIX=/home/stas APACHE_PREFIX=/home/stas/apache'
+
+Add or remove the parameters according to your needs.  Now let
+<CPAN.pm> to do the rest of the work for you:
+
+  cpan> install mod_perl
+
+Now set C<makepl_arg>'s original value back by printing the value of
+the saved variable and assigning it to C<makepl_arg>.
+
+  cpan> o conf makepl_arg.save
+
+  PREFIX=/home/stas
+
+  cpan> o conf makepl_arg.save PREFIX=/home/stas
+
+Not so neat, but a working solution.
+
+
+
+
+
+
+=head1 Automating installation
+
+James G Smith wrote an Apache Builder 
+
+http://hex.tamu.edu/projects/1999/build-apache/
+
+(META: provide more info)
+
+
+
+
+
+
+
+
+=head1 How can I tell whether mod_perl is running
+
+There are a few ways. In older versions of apache ( < 1.3.6 ?) you
+could check that by running C<httpd -v>, it no longer works. Now you
+should use C<httpd -l>. Please notice that it is not enough to have it
+installed - you should of course configure it for mod_perl and restart
+the server.
+
+
+
+
+
+
+
+=head2 Testing by checking the error_log file
+
+When starting the server, just check the C<error_log> file for the
+following message:
+
+  [Thu Dec  3 17:27:52 1998] [notice] Apache/1.3.1 (Unix) mod_perl/1.15 configured 
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    -- resuming normal operations
+
+=head2 Testing by viewing /perl-status
+
+Assuming that you have configured the C<<Location /perl-status>>
+section in the server configuration file fetch:
+http://www.nowhere.com/perl-status using your favorite Netscape
+browser :-)
+
+You should see something like this:
+
+  Embedded Perl version 5.00502 for Apache/1.3.1 (Unix) mod_perl/1.19 
+  process 50880, running since Tue Oct 6 14:31:45 1998
+
+=head2 Testing via telnet
+
+Knowing the port you have configured apache to listen on, you can use
+C<telnet> to talk directly to it.
+
+Assuming that your mod_perl enabled server listens to port 8080,
+telnet to your server at port 8080, and type C<HEAD / HTTP/1.0> then
+press the <ENTER> key TWICE:
+
+  % telnet localhost 8080<ENTER>
+  HEAD / HTTP/1.0<ENTER><ENTER>
+
+You should see a response like this:
+
+  HTTP/1.1 200 OK
+  Date: Tue, 01 Dec 1998 12:27:52 GMT
+  Server: Apache/1.3.6 (Unix) mod_perl/1.19
+  Connection: close
+  Content-Type: text/html
+  
+  Connection closed.
+
+The line: C<Server: Apache/1.3.6 (Unix) mod_perl/1.19> --confirms that
+you B<do> have mod_perl installed and its version is C<1.19>. Of
+course in your case it would be the version you have installed.
+
+However, just because you have got mod_perl linked in there, that does not
+mean that you have configured your server to handle Perl scripts with
+mod_perl. You will find the configuration assistance at
+L<ModPerlConfiguration|config/>
+
+=head2 Testing via a CGI script
+
+Another method is to invoke a CGI script which dumps the server's
+environment.
+
+I assume you have configured the server that scripts running under
+C</perl/> location are handled by C<Apache::Registry> handler. And you
+have the C<PerlSendHeader> directive set to C<On>.
+
+Copy and paste the script below (no need for the first perl calling
+(shebang) line!). Let's say you named it C<test.pl>, saved it at the
+root of the CGI scripts and CGI root is mapped directly to the
+C</perl> location of your server.
+
+  print "Content-type: text/plain\n\n";
+  print "Server's environment\n";
+  foreach ( keys %ENV ) {
+      print "$_\t$ENV{$_}\n";
+  }
+
+Make it readable and executable by server:
+
+  % chmod a+rx test.pl
+
+(you will want to tune permissions on the public host).
+
+Now fetch the URL C<http://www.nowhere.com:8080/perl/test.pl> (replace
+8080 with the port your mod_perl enabled server is listening to.  You
+should see something like this (the generated output was trimmed):
+
+  SERVER_SOFTWARE Apache/1.3.10-dev (Unix) mod_perl/1.21_01-dev
+  GATEWAY_INTERFACE       CGI-Perl/1.1
+  DOCUMENT_ROOT   /home/httpd/docs
+  REMOTE_ADDR     127.0.0.1
+  [more environment variables snipped]
+  MOD_PERL        mod_perl/1.21_01-dev
+  [more environment variables snipped]
+
+If you see the that the value of C<GATEWAY_INTERFACE> is
+C<CGI-Perl/1.1> everything is OK. If you see:
+
+  GATEWAY_INTERFACE       CGI/1.1
+
+it means that you have configured this location to run under
+mod_cgi. But actually the above script wouldn't run under mod_cgi,
+since you must use the shebang line C<#!/usr/bin/perl> as a first line
+of the CGI script
+
+Also note that there is a C<MOD_PERL> environment variable if you run
+under mod_perl handler, and it's set to a release number you use.
+
+Based on these differences you can write code like:
+
+  BEGIN {
+      # Auto-detect if we are running under mod_perl or CGI.
+    $USE_MOD_PERL = exists $ENV{'GATEWAY_INTERFACE'}
+                    and $ENV{'GATEWAY_INTERFACE'} =~ /CGI-Perl/
+                    ? 1 : 0;
+      # perl5.004 is a must under mod_perl
+    require 5.004 if $USE_MOD_PERL;
+  }
+
+Another approach is to test for C<$ENV{MOD_PERL}>:
+
+  BEGIN {
+      # Auto-detect if we are running under mod_perl or CGI.
+    $USE_MOD_PERL = exists $ENV{'MOD_PERL'}
+                    ? 1 : 0;
+    require 5.004 if $USE_MOD_PERL;
+  }
+
+You might wonder why in the world you would need to know in what
+handler you are running under. For example you will want to use
+C<Apache::exit()> and not C<CORE::exit()> in your modules, but if you
+think that your script might be used in both environments (mod_cgi
+vs. mod_perl), you will have to override the C<exit()> subroutine and
+to make the runtime decision of what method you will use. Not that if
+you run scripts under C<Apache::Registry> handler, it takes care of
+overriding the C<exit()> call for you, so it's not an issue if this is
+your case.  For reasons and implementations see:
+L<Terminating requests and processes, exit() 
+function|porting/Terminating_requests_and_process> 
+and the whole L<Writing Mod Perl scripts and Porting plain CGIs to
+it|porting/> page.
+
+=head2 Testing via lwp-request
+
+Yet another one. Why do I show all these approaches?  While here they
+are serving a very simple purpose, they can be helpful in other
+situations.
+
+Assuming you have the C<libwww-perl> (C<LWP>) package installed (you will
+need it installed in order to pass mod_perl's C<make test> anyway):
+
+  % lwp-request -e -d http://www.nowhere.com
+
+Will show you all the headers. (The C<-d> option disables printing
+the response content.)
+
+  % lwp-request -e -d http://www.nowhere.com | egrep '^Server:'
+
+To see the server's version only.
+
+Use C<http://www.nowhere.com:port_number> if your server is listening
+to a non-default 80 port.
+
+=head1 General Notes
+
+=head2 Should I rebuild mod_perl if I have upgraded my perl?
+
+Yes, you should. You have to rebuild mod_perl enabled server since it
+has a hard coded C<@INC> which points to the old perl and it is is
+probably linked to the an old C<libperl> library. You can try to
+modify the C<@INC> in the startup script (if you keep the old perl
+version around), but it is better to build a fresh one to save you a
+mess.
+
+
+=head2 Perl installation requirements
+
+Make sure you have perl installed -- the newer stable version you have
+the better (minimum perl.5.004!). If you don't have it -- install
+it. Follow the instructions in the distribution's C<INSTALL>
+file. During the configuration stage (while running C<./Configure>),
+make sure you answer C<YES> to the question:
+
+  Do you wish to use dynamic loading? [y]
+
+Answer C<y> to be able to load dynamically Perl Modules extensions.
+
+
+
+=head2 mod_auth_dbm nuances
+
+If you are a user of B<mod_auth_dbm> or B<mod_auth_db>, you may need
+to edit Perl's C<Config> module.  When Perl is configured it attempts
+to find libraries for ndbm, gdbm, db, etc., for the *DBM*_File
+modules.  By default, these libraries are linked with Perl and
+remembered by the B<Config> module.  When mod_perl is configured with
+apache, the B<ExtUtils::Embed> module returns these libraries to be
+linked with httpd so Perl extensions will work under mod_perl.
+However, the order in which these libraries are stored in
+B<Config.pm>, may confuse C<mod_auth_db*>.  If C<mod_auth_db*> does
+not work with mod_perl, take a look at this order with the following
+command:
+
+ % perl -V:libs
+
+If C<-lgdbm> or C<-ldb> is before C<-lndbm>, example:
+
+ libs='-lnet -lnsl_s -lgdbm -lndbm -ldb -ldld -lm -lc -lndir -lcrypt';
+
+Edit B<Config.pm> and move C<-lgdbm> and C<-ldb> to the end of the
+list.  Here's how to find B<Config.pm>:
+
+ % perl -MConfig -e 'print "$Config{archlibexp}/Config.pm\n"'
+
+Another solution for building Apache/mod_perl+mod_auth_dbm under Solaris
+is to remove the DBM and NDBM "emulation" from libgdbm.a.  Seems
+Solaris already provides its own DBM and NDBM, and there's no reason
+to build GDBM with them (for us anyway).
+
+In our Makefile for GDBM, we changed
+
+  OBJS = $(DBM_OF) $(NDBM_OF) $(GDBM_OF)
+
+to
+
+  OBJS = $(GDBM_OF)
+
+Rebuild libgdbm, then Apache/mod_perl.  
+
+
+
+=head2 Stripping apache to make it almost perl-server
+
+Since most of the functionality that various apache mod_* modules
+provide is being implemented in C<Apache::{*}> perl modules, it was
+reported that one can build an apache server with mod_perl only. If
+you can reduce the problems down to whatever mod_perl can handle, you
+can eliminate nearly every other module. Then basically you will have
+a perl-server, with C code to handle the tricky HTTP bits. The only
+module you will need to leave in is a C<mod_actions>.
+
+
+=head2 Saving the config.status Files with mod_perl, php, ssl and Other Components
+
+Typically, when building the bloated apache that sits behind squid or
+whatever, you need mod_perl, php, mod_ssl and the rest. As you install
+each they typically overwrite each other's C<config.status> files. An
+advise is to save them after each step, so you would be able to
+reproduce and reuse them later.
+
+=head2 What Compiler Should Be Used to Build mod_perl?
+
+All Perl modules that use C extensions, must be compiled using the
+same compiler the perl was built with.
+
+When you run C<perl Makefile.PL>, a I<Makefile> get created. This
+I<Makefile> includes the same compilation options that were used to
+build Perl itself. (These are stored in I<Config.pm> module and can be
+displayed with C<Perl -V> command). So all these options are
+re-applied when compiling Perl modules. 
+
+If you use a different compiler to build Perl extensions, chances are
+that the options that a different compiler uses won't be the same, or
+even worse, they might be interpreted in a completely different way.
+So the code either won't compile, would dump core file when used or
+behave in the most unexpected ways.
+
+Since mod_perl, uses Perl, Apache and third party modules, and they
+all work together, it's a must thing to use the same compiler while
+building each of the components.
+
+But you shouldn't worry about when compliling Perl modules since Perl
+will choose what's right automatically, unless you override things. If
+you do this, you are on your own...
+
+If you compile a non-Perl component separately, you should worry to
+use the same compiler and the same options, used to build Perl. Hint:
+Take a look at the I<Config.pm> module or the output if C<perl -V>.
+
+
+
+
+
+
+=head1 OS Related Notes
+
+=over 3
+
+=item *
+
+Gary Shea <shea@xmission.com> discovered a nasty BSDI bug (seen in
+versions 2.1 and 3.0) related to dynamic loading and two workarounds: 
+
+Turns out they use C<argv[0]> to determine where to find the link
+tables at run-time, so if a program either changes C<argv[0]>, or does
+a chdir() (like apache!), it can easily confuse the dynamic loader.
+The short-term solutions to the problem are pitifully simple.  Either
+of the following will work:
+
+1) Call httpd with a full path, e.g. /opt/www/bin/httpd
+
+2) Put the httpd you wish to run in a directory in your PATH
+before any other directory containing a version of httpd, then
+call it as 'httpd' -- don't use a relative path!
+
+=back
+
+=cut
+
+
+
+
+
+
+
+
+

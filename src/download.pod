@@ -1,0 +1,87 @@
+title: Appendix A: Downloading software and documentation
+
+=head1 Coverage
+
+Here you will find instructions for downloading the software and
+the related documentation.
+
+=head1 Perl
+
+Perl is most likely already installed on your machine, but you should
+at least check the version you are using. It is highly recommended that
+you have at least Perl version 5.004. You can get the latest
+perl version from http://www.perl.com/ .  Try the direct download link
+http://www.perl.com/pace/pub/perldocs/latest.html . You can get Perl
+documentation from the same location.
+
+=head1 Apache
+
+Get the latest Apache webserver and documentation from
+http://www.apache.org .  Try the direct download link
+http://www.apache.org/dist/ .
+
+=head1 mod_perl
+
+Get the latest mod_perl sources and documentation from
+http://perl.apache.org .  Try the direct download link
+http://perl.apache.org/dist/ .
+
+Source/Binary Distributions: http://perl.apache.org/distributions.html
+
+RPM: http://perl.apache.org/rpm/
+
+=head1 Squid - Internet Object Cache
+
+http://squid.nlanr.net/
+
+Squid Linux 2.x Redhat RPMs : http://home.earthlink.net/~intrep/linux/
+
+=head1 thttpd - tiny/turbo/throttling HTTP server
+
+http://www.acme.com/software/thttpd/
+
+=head1 mod_proxy_add_forward
+
+Ask Bjoern Hansen has written a C<mod_proxy_add_forward.c> module for
+Apache that sets the C<X-Forwarded-For> field when doing a ProxyPass,
+similar to what Squid can do.  His module is at:
+http://modules.apache.org/search?id=124, at
+ftp://ftp.netcetera.dk/pub/apache/mod_proxy_add_forward.c or
+http://www.cpan.org/authors/id/ABH/mod_proxy_add_forward.c
+
+complete with instructions on how to compile it in and whatnot.
+
+=head1 httperf - webserver Benchmarking tool
+
+http://www.hpl.hp.com/personal/David_Mosberger/httperf.html
+
+=head1 ab - ApacheBench
+
+Comes with the Apache distribution.
+
+=head1 High-Availability Linux Project
+
+You will find the definite guide to load balancing techniques at the
+High-Availability Linux Project site --
+http://www.henge.com/~alanr/ha/
+
+More load ballancing URLs:
+
+lbnamed - a load balancing name server written in Perl, by Roland Schemers
+http://www.stanford.edu/~riepel/lbnamed/
+http://www.stanford.edu/~riepel/lbnamed/bof.talk/
+http://www.stanford.edu/~schemers/docs/lbnamed/lbnamed.html
+
+Network Address Translation and Networks: Virtual Servers (Load Balancing) 
+http://www.csn.tu-chemnitz.de/~mha/linux-ip-nat/diplom/node4.html#SECTION00043100000000000000
+
+
+=head1 Apache::Request
+
+Get it from CPAN at $CPAN/authors/id/DOUGM/libapreq-x.xx.tar.gz or
+from http://perl.apache.org/dist/libapreq-x.xx.tar.gz . (replace x.xx
+with the current version)
+
+=cut
+
+

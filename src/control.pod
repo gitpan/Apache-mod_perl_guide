@@ -1,0 +1,1059 @@
+title: Controlling and Monitoring the Server
+
+=head1 Restarting techniques
+
+All of these techniques require that you know the server PID (Process ID).  
+The easiest way to find the PID is to look it up in the C<httpd.pid> file.  
+With my configuration it exists as
+C</usr/local/var/httpd_perl/run/httpd.pid>. It's easy to discover where to
+look at, by checking out the httpd.conf file. Open the file and locate the
+entry C<PidFile>:
+
+  PidFile /usr/local/var/httpd_perl/run/httpd.pid
+
+Another way is to use the C<ps> and C<grep> utilities:
+
+  % ps auxc | grep httpd_perl
+
+or maybe:
+
+  % ps -ef | grep httpd_perl
+
+This will produce a list of all C<httpd_perl> (the parent and the
+children) processes.  You are looking for the parent process. If you
+run your server as root - you will easily locate it, since it belongs
+to root. If you run the server as user (when you L<don't have a root
+access|install/Installation_Without_Superuser_P>, most likely all the
+processes will belong to that user (unless defined differently in the
+C<httpd.conf>), but it's still easy to know 'who is the parent' -- the
+one of the smallest size...
+
+You will notice many C<httpd_perl> executables running on your system,
+but you should not send signals to any of them except the parent,
+whose pid is in the C<PidFile>. That is to say you shouldn't ever need
+to send signals to any process except the parent. There are three
+signals that you can send the parent: B<TERM>, B<HUP>, and B<USR1>.
+
+=head1 Implications of sending TERM, HUP, and USR1 to the server
+
+We will concentrate here on the implications of sending these signals
+to a mod_perl enabled server. For documentation on the implications of
+sending these signals to a plain Apache server see
+http://www.apache.org/docs/stopping.html .
+
+=over 4
+
+=item TERM Signal: stop now
+
+Sending the B<TERM> signal to the parent causes it to immediately
+attempt to kill off all of its children. This process may take several
+seconds to complete, following which the parent itself exits. Any
+requests in progress are terminated, and no further requests are
+served.
+
+That's the moment that the accumulated C<END> blocks will be executed!
+Note that if you use C<Apache::Registry> or C<Apache::PerlRun>, then
+C<END> blocks are being executed upon each request (at the end).
+
+
+=item HUP Signal: restart now
+
+Sending the B<HUP> signal to the parent causes it to kill off its
+children like in B<TERM> (Any requests in progress are terminated) but
+the parent doesn't exit. It re-reads its configuration files, and
+re-opens any log files. Then it spawns a new set of children and
+continues serving hits.
+
+The server will reread its configuration files, flush all the compiled
+and preloaded modules, and rerun any startup files. It's equivalent to
+stopping, then restarting a server.
+
+Note: If your configuration file has errors in it when you issue a
+restart then your parent will not restart but exit with an error. See
+below for a method of avoiding this.
+
+
+=item USR1 Signal: graceful restart
+
+The B<USR1> signal causes the parent process to advise the children to
+exit after their current request (or to exit immediately if they're
+not serving anything). The parent re-reads its configuration files and
+re-opens its log files. As each child dies off the parent replaces it
+with a child from the new generation of the configuration, 
+which begins serving new requests immediately. 
+
+The only difference between B<USR1> and B<HUP> is that B<USR1> allows children
+to complete any in-progress request prior to killing them off.
+
+By default, if a server is restarted (ala C<kill -USR1 `cat
+logs/httpd.pid`> or with B<HUP> signal), Perl scripts and modules are
+not reloaded.  To reload B<PerlRequire>'s, B<PerlModule>'s, other
+C<use()>'d modules and flush the C<Apache::Registry> cache, enable
+with this command:
+
+ PerlFreshRestart On              (in httpd.conf) 
+
+Make sure you read L<Evil things might happen when using
+PerlFreshRestart|troubleshooting/Evil_things_might_happen_when_us>.
+
+=back
+
+It's worth mentioning that the server restart or termination can
+sometimes take quite a lot of time.  Check out the
+L<PERL_DESTRUCT_LEVEL|debug/PERL_DESTRUCT_LEVEL Environment Variable>
+option during the mod_perl C<perl Makefile.PL> stage (or as
+environment variable), which speeds this up and leads to more robust
+operation in the face of problems, like running out of memory.
+
+Some folks prefer to specify signals using numerical values, rather
+than symbolics. If you are looking for these, check out your
+C<kill(1)> man page. My page points to C</usr/include/sys/signal.h>,
+the relevant entries are:
+
+  #define SIGHUP     1    /* hangup, generated when terminal disconnects */ 
+  #define SIGTERM   15    /* software termination signal */
+  #define SIGUSR1   30    /* user defined signal 1 */
+
+=head1 Using apachectl to control the server
+
+Apache's distribution provides a nice script to control the
+server. It's called B<apachectl> and it's installed into the same
+location with httpd. In our scenario - it's
+C</usr/local/sbin/httpd_perl/apachectl>.
+
+Start httpd:
+
+  % /usr/local/sbin/httpd_perl/apachectl start 
+
+Stop httpd:
+
+  % /usr/local/sbin/httpd_perl/apachectl stop
+
+Restart httpd if running by sending a B<SIGHUP> or start if not
+running:
+
+  % /usr/local/sbin/httpd_perl/apachectl restart
+
+Do a graceful restart by sending a B<SIGUSR1> or start if not running:
+
+  % /usr/local/sbin/httpd_perl/apachectl graceful    
+
+Do a configuration syntax test:
+
+  % /usr/local/sbin/httpd_perl/apachectl configtest 
+
+Replace C<httpd_perl> with C<httpd_docs> in the above calls to control
+the B<httpd_docs> server.
+
+There are other options for B<apachectl>, use C<help> option to see
+them all.
+
+It's important to understand that this script is based on the PID file
+which is C<PIDFILE=/usr/local/var/httpd_perl/run/httpd.pid>. If you
+delete the file by hand - B<apachectl> will fail to run.
+
+Also, notice that B<apachectl> is suitable to use from within your
+Unix system's startup files so that your web server is automatically
+restarted upon system reboot.  Either copy the B<apachectl> file to
+the appropriate location (C</etc/rc.d/rc3.d/S99apache> works on my
+RedHat Linux system) or create a symlink with that name pointing to
+the canonical location. (If you do this, make certain that the script
+is writable only by root -- the startup scripts have root privileges
+during init processing, and you don't want to be opening any security
+holes.)
+
+=head1 Safe Code Updates on a Live Production Server
+
+You have prepared a new version of code, uploaded it into a production
+server, restarted it and it doesn't work. What could be worse than
+that? You also cannot go back, because you have overwritten the good
+working code.
+
+It's quite easy to prevent it! Just don't overwrite the previous good
+files!!! 
+
+Personally I do all updates on the live server with a following
+sequence. Assume that the root directory lies in
+C</home/httpd/perl/rel>. When I'm about to update the files I create a
+new directory C</home/httpd/perl/beta>, copy the old files from
+C</home/httpd/perl/rel> and update it with new files I'm about to
+replace. Then I do last sanity checks (file permissions
+(read+executable), run C<perl -c> on the new modules to make sure
+there no errors in them). When I think I'm ready I do:
+
+  % cd /home/httpd/perl
+  % mv rel old && mv beta rel && stop && sleep 3 && restart && err
+
+Let's explain what I'm doing. First I use alises to make things faster:
+
+  % alias | grep apachectl
+  graceful        /usr/local/apache/bin/apachectl graceful
+  rehup   /usr/local/apache/sbin/apachectl restart
+  restart /usr/local/apache/bin/apachectl restart
+  start   /usr/local/apache/bin/apachectl start
+  stop    /usr/local/apache/bin/apachectl stop
+  
+  % alias err
+  tail -f /usr/local/apache/logs/error_log
+
+So I write all the commands in one line, separated with C<&&> and only
+then press C<Enter> key. That ensures that if I suddenly get a
+connection lost (sadly but that happens sometimes) I wouldn't leave
+the server down if only the C<stop> command squeezed in. C<&&> ensures
+that if any command has failed the rest won't be executed.
+
+I backup the old working directory in C<old>, and move the new one
+instead. I stop the server, give it a few seconds to shutdown (it
+might take even longer) and then do C<restart> followed by immediate
+view of the tail of the C<error_log> file in order to see that
+everything is OK. C<apachectl> generates the status messages too early
+(e.g. on C<stop> it says server has been stopped, while it's not yet,
+so don't rely on it, rely on C<error_log> file instead). Also you have
+noticed that I use C<restart> and not just C<start>. I do this for the
+same reason of Apache's long stopping times (it depends on what you do
+with it of course!), so if you use C<start> and Apache didn't release
+the port it listens to, the start would fail and C<error_log> would
+tell that port is in use, e.g.:
+
+  Address already in use: make_sock: could not bind to port 8080
+
+But if you use C<restart>, it will patiently wait for the server to
+quit and then will cleanly start it.
+
+Now what happens if the new modules are broken? First of all, I see
+immediately the indication of the problems reported at C<error_log>
+file, which I C<tail -f> immediately after a restart command. That's
+easy, we just put everything as it was before:
+
+  % mv rel bad && mv old rel && stop && sleep 3 && restart && err
+
+And 99.9% that everything would be alright, and you have had only
+about 10 secs of downtime, which is pretty good!
+
+=head1 An Intentional Disabling of Live Scripts
+
+What happens if you really must took down the server or disable the
+scripts? This situation might happen when you need to do some
+maintanance works on your database server, which you have to put down
+and which cause all the scripts using this database server
+non-working. If you do nothing, user will see either grey C<The Error
+has happened> or a better customized error message if you have added a
+code to trap and customize the errors (See L<Redirecting Errors to the
+Client instead of error_log|snippets/Redirecting_Errors_to_the_Client>
+for the latter case)
+
+A much more user friendly approach is to confess to your users that
+you are doing some maintainance works and plead for a paitience,
+promising that the services will become fully functional in X minutes
+(it worth to keep the promize!). There are a few ways to do that:
+
+First doesn't require messing with server and works when you have to
+disable a script and not a module! Just prepare a little script like:
+
+  /home/http/perl/construction.pl
+  ----------------------------
+  #!/usr/bin/perl -wT
+  
+  use strict;
+  use CGI;
+  my $q = new CGI;
+  print $q->header,
+  "Sorry, the service is down for maintainance. 
+   It will be back in a about 5-15 minutes.
+   Please, bear with us.
+   Thank you!";
+
+And if now you have to disable a script at C</home/http/perl/chat.pl>,
+just do:
+
+  % mv /home/http/perl/chat.pl /home/http/perl/chat.pl.orig
+  % ln -s /home/http/perl/construction.pl /home/http/perl/chat.pl
+
+Of course you server configuration should allow symbolic links for
+this trick to work. Just make sure you have
+
+  Options FollowSymLinks
+
+directive in your C<<Location>>/C<<Directory>> section configuration.
+
+When done, it's easy to restore the previous setup. Just do:
+
+  % mv /home/http/perl/chat.pl.orig /home/http/perl/chat.pl
+
+and overwrite the symbolic link. Apache will automatically detect the
+change and will use the moved script instead.
+
+Second approach, is changing the server configuration and configure a
+whole directories to be handled by Contruction handler that you would
+write, e.g. if you write something like:
+
+  Construction.pm
+  ---------------
+  use strict;
+  use CGI;
+  use Apache::Constants;
+  sub handler{
+    my $q = new CGI;
+    print $q->header,
+    "Sorry, the service is down for maintainance. 
+     It will be back in a about 5-15 minutes.
+     Please, bear with us.
+     Thank you!";
+    return OK;
+  }
+
+and put it in directory that in the server's C<@INC>, to put down all
+your scripts at C</perl> you would replace:
+
+  <Location /perl>
+    SetHandler perl-script
+    PerlHandler Apache::Registry
+    [snip]
+  </Location>
+
+with
+
+  <Location /perl>
+    SetHandler perl-script
+    PerlHandler Construction
+    [snip]
+  </Location>
+
+Now restart the server and your user will be happy to know that you
+are working on a much better version of the service and it worth for
+them to go read slashdot.org and come back in 10 minutes.
+
+If you need to disable a location handled by some module, the second
+approach would work just as well.
+
+=head1 SUID start-up scripts
+
+For those who wants to use B<SUID> startup script, here is an example
+for you. This script is B<SUID> to B<root>, and should be executable
+only by members of some special group at your site.  Note the 10th
+line, which "fixes an obscure error when starting apache/mod_perl" by
+setting the real to the effective UID.  As others have pointed out, it
+is the mismatch between the real and the effective UIDs that causes
+Perl to croak on the -e switch.
+
+Note that you must be using a version of Perl that recognizes and
+emulates the suid bits in order for this to work.  The script will do
+different things depending on whether it is named C<start_http>,
+C<stop_http> or C<restart_http>.  You can use symbolic links for this
+purpose.
+
+ #!/usr/bin/perl
+ 
+ # These constants will need to be adjusted.
+ $PID_FILE = '/home/www/logs/httpd.pid';
+ $HTTPD = '/home/www/httpd -d /home/www';
+ 
+ # These prevent taint warnings while running suid
+ $ENV{PATH}='/bin:/usr/bin';
+ $ENV{IFS}='';
+ 
+ # This sets the real to the effective ID, and prevents
+ # an obscure error when starting apache/mod_perl
+ $< = $>;
+ $( = $) = 0; # set the group to root too
+ 
+ # Do different things depending on our name
+ ($name) = $0 =~ m|([^/]+)$|;
+ 
+ if ($name eq 'start_http') {
+     system $HTTPD and die "Unable to start HTTP";
+     print "HTTP started.\n";
+     exit 0;
+ }
+ 
+ # extract the process id and confirm that it is numeric
+ $pid = `cat $PID_FILE`;
+ $pid =~ /(\d+)/ or die "PID $pid not numeric";
+ $pid = $1;
+ 
+ if ($name eq 'stop_http') {
+     kill 'TERM',$pid or die "Unable to signal HTTP";
+     print "HTTP stopped.\n";
+     exit 0;
+ }
+ 
+ if ($name eq 'restart_http') {
+     kill 'HUP',$pid or die "Unable to signal HTTP";
+     print "HTTP restarted.\n";
+     exit 0;
+ }
+ 
+ die "Script must be named start_http, stop_http, or restart_http.\n";
+
+
+=head1 Preparing for Machine Reboot
+
+When you run your own development box, it's OK to start the webserver
+by hand when you need it. On the production system, there is chance
+that the machine the server is running on will have to be
+rebooted. Once the reboot is completed, who is going to rememeber to
+start the server? It's an easy to forget task, and what happens if you
+aren't around when the machine was rebooted?
+
+After the server installation is complete, it's important not to
+forget that you need to put a script, to perform the server startup
+and shutdown, into a standard system location, like
+C</etc/rc.d/init.d> or equivalent (varies from OS to OS). This is the
+directory where all other daemons are being started and shutted down
+from.
+
+Generally the simplest solution is to copy there the apachectl script,
+that you will find in the same directory with httpd executable after
+Apache installation. If you have more than one Apache server, you have
+to put a script for each one, of course renaming them on the way. 
+
+For example on Linux RedHat machine with two server setup, I've the
+following setup:
+
+  /etc/rc.d/init.d/httpd_docs
+  /etc/rc.d/init.d/httpd_perl
+  /etc/rc.d/rc3.d/S86httpd_docs -> ../init.d/httpd_docs
+  /etc/rc.d/rc3.d/S87httpd_perl -> ../init.d/httpd_perl
+  /etc/rc.d/rc6.d/K86httpd_docs -> ../init.d/httpd_docs
+  /etc/rc.d/rc6.d/K87httpd_perl -> ../init.d/httpd_perl
+
+In <init.d> directory reside the scripts themselves. In the rest of
+directories reside the symbolic links to these scripts, prepended with
+numbers to preserve a particular order of execution.
+
+When a machine is booted and its runlevel set as 3
+(multiuser+network), Linux goes into C</etc/rc.d/rc3.d/> and executes
+the scripts the symbolic links point to with the C<start> argument, so
+when it sees the I<S87httpd_perl>, it executes:
+
+  /etc/rc.d/init.d/httpd_perl start
+
+When the machine is being shutted down, the scripts pointed from
+I</etc/rc.d/rc6.d/> directory are being executed, this time the
+scripts are called with C<stop> argument, like:
+
+  /etc/rc.d/init.d/httpd_perl stop
+
+Most of the systems are coming with GUI utilites to automate the
+symbolic links creation. For example Linux RH includes a
+C<control-panel> utility, which among other utilities includes a
+C<RunLevel Manager> that will help you to properly create the symbolic
+links. Of course before you use it, you should put the C<apachectl> or
+similar scripts into a I<init.d> or equivalent directory.
+
+=head1 Monitoring the Server. A watchdog.
+
+With mod_perl many things can happen to your server. The worst one is
+the possibility that the server will die when you will be not
+around. As with any other critical service you need to run some kind
+of watchdog.
+
+One simple solution is to use a slightly modified B<apachectl> script,
+which I've named it I<apache.watchdog>. Call it from the crontab every
+30 minutes or even every minute - if it's so critical to make sure the
+server will be up all the time.
+
+The crontab entry for 30 minutes intervals:
+
+  0,30 * * * * /path/to/the/apache.watchdog >/dev/null 2>&1
+
+The script:
+
+  #!/bin/sh
+    
+  # this script is a watchdog to see whether the server is online
+  # It tries to restart the server if it's
+  # down and sends an email alert to admin 
+  
+  # admin's email
+  EMAIL=webmaster@somewhere.far
+  #EMAIL=root@localhost
+    
+  # the path to your PID file
+  PIDFILE=/usr/local/var/httpd_perl/run/httpd.pid
+    
+  # the path to your httpd binary, including options if necessary
+  HTTPD=/usr/local/sbin/httpd_perl/httpd_perl
+        
+  # check for pidfile
+  if [ -f $PIDFILE ] ; then
+    PID=`cat $PIDFILE`
+    
+    if kill -0 $PID; then
+      STATUS="httpd (pid $PID) running"
+      RUNNING=1
+    else
+      STATUS="httpd (pid $PID?) not running"
+      RUNNING=0
+    fi
+  else
+    STATUS="httpd (no pid file) not running"
+    RUNNING=0
+  fi
+      
+  if [ $RUNNING -eq 0 ]; then
+    echo "$0 $ARG: httpd not running, trying to start"
+    if $HTTPD ; then
+      echo "$0 $ARG: httpd started"
+      mail $EMAIL -s "$0 $ARG: httpd started" </dev/null >& /dev/null
+    else
+      echo "$0 $ARG: httpd could not be started"
+      mail $EMAIL -s "$0 $ARG: httpd could not be started" </dev/null >& /dev/null
+    fi
+  fi
+
+Another approach, probably even more practical, is to use the cool
+C<LWP> perl package , to test the server by trying to fetch some
+document (script) served by the server. Why is it more practical?
+Because, while the server can be up as a process, it can be stuck and
+not working, So failing to get the document will trigger restart, and
+"probably" the problem will go away. (Just replace C<start> with
+C<restart> in the C<$restart_command> below.
+
+Again we put this script into a crontab to call it every 30 minutes.
+Personally I call it every minute, to fetch some very light
+script. Why so often? If your server starts to spin and trash your
+disk's space with multiply error messages, in a 5 minutes you might
+run out of free space, which might bring your system to its knees. And
+most chances that no other child will be able to serve requests, since
+the system will be too busy, writing to an C<error_log> file. Think
+big -- if you are running a heavy service, which is very fast, since
+you are running under mod_perl, adding one more request every minute,
+will be not felt by the server at all.
+
+So we end up with crontab entry:
+
+  * * * * * /path/to/the/watchdog.pl >/dev/null 2>&1
+
+And the watchdog itself:
+
+  #!/usr/local/bin/perl -w
+  
+  use strict;
+  use diagnostics;
+  use URI::URL;
+  use LWP::MediaTypes qw(media_suffix);
+  
+  my $VERSION = '0.01';
+  use vars qw($ua $proxy);
+  $proxy = '';    
+
+  require LWP::UserAgent;
+  use HTTP::Status;
+  
+  ###### Config ########
+  my $test_script_url = 'http://www.stas.com:81/perl/test.pl';
+  my $monitor_email   = 'root@localhost';
+  my $restart_command = '/usr/local/sbin/httpd_perl/apachectl restart';
+  my $mail_program    = '/usr/lib/sendmail -t -n';
+  ######################
+  
+  $ua  = new LWP::UserAgent;
+  $ua->agent("$0/Stas " . $ua->agent);
+  # Uncomment the proxy if you don't use it!
+  #  $proxy="http://www-proxy.com";
+  $ua->proxy('http', $proxy) if $proxy;
+  
+  # If returns '1' it's we are alive
+  exit 1 if checkurl($test_script_url);
+  
+  # We have got the problem - the server seems to be down. Try to
+  # restart it. 
+  my $status = system $restart_command;
+  #  print "Status $status\n";
+  
+  my $message = ($status == 0) 
+              ? "Server was down and successfully restarted!" 
+              : "Server is down. Can't restart.";
+    
+  my $subject = ($status == 0) 
+              ? "Attention! Webserver restarted"
+              : "Attention! Webserver is down. can't restart";
+  
+  # email the monitoring person
+  my $to = $monitor_email;
+  my $from = $monitor_email;
+  send_mail($from,$to,$subject,$message);
+  
+  # input:  URL to check 
+  # output: 1 if success, o for fail  
+  #######################  
+  sub checkurl{
+    my ($url) = @_;
+  
+    # Fetch document 
+    my $res = $ua->request(HTTP::Request->new(GET => $url));
+  
+    # Check the result status
+    return 1 if is_success($res->code);
+  
+    # failed
+    return 0;
+  } #  end of sub checkurl
+  
+  # sends email about the problem 
+  #######################  
+  sub send_mail{
+    my($from,$to,$subject,$messagebody) = @_;
+  
+    open MAIL, "|$mail_program"
+        or die "Can't open a pipe to a $mail_program :$!\n";
+   
+    print MAIL <<__END_OF_MAIL__;
+  To: $to
+  From: $from
+  Subject: $subject
+  
+  $messagebody
+  
+  __END_OF_MAIL__
+  
+    close MAIL;
+  } 
+
+=head1 Running server in a single mode
+
+Often while developing new code, you will want to run the server in
+single process mode. See L<Sometimes it works Sometimes it does
+Not|porting/Sometimes_it_Works_Sometimes_it> and L<Names collisions
+with Modules and libs|porting/Name_collisions_with_Modules_and>
+Running in single process mode inhibits the server from "daemonizing",
+allowing you to run it more easily under debugger control.
+
+  % /usr/local/sbin/httpd_perl/httpd_perl -X
+
+When you execute the above the server will run in the fg (foreground)
+of the shell you have called it from. So to kill you just kill it with
+B<Ctrl-C>.
+
+Note that in C<-X> mode the server will run very slowly while fetching
+images. If you use Netscape while your server is running in
+single-process mode, HTTP's C<KeepAlive> feature gets in the
+way. Netscape tries to open multiple connections and keep them
+open. Because there is only one server process listening, each
+connection has to time-out before the next succeeds. Turn off
+C<KeepAlive> in C<httpd.conf> to avoid this effect while developing or
+you can press B<STOP> after a few seconds (assuming you use the image
+size params, so the Netscape will be able to render the rest of the
+page).
+
+In addition you should know that when running with C<-X> you will not
+see any control messages that the parent server normally writes to the
+error_log.  (Like "server started, server stopped and etc".) Since
+C<httpd -X> causes the server to handle all requests itself, without
+forking any children, there is no controlling parent to write status
+messages.
+
+=head1 Starting a personal server for each developer
+
+If you are the only developer working on the specific server:port -
+you have no problems, since you have a complete control over the
+server. However, many times you have a group of developers who need to
+concurrently develop their own mod_perl scripts. This means that each
+one will want to have control over the server - to kill it, to run it
+in single server mode, to restart it again, etc., as well to have
+control over the location of the log files and other configuration
+settings like B<MaxClients>, etc.  You can work around this problem by
+preparing a few httpd.conf file and forcing each developer to use:
+
+  httpd_perl -f /path/to/httpd.conf  
+
+I have approached it in other way. I have used the C<-Dparameter>
+startup option of the server. I call my version of the server
+
+  % http_perl -Dsbekman
+
+In C<httpd.conf> I wrote:
+
+  # Personal development Server for sbekman
+  # sbekman use the server running on port 8000
+  <IfDefine sbekman>
+  Port 8000
+  PidFile /usr/local/var/httpd_perl/run/httpd.pid.sbekman
+  ErrorLog /usr/local/var/httpd_perl/logs/error_log.sbekman
+  Timeout 300
+  KeepAlive On
+  MinSpareServers 2
+  MaxSpareServers 2
+  StartServers 1
+  MaxClients 3
+  MaxRequestsPerChild 15
+  </IfDefine>
+  
+  # Personal development Server for userfoo
+  # userfoo use the server running on port 8001
+  <IfDefine userfoo>
+  Port 8001
+  PidFile /usr/local/var/httpd_perl/run/httpd.pid.userfoo
+  ErrorLog /usr/local/var/httpd_perl/logs/error_log.userfoo
+  Timeout 300
+  KeepAlive Off
+  MinSpareServers 1
+  MaxSpareServers 2
+  StartServers 1
+  MaxClients 5
+  MaxRequestsPerChild 0
+  </IfDefine>
+
+What we have achieved with this technique: Full control over
+start/stop, number of children, separate error log file, and port
+selection.  This saves me from getting called every few minutes -
+"Stas, I'm going to restart the server".
+
+To make things even easier. (In the above technique, you have to
+discover the PID of your parent C<httpd_perl> process - written in
+C</usr/local/var/httpd_perl/run/httpd.pid.userfoo>) . We change the
+B<apachectl> script to do the work for us. We make a copy for each
+developer called B<apachectl.username> and we change 2 lines in
+script:
+
+  PIDFILE=/usr/local/var/httpd_perl/run/httpd.pid.sbekman
+  HTTPD='/usr/local/sbin/httpd_perl/httpd_perl -Dsbekman'
+
+Of course you think you can use only one control file and know who is
+calling by using uid, but since you have to be root to start the
+server - it is not so simple.
+
+The last thing was to let developers an option to run in single
+process mode by:
+
+  /usr/local/sbin/httpd_perl/httpd_perl -Dsbekman -X
+
+In addition to making life easier, we decided to use relative links
+everywhere in the static docs (including the calls to CGIs). You may
+ask how using the relative link you will get to the right server? Very
+simple - we have utilized the mod_rewrite to solve our problems:
+
+In C<access.conf> of the C<httpd_docs> server we have the following code:
+(you have to configure your C<httpd_docs> server with
+C<--enable-module=rewrite> )
+
+  # sbekman' server
+  # port = 8000
+  RewriteCond  %{REQUEST_URI} ^/(perl|cgi-perl)	 
+  RewriteCond  %{REMOTE_ADDR} 123.34.45.56
+  RewriteRule ^(.*)           http://nowhere.com:8000/$1 [R,L]
+  
+  # userfoo's server
+  # port = 8001
+  RewriteCond  %{REQUEST_URI} ^/(perl|cgi-perl)	 
+  RewriteCond  %{REMOTE_ADDR} 123.34.45.57
+  RewriteRule ^(.*)           http://nowhere.com:8001/$1 [R,L]
+  
+  # all the rest
+  RewriteCond  %{REQUEST_URI} ^/(perl|cgi-perl)	 
+  RewriteRule ^(.*)           http://nowhere.com:81/$1 [R]
+  
+
+where IP numbers are the IPs of the developer client machines (where
+they are running their web browser.)  (I have tried to use
+C<REMOTE_USER> since we have all the users authenticated but it did
+not work for me)
+
+So if I have a relative URL like C</perl/test.pl> written in some html
+or even C<http://www.nowhere.com/perl/test.pl> in my case (user at
+machine of C<sbekman>) it will be redirected by C<httpd_docs> to
+C<http://www.nowhere.com:8000/perl/test.pl>.
+
+Of course you have another problem: The CGI generates some html, which
+should be called again. If it generates a URL with hard coded PORT the
+above scheme will not work. There 2 solutions:
+
+First, generate relative URL so it will reuse the technique above,
+with redirect (which is transparent for user) but it will not work if
+you have something to C<POST> (redirect looses all the data!).
+
+Second, use a general configuration module which generates a correct
+full URL according to C<REMOTE_USER>, so if C<$ENV{REMOTE_USER} eq
+'sbekman'>, I return C<http://www.nowhere.com:8000/perl/> as
+C<cgi_base_url>. Again this will work if the user is authenticated.
+
+All this is good for development. It is better to use the full URLs in
+production, since if you have a static form and the C<Action> is
+relative but the static document located on another server, pressing
+the form's submit will cause a redirect to mod_perl server, but all
+the form's data will be lost during the redirect.
+
+=head1 Wrapper to emulate the server environment
+
+Many times you start off debugging your script by running it from your
+favorite shell. Sometimes you encounter a very weird situation when
+script runs from the shell but dies when called as a CGI. The real
+problem lies in the difference between the environment that is being
+used by your server and your shell. An example can be a different perl
+path or having C<PERL5LIB> env variable which includes paths that are
+not in the C<@INC> of the perl compiled with mod_perl server and
+configured during the startup.
+
+The best debugging approach is to write a wrapper that emulates the
+exact environment of the server, by first deleting the environment
+variables like C<PERL5LIB> and calling the same perl binary that it is
+being used by the server. Next, set the environment identical to the
+server's by copying the perl run directives from server startup and
+configuration files.  It will also allow you to remove completely the
+first line of the script - since mod_perl skips it and the wrapper
+knows how to call the script.
+
+Below is the example of such a script. Note that we force the C<-Tw>
+when we call the real script. (I have also added the ability to pass
+params, which will not happen when you call the cgi from the web)
+
+  #!/usr/local/bin/perl -w    
+   
+  # This is a wrapper example 
+   
+  # It simulates the web server environment by setting the @INC and other
+  # stuff, so what will run under this wrapper will run under web and
+  # vice versa. 
+  
+  #
+  # Usage: wrap.pl some_cgi.pl
+  #
+  
+  BEGIN{
+    use vars qw($basedir);
+    $basedir = "/usr/local";
+  
+    # we want to make a complete emulation, 
+    # so we must remove the user's environment
+    @INC = ();
+  
+    # local perl libs
+    push @INC,
+      qw($basedir/lib/perl5/5.00502/aix
+  	 $basedir/lib/perl5/5.00502
+	 $basedir/lib/perl5/site_perl/5.005/aix
+	 $basedir/lib/perl5/site_perl/5.005
+	);
+  }
+  
+  use strict;
+  use File::Basename;
+  
+    # process the passed params
+  my $cgi = shift || '';
+  my $params = (@ARGV) ? join(" ", @ARGV) : '';
+  
+  die "Usage:\n\t$0 some_cgi.pl\n" unless $cgi;
+  
+    # Set the environment
+  my $PERL5LIB = join ":", @INC;
+  
+    # if the path includes the directory 
+    # we extract it and chdir there
+  if ($cgi =~ m|/|) {
+    my $dirname = dirname($cgi);
+    chdir $dirname or die "Can't chdir to $dirname: $! \n";
+    $cgi =~ m|$dirname/(.*)|;
+    $cgi = $1;
+  }
+  
+    # run the cgi from the script's directory
+    # Note that we invoke warnings and Taint mode ON!!!
+  system qq{$basedir/bin/perl -I$PERL5LIB -Tw $cgi $params};
+
+
+=head1 Log Rotation
+
+A little bit off topic but good to know and use with mod_perl where
+your error_log can grow at a 10-100Mb per day rate if your scripts
+spit out lots of warnings...
+
+To rotate the logs do:
+
+  mv access_log access_log.renamed
+  kill -HUP `cat httpd.pid`
+  sleep 10; # allow some children to complete requests and logging
+  # now it's safe to use access_log.renamed
+  .....
+
+The effect of B<SIGUSR1> and B<SIGHUP> is detailed in:
+http://www.apache.org/docs/stopping.html .
+
+I use this script:
+
+  #!/usr/local/bin/perl -Tw
+  
+  # this script does a log rotation. Called from crontab.
+  
+  use strict;
+  $ENV{PATH}='/bin:/usr/bin';
+  
+  ### configuration
+  my @logfiles = qw(access_log error_log);
+  umask 0;
+  my $server = "httpd_perl";
+  my $logs_dir = "/usr/local/var/$server/logs";
+  my $restart_command = "/usr/local/sbin/$server/apachectl restart";
+  my $gzip_exec = "/usr/bin/gzip";
+  
+  my ($sec,$min,$hour,$mday,$mon,$year) = localtime(time);
+  my $time = sprintf "%0.2d.%0.2d.%0.2d-%0.2d.%0.2d.%0.2d", $year,++$mon,$mday,$hour,$min,$sec;
+  $^I = ".".$time;
+  
+  # rename log files
+  chdir $logs_dir;
+  @ARGV = @logfiles;
+  while (<>) {
+    close ARGV;
+  }
+  
+  # now restart the server so the logs will be restarted
+  system $restart_command;
+  
+  # compress log files
+  foreach (@logfiles) {
+      system "$gzip_exec $_.$time";
+  }
+
+
+Randal L. Schwartz contributed this:
+
+=begin html <BLOCKQUOTE>
+
+=end html
+
+Cron fires off setuid script called log-roller that looks like this:
+
+    #!/usr/bin/perl -Tw
+    use strict;
+    use File::Basename;
+    
+    $ENV{PATH} = "/usr/ucb:/bin:/usr/bin";
+    
+    my $ROOT = "/WWW/apache"; # names are relative to this
+    my $CONF = "$ROOT/conf/httpd.conf"; # master conf
+    my $MIDNIGHT = "MIDNIGHT";  # name of program in each logdir
+    
+    my ($user_id, $group_id, $pidfile); # will be set during parse of conf
+    die "not running as root" if $>;
+    
+    chdir $ROOT or die "Cannot chdir $ROOT: $!";
+    
+    my %midnights;
+    open CONF, "<$CONF" or die "Cannot open $CONF: $!";
+    while (<CONF>) {
+      if (/^User (\w+)/i) {
+        $user_id = getpwnam($1);
+        next;
+      }
+      if (/^Group (\w+)/i) {
+        $group_id = getgrnam($1);
+        next;
+      }
+      if (/^PidFile (.*)/i) {
+        $pidfile = $1;
+        next;
+      }
+     next unless /^ErrorLog (.*)/i;
+      my $midnight = (dirname $1)."/$MIDNIGHT";
+      next unless -x $midnight;
+      $midnights{$midnight}++;
+    }
+    close CONF;
+    
+    die "missing User definition" unless defined $user_id;
+    die "missing Group definition" unless defined $group_id;
+    die "missing PidFile definition" unless defined $pidfile;
+    
+    open PID, $pidfile or die "Cannot open $pidfile: $!";
+    <PID> =~ /(\d+)/;
+    my $httpd_pid = $1;
+    close PID;
+    die "missing pid definition" unless defined $httpd_pid and $httpd_pid;
+    kill 0, $httpd_pid or die "cannot find pid $httpd_pid: $!";
+    
+    
+    for (sort keys %midnights) {
+      defined(my $pid = fork) or die "cannot fork: $!";
+      if ($pid) {
+        ## parent:
+        waitpid $pid, 0;
+      } else {
+        my $dir = dirname $_;
+        ($(,$)) = ($group_id,$group_id);
+        ($<,$>) = ($user_id,$user_id);
+        chdir $dir or die "cannot chdir $dir: $!";
+        exec "./$MIDNIGHT";
+        die "cannot exec $MIDNIGHT: $!";
+      }
+    }
+    
+    kill 1, $httpd_pid or die "Cannot sighup $httpd_pid: $!";
+
+And then individual MIDNIGHT scripts can look like this:
+
+    #!/usr/bin/perl -Tw
+    use strict;
+    
+    die "bad guy" unless getpwuid($<) =~ /^(root|nobody)$/;
+    my @LOGFILES = qw(access_log error_log);
+    umask 0;
+    $^I = ".".time;
+    @ARGV = @LOGFILES;
+    while (<>) {
+      close ARGV;
+    }
+
+Can you spot the security holes?  Our trusted user base can't or
+won't. :) But these shouldn't be used in hostile situations.
+
+=begin html </BLOCKQUOTE>
+
+=end html
+
+
+=head1 Preventing modperl process from going wild
+
+Sometimes calling an undefined subroutine in a module can cause a
+tight loop that consumes all memory. Here is a way to catch such
+errors. Define an autoload subroutine:
+
+  sub UNIVERSAL::AUTOLOAD {
+    my $class = shift;
+    warn "$class can't \$UNIVERSAL::AUTOLOAD!\n";
+  }
+
+It will produce a nice error in error_log, giving the line number of
+the call and the name of the undefined subroutine.
+
+Sometimes an error happens and causes the server to write millions of
+lines into your C<error_log> file and in a few minutes to put your
+server down on its knees. For example I get an error C<Callback called
+exit> show up in my error_log file many times. The C<error_log> file
+grows to 300 Mbytes in size in a few minutes. You should run a cron
+job to make sure this does not happen and if it does to take care of
+it. Andreas J. Koenig is running this shell script every minute:
+
+  S=`ls -s /usr/local/apache/logs/error_log | awk '{print $1}'`
+  if [ "$S" -gt 100000 ] ; then
+    mv  /usr/local/apache/logs/error_log /usr/local/apache/logs/error_log.old
+    /etc/rc.d/init.d/httpd restart
+    date | /bin/mail -s "error_log $S kB on inx" myemail@domain.com
+  fi
+
+It seems that his script will trigger restart every minute, since once
+the logfile grows to be of 100000 lines, it will stay of this size,
+unless you remove or rename it, before you do restart. On my server I
+run a watchdog every five minutes which restarts the server if it is
+getting stuck (it always works since when some modperl child process
+goes wild, the I/O it causes is so heavy that other brother processes
+cannot normally to serve the requests.) See L<Monitoring the
+Server|control/Monitoring_the_Server_A_watchdo> for more hints.
+
+Also check out the daemontools from
+ftp://koobera.math.uic.edu/www/daemontools.html :
+
+  ,-----
+  | cyclog writes a log to disk. It automatically synchronizes the log
+  | every 100KB (by default) to guarantee data integrity after a crash. It
+  | automatically rotates the log to keep it below 1MB (by default). If
+  | the disk fills up, cyclog pauses and then tries again, without losing
+  | any data.
+  `-----
+
+
+=cut
+
+
+

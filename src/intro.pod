@@ -1,0 +1,612 @@
+title: Introduction. Incentives. Credits.
+
+=head1 What is mod_perl
+
+The Apache/Perl integration project brings together the full power of
+the Perl programming language and the Apache HTTP server. With
+mod_perl it is possible to write Apache modules entirely in Perl, 
+letting you easily do things that are more difficult or impossible in
+regular CGI programs, such as running sub requests. In
+addition, the persistent Perl interpreter embedded in the server saves the
+overhead of starting an external interpreter, i.e. the penalty of Perl
+start-up time.  And not the least important feature is code caching, where
+modules and scripts are loaded and compiled only once, then for
+the rest of the server's life they are served from the
+cache, thus the server spends its time only on running already loaded and
+compiled code, which is very fast.
+
+The primary advantages of mod_perl are power and speed. You have full
+access to the inner workings of the web server and can intervene at
+any stage of request-processing. This allows for customized processing
+of (to name just a few of the phases) URI->filename translation,
+authentication, response generation, and logging. There is very little
+run-time overhead. In particular, it is not necessary to start a
+separate process, as is often done with web-server extensions. The
+most wide-spread such extension, the Common Gateway
+Interface (CGI), can be replaced entirely with Perl code that handles
+the response generation phase of request processing.  mod_perl includes
+2 general purpose modules for this purpose: C<Apache::Registry>, which
+can transparently run existing perl CGI scripts and
+C<Apache::PerlRun>, which does a similar job but allows you to run
+"dirtier" (to some extent) scripts.
+
+You can configure your httpd server and handlers in Perl (using
+C<PerlSetVar>, and E<lt>PerlE<gt> sections). You can even define your
+own configuration directives.
+
+Many people wonder and ask "How much of a performance improvement does
+mod_perl give?" Well, it all depends on what you are doing with
+mod_perl and possibly who you ask. Developers report speed boosts from
+200% to 2000%. The best way to measure is to try it and see for
+yourself! (See http://perl.apache.org/tidbits.html and
+http://perl.apache.org/stories/ for the facts.)
+
+
+=head2 mod_cgi
+
+When you run your CGI scripts by using a configuration of:
+
+  ScriptAlias /cgi-bin/ /home/httpd/cgi-bin/
+
+you run it under a mod_cgi handler, you never define it
+explicitly. Apache does all the configuration work behind the scenes,
+when you use a ScriptAlias.
+
+By the way, don't confuse it with a C<ExecCGI> configuration option, it's
+being enabled so the script will be executed and not returned as a
+plain file. For example for mod_perl and C<Apache::Registry> you would
+use a configuration like:
+
+  <Location /perl>
+    SetHandler perl-script
+    PerlHandler Apache::Registry
+    Options ExecCGI
+    PerlSendHeader On
+  </Location>
+
+=head2 C API
+
+META: complete
+
+=head2 Perl API
+
+META: complete
+
+=head2 Apache::Registry
+
+From the viewpoint of the Perl API, C<Apache::Registry> is just yet another
+handler that's not conceptually different from any other handler. It
+reads in the file, compiles, executes it and stores into the cache.
+Since the perl interpreter keeps running from child process' creation
+to its death, any code compiled by the interpreter is not removed from
+memory until the child dies.
+
+To keep the script names from collisions, it prepends
+C<Apache::ROOT::> and the mangled path of the URI to the key of the
+cached script. This key is actually a package name, the script resides
+in. So if you have requested a script C</perl/project/test.pl>, the
+scripts would be wrapped in code which starts with package declaration
+of:
+
+  package Apache::ROOT::perl::project::test_e2pl;
+
+C<Apache::Registry> also stores the script's last modification time.
+Everytime the script changes, the cached code would be discarded and
+recompiled using the modified source. However, it doesn't check any of
+the perl libraries the script might use.
+
+C<Apache::Registry> overrides the C<CORE::exit()> with
+<Apache::exit()>, so the CGI scripts that used the <exit()> will run
+correctly. We will talk about all these details in depth later.
+
+The last thing C<Apache::Registry> does, is emulation of the mod_cgi's
+environment variables. Like C<$ENV{SERVER_NAME}>, C<$ENV{REMOTE_USER}>
+and so on. B<PerlSetupEnv Off> disables this feature and saves some
+memory bits and CPU clocks.
+
+From the viewpoint of the programmer, there is almost no difference 
+between running a script as a plain CGI under mod_cgi and running it 
+under mod_perl.  There is however a great speed improvement, but at
+the expense of much heavier memory usage (there is no free lunch :).
+
+When they run under  mod_cgi, your CGI scripts are loaded each time 
+they are called and then they exit.  Under mod_perl they are loaded 
+once and cached.  This gives a big performance boost.  But because the
+code is cached and doesn't exit, it won't cleanup memory as it would
+under mod_cgi.  This can have unexpected effects.
+
+Your scripts will be recompiled and reloaded by mod_perl when
+it detects that you have changed them, but remember that any 
+libraries that your scripts might require() or use() will not 
+be recompiled when they are changed.  You will have to take
+action yourself to ensure that they are recompiled.
+
+Of course the guide will answer all these issues in depth.
+
+Let's see what happens with your script when it's being
+executed under C<Apache::Registry>. If we take the simplest code of
+(URI C</perl/project/test.pl>)
+
+  print "Content-type: text/html\n\n";
+  print "It works\n";
+
+C<Apache::Registry> will convert it into the following:
+
+  package Apache::ROOT::perl::project::test_e2pl;
+  use Apache qw(exit);
+  sub handler {
+    print "Content-type: text/html\n\n";
+    print "It works\n";
+  }
+
+
+META: Complete
+
+=head2 Apache::PerlRun
+
+META: Complete
+
+=head1 What will you learn
+
+This document was written in an effort to help you start using
+Apache's mod_perl extension as quickly and easily as possible. It
+includes information about installation and configuration of Perl and
+the Apache web server and delves deeply into issues of writing and
+porting existing Perl scripts to run under mod_perl. Note that it does
+not attempt to enter the big world of using the Perl API or C API.
+You will find pointers covering these topics in the L<Getting Help
+and Further Learning|help/> section of this document. This guide tries
+to cover the most of the C<Apache::Registry> and C<Apache::PerlRun>
+modules. Along with mod_perl related topics, there are many more
+issues related to administrating apache servers, debugging scripts,
+using databases, Perl reference, code snippets and more. The L<Guide's
+Overview|start/> will help you to find your way through the guide.
+
+It is assumed that you know at least the basics of building and
+installing Perl and Apache. (If you do not, just read the INSTALL documents
+which are part of the distribution of each package.) However, in
+this guide you will find specific Perl and Apache installation and
+configuration notes, which will help you successfully complete the
+mod_perl installation and get the server running in a short time.
+
+If after reading this guide and other documents listed in L<Getting Help
+and Further Learning|help/> you feel that your question is yet not answered,
+please ask the apache/mod_perl mailing list to help you.  But first
+try to browse the mailing list archive (located at
+http://forum.swarthmore.edu/epigone/modperl ). Often you will find the
+answer to your question by searching the mailing list archive, since there
+is a good chance someone else has already encountered the problem and
+found a solution. If you ignore this advice, do not be
+surprised if your question goes unanswered - it bores people to answer
+the same question more than once (twice?). This does not mean that you
+should avoid asking questions, just do not abuse the available help
+and B<RTFM> before you call for B<HELP>. (You have certainly heard the
+infamous fable of the shepherd boy and the wolves...)
+
+If you find incorrect details or mistakes in my grammar, or you want 
+to contribute to this document please feel free to send me an email at
+sbekman@iname.com .
+
+=head1 High-Profile Sites Running mod_perl
+
+A report prepared by Rex Staples at Thu, 14 Oct 1999:
+
+=over
+
+=item *
+
+Macromedia
+
+4,273,000 unique visitors/month Aug-1999
+
+http://www.macromedia.com
+http://www.mediametrix.com/TopRankings/TopRankings.html
+
+Apache/1.3.4 (Unix) mod_perl/1.18 on Solaris
+
+=item *
+
+ValueClick: Results-based advertising network
+
+60 million page views/day Oct-1999
+
+http://valueclick.com
+
+Apache/1.3.9-dev (Unix) mod_perl/1.21_01 on FreeBSD
+
+=item *
+
+Deja.com
+
+130 million pageviews/month Oct-1999
+
+http://www.deja.com
+
+Apache/1.3b5 mod_perl/1.08 on Linux
+
+=item *
+
+MP3.com, Inc.
+
+77 million page views/month Aug-1999
+
+408,000 unique visitors/day Aug-1999
+
+http://www.mp3.com
+http://www.mp3.com/pr/990914-keymetrics.html
+
+Apache/1.3.4-9 (Unix) mod_perl/1.18-21 on Linux/FreeBSD
+
+=item *
+
+IMDB: Internet Movie Database
+
+1.25 million page views/day Mar-1998
+
+http://www.imdb.com
+
+* They are now an Amazon.com company
+
+Apache/1.3.7-dev (Unix) mod_perl/1.19_01-dev
+
+=item *
+
+Flash.net: Internet Service Provider
+
+1,603,000 unique visitors/month Aug-1999
+
+http://www.flash.net
+http://www.mediametrix.com/TopRankings/TopRankings.html
+
+Apache/1.2.4 mod_perl/1.00 on Solaris
+
+=item *
+
+At Hand Network Yellow Pages
+
+917,000 unique visitors/month Aug-1999
+
+http://www.athand.com
+http://www.mediametrix.com/TopRankings/TopRankings.html
+
+Stronghold/2.3 Apache/1.2.6 (Unix) mod_perl/1.15 on Solaris
+
+=item *
+
+Commissioner.com: Subscription Fantasy Football
+
+12 million page views/day Oct-1999
+
+http://www.commissioner.com
+
+Apache/1.35b mod_perl/1.10 on Linux
+
+=item *
+
+Slashdot: News For Nerds
+
+400,000 page views/day Oct-1999
+
+http://www.slashdot.org
+
+Apache/1.3.6 (Unix) mod_perl/1.21 on Linux
+
+=item *
+
+Hot Bot mail and member web pages:
+
+http://members.hotbot.com
+
+Also widely used on HotWired, WiredNews, Webmonkey, and Suck.com
+
+Apache/1.3.4 (Unix) mod_perl/1.21 on Solaris
+
+=item *
+
+Art Today: subscription clip-art service
+
+250k hits/day
+
+http://www.arttoday.com
+
+Oracle 7 + 1 Sun Ultra w/150GB storage
+Apache/1.3.4 (Unix) mod_perl/1.17 on Solaris
+
+=item *
+
+CMPnet: a technology information network
+
+500k hits/day
+
+http://www.cmpnet.com
+
+Apache/1.3.9 (Unix) mod_perl/1.16
+
+
+=back
+
+
+=head1 References and Acknowledgments
+
+I have used the following references while writing this guide:
+
+=over 4
+
+=item *
+
+B<mod_perl FAQ> by Frank Cringle at http://perl.apache.org/faq/ .
+
+=item *
+
+B<mod_perl performance tuning guide> by Vivek Khera at
+http://perl.apache.org/tuning/ .
+
+=item *
+
+B<mod_perl plugin reference guide> by Doug MacEachern at
+http://perl.apache.org/src/mod_perl.html .
+
+=item *
+
+B<Quick guide for moving from CGI to mod_perl> at
+http://perl.apache.org/dist/cgi_to_mod_perl.html .
+
+=item *
+
+B<mod_perl_traps, common traps and solutions for mod_perl users> at
+http://perl.apache.org/dist/mod_perl_traps.html .
+
+=item *
+
+B<mod_perl mailing list emails>. Answers to some of the questions posted
+to modperl@apache.org Apache/Perl mailing list.
+
+=item *
+
+B<My personal experience with mod_perl>.
+
+=back
+
+As I said, I have quoted many information snippets from FAQs and
+emails, and I did not credit people after each quote in the guide.  I
+did not mean to take the credit for myself, it's just that I 
+tried to keep track of names, and became lost, so I preferred not to
+put credit throughout the guide, but rather to centralize it here. If you 
+want your name to show up under your original quote,
+please tell me and I'll add it for you.
+
+Major contributors:
+
+=over 4
+
+=item *
+
+B<Doug MacEachern>. A large part of this guide is built upon his email
+replies to users' questions.
+
+=item *
+
+B<Frank Cringle>. Parts of his mod_perl FAQ have been used in this guide.
+
+=item *
+
+B<Vivek Khera>. For his mod_perl performance tuning guide.
+
+=item *
+
+B<Steve Reppucci>, who made a thorough review of the stuff I wrote. 
+He fixed lots of spelling and grammar errors, and made the guide readable to
+English speakers :)
+
+=item *
+
+B<Eric Cholet>, who wrote complete sections for the guide, and pointed
+out technical errors in it.
+
+=item *
+
+B<Ken Williams>, who reviewed a lot of stuff in the guide.  Many
+snippets from his emails are included in the guide.
+
+=item *
+
+B<Wesley Darlington> for contributing a big section for scenario chapter.
+
+=item *
+
+B<Geoffrey S Young> and B<David Harris> for contributing a big
+sections about mod_perl and RPM packages.
+
+=item *
+
+B<Andreas J. Koenig> for contributing his "Correct HTTP headers"
+document.
+
+=item *
+
+B<Ged W. Haywood> for reviewing and fixing a big part of the guide,
+providing lots of constructive critics and helping to reorganize the
+guide to make it more user friendly.
+
+=item *
+
+B<Jeffrey W. Baker> for his "guide to mod_perl database performance".
+
+=item *
+
+B<Richard A. Wells> for reviewing a correcting a large part of the guide.
+
+=item *
+
+B<Randy Harmon> for rewriting the mod_perl advocacy chapter
+
+=item *
+
+B<Dean Fitz> for reviewing the "Operating System and Hardware Demands"
+chapter.
+
+=back
+
+Credits of course go to ( alphabetically sorted ):
+
+=over
+
+=item * Andreas J. Koenig
+
+=item * Andrei A. Voropaev
+
+=item * Ask Bjoern Hansen
+
+=item * Brian Moseley
+
+=item * Chad K. Lewis
+
+=item * Christof Damian
+
+=item * Cliff Rayman
+
+=item * Daniel Koch
+
+=item * Daniel W. Burke
+
+=item * Dave Hodgkinson
+
+=item * David Harris
+
+=item * David Landgren
+
+=item * Dean Fitz
+
+=item * Doug Bagley
+
+=item * Ed Park
+
+=item * Edmund Mergl
+
+=item * Eric Cholet
+
+=item * Eric Strovink
+
+=item * Evan A. Zacks
+
+=item * Frank Schoeters
+
+=item * G.Richter
+
+=item * Garr Updegraff
+
+=item * Ged W. Haywood
+
+=item * Geoffrey S Young
+
+=item * Gerald Richter
+
+=item * Gunther Birznieks
+
+=item * Henrique Pantarotto
+
+=item * Howard Jones
+
+=item * James G Smith
+
+=item * Jan Peter Hecking
+
+=item * Jason Bodnar
+
+=item * Jauder Ho
+
+=item * Jay J
+
+=item * Jeff Baker
+
+=item * Jeff Rowe
+
+=item * Jeffrey W. Baker
+
+=item * Jie Gao
+
+=item * John Milton
+
+=item * John Walker
+
+=item * Jon Orwant
+
+=item * Jonathan Peterson
+
+=item * Joshua Chamas
+
+=item * Leslie Mikesell
+
+=item * Lincoln Stein
+
+=item * Mark Mills
+
+=item * Marshall Dudley
+
+=item * Matthew Darwin
+
+=item * Michael Hall
+
+=item * Mike Fletcher
+
+=item * Nancy Lin
+
+=item * Nathan Torkington
+
+=item * Nathan Vonnahme
+
+=item * Oleg Bartunov
+
+=item * Perrin Harkins
+
+=item * Peter Galbavy
+
+=item * Peter Skov
+
+=item * Philip Jacob
+
+=item * Radu Greab
+
+=item * Ralf Engelschall
+
+=item * Randal L. Schwartz
+
+=item * Randy Harmon
+
+=item * Rauznitz Balazs
+
+=item * Richard A. Wells
+
+=item * Richard Dice
+
+=item * Rick Myers
+
+=item * Robin Berjon
+
+=item * Steve Reppucci
+
+=item * Tom Hughes
+
+=item * Tzvetan Stoyanov
+
+=item * Ulrich Pfeifer
+
+=item * Vivek Khera
+
+=item * Wesley Darlington
+
+=item *  
+
+=item * Did I miss your name? Tell me!
+
+=back
+
+
+I want to thank all the people who donated their time and efforts to
+make this amazing idea of mod_perl a reality. This includes Doug
+MacEachern, the author of mod_perl, and all the developers who
+contributed bug patches, modules and help. And of course the numerous
+unseen users around the world who help to promote mod_perl and to make
+it a better tool.
+
+=cut

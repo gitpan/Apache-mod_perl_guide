@@ -1,0 +1,737 @@
+title: Choosing the Right Strategy
+
+=head1 Do it like I do it!?
+
+There is no such thing as the B<RIGHT> strategy in the web server
+business, although there are many wrong ones. Never believe a person
+who says: I<"Do it this way, this is the best!">. As the old saying
+goes: I<"Trust but verify">. There are too many technologies out there
+to choose from, and it would take an enormous investment of time and
+money to try to validate each one before deciding which is the best
+choice for your situation.
+
+With this in mind, I will present some ways of using standalone
+mod_perl, and some combinations of mod_perl and other technologies.
+I'll describe how these things work together, and offer my opinions on
+the pros and cons of each, the relative degree of difficulty in
+installing and maintaining them, and some hints on approaches that
+should be used and things to avoid.
+
+To be clear, I will not address all technologies and tools, but limit
+this discussion to those complementing mod_perl.
+
+Please let me stress it again: B<DO NOT> blindly copy someone's setup
+and hope for a good result. Choose what is best for your situation --
+it might take B<some> effort to find out what that is.
+
+In this chapter we will discuss
+
+=over
+
+=item * Deployment of mod_perl in Overview, with the pros and cons.
+
+=item * Alternative architectures for running one and two servers.
+
+=item * Proxy servers (Squid, and Apache's mod_proxy).
+
+=back
+
+
+=head1 mod_perl Deployment Overview
+
+There are several different ways to build, configure and deploy your
+mod_perl enabled server. Some of them are:
+
+=over 8
+
+=item 1
+
+Having one binary and one configuration file (one big binary for mod_perl).
+
+=item 2
+
+Having two binaries and two configuration files (one big binary for mod_perl
+and one small binary for static objects like images.)
+
+=item 3
+
+Having one DSO-style binary and two configuration files, with mod_perl
+available as a loadable object.
+
+=item 4
+
+Any of the above plus a reverse proxy server in http accelerator mode.
+
+=back
+
+If you are a newbie, I would recommend that you start with the first
+option and work on getting your feet wet with apache and mod_perl.
+Later, you can decide whether to move to the second one which allows
+better tuning at the expense of more complicated administration, or to
+the third option -- the more state-of-the-art-yet-suspiciously-new DSO
+system, or to the fourth option which gives you even more power.
+
+=over 8
+
+=item 1
+
+The first option will kill your production site if you serve a lot of
+static data from large (4 to 15MB) webserver processes. On the other hand,
+while testing you will have no other server interaction to mask or add
+to your errors.
+
+=item 2
+
+This option allows you to tune the two servers individually, for
+maximum performance.
+
+However, you need to choose between running the two servers on
+multiple ports, multiple IPs, etc., and you have the burden of
+administering more than one server.  You have to deal with proxying or
+fancy site design to keep the two servers in synchronization.
+
+=item 3
+
+With DSO, modules can be added and removed without recompiling the
+server, and their code is even shared among multiple servers.
+
+You can compile just once and yet have more than one binary, by using
+different configuration files to load different sets of modules.  The
+different Apache servers loaded in this way can run simultaneously to
+give a setup such as described in the second option above.
+
+On the down side, you are playing at the bleeding edge.
+
+You are dealing with a new solution that has weak documentation and is
+still subject to change.  It is still somewhat platform specific.
+Your mileage may vary.
+
+The DSO module (C<mod_so>) adds size and complexity to your binaries.
+
+See L<Build mod_perl as DSO inside Apache source tree via
+APACI|install/Build_mod_perl_as_DSO_inside_Apa>
+
+
+
+=item 4
+
+The fourth option (proxy in http accelerator mode), once correctly
+configured and tuned, improves the performance of any of the above
+three options by caching and buffering page results.
+
+=back
+
+=head1 Alternative architectures for running one and two servers
+
+The next part of this chapter discusses the pros and the cons of each
+of these presented configurations.  L<Real World Scenarios
+Implementaion|scenario/> describes the implementation techniques of
+these schemes.
+
+We will look at the following installations:
+
+=over
+
+=item * Standalone mod_perl Enabled Apache Server
+
+=item * One Plain Apache and One mod_perl-enabled Apache Servers
+
+=item * One light non-Apache and One mod_perl enabled Apache Servers
+
+=item * Adding a Proxy Server in http Accelerator Mode
+
+=back
+
+
+=head2 Standalone mod_perl Enabled Apache Server
+
+The first approach is to implement a straightforward mod_perl
+server. Just take your plain apache server and add mod_perl, like you
+add any other apache module. You continue to run it at the port it was
+running before. You probably want to try this before you proceed to
+more sophisticated and complex techniques.
+
+The advantages:
+
+=over 4
+
+=item *
+
+Simplicity. You just follow the installation instructions, configure
+it, restart the server and you are done.
+
+=item *
+
+No network changes.  You do not have to worry about using additional
+ports as we will see later.
+
+=item *
+
+Speed. You get a very fast server, you see an enormous speedup from
+the first moment you start to use it.
+
+=back
+
+The disadvantages:
+
+=over 4
+
+=item *
+
+The process size of a mod_perl-enabled Apache server is huge (maybe
+4Mb at startup and growing to 10Mb and more, depending on how you use
+it) compared to the typical plain Apache. Of course if memory sharing
+is in place, RAM requirements will be smaller.
+
+You probably have a few tens of child processes.  The additional
+memory requirements add up in direct relation to the number of child
+processes. Your memory demands are growing by an order of magnitude,
+but this is the price you pay for the additional performance boost of
+mod_perl.  With memory prices so cheap nowadays, the additional cost
+is low -- especially when you consider the dramatic performance boost
+mod_perl gives to your services with every 100Mb of RAM you add.
+
+While you will be happy to have these monster processes serving your
+scripts with monster speed, you should be very worried about having
+them serve static objects such as images and html files.  Each static
+request served by a mod_perl-enabled server means another large
+process running, competing for system resources such as memory and CPU
+cycles.  The real overhead depends on static objects request rate.
+Remember that if your mod_perl code produces HTML code which includes
+images, each one will turn into another static object request. Having
+another plain webserver to serve the static objects solves this
+unpleasant obstacle. Having a proxy server as a front end, caching the
+static objects and freeing the mod_perl processes from this burden is
+another solution. We will discuss both below.
+
+=item *
+
+Another drawback of this approach is that when serving output to a
+client with a slow connection, the huge mod_perl-enabled server
+process (with all of its system resources) will be tied up until the
+response is completely written to the client.  While it might take a
+few milliseconds for your script to complete the request, there is a
+chance it will be still busy for some number of seconds or even
+minutes if the request is from a slow connection client. As in the
+previous drawback, a proxy solution can solve this problem. More on
+proxies later.
+
+Proxying dynamic content is not going to help much if all the clients
+are on a fast local net (for example, if you are administering an
+Intranet.) On the contrary, it can decrease performance. Still,
+remember that some of your Intranet users might work from home through
+slow modem links.
+
+=back
+
+If you are new to mod_perl, this is probably the best way to get
+yourself started.
+
+And of course, if your site is serving only mod_perl scripts (close to
+zero static objects, like images), this might be the perfect choice
+for you!
+
+For implementation notes see the "L<One Plain and One mod_perl enabled
+Apache Servers|scenario/One_Plain_and_One_mod_perl_enabl>" section in
+implementations chapter.
+
+=head2 One Plain Apache and One mod_perl-enabled Apache Servers
+
+As I have mentioned before, when running scripts under mod_perl, you
+will notice that the httpd processes consume a huge amount of virtual
+memory, from 5Mb to 15Mb and even more.  That is the price you pay for
+the enormous speed improvements under mod_perl. (Again -- shared
+memory keeps the real memory that is being used much smaller :)
+
+Using these large processes to serve static objects like images and
+html documents is overkill. A better approach is to run two servers: a
+very light, plain apache server to serve static objects and a heavier
+mod_perl-enabled apache server to serve requests for dynamic
+(generated) objects (aka CGI).
+
+From here on, I will refer to these two servers as B<httpd_docs>
+(vanilla apache) and B<httpd_perl> (mod_perl enabled apache).
+
+The advantages:
+
+=over 4
+
+=item *
+
+The heavy mod_perl processes serve only dynamic requests, which allows
+the deployment of fewer of these large servers.
+
+=item *
+
+C<MaxClients>, C<MaxRequestsPerChild> and related parameters can now
+be optimally tuned for both C<httpd_docs> and C<httpd_perl> servers,
+something we could not do before. This allows us to fine tune the
+memory usage and get a better server performance.
+
+Now we can run many lightweight C<httpd_docs> servers and just a few
+heavy C<httpd_perl> servers.
+
+=back
+
+An B<important> note: When a user browses static pages and the base
+URL in the B<Location> window points to the static server, for example
+C<http://www.nowhere.com/index.html> -- all relative URLs (e.g. C<<A
+HREF="/main/download.html">>) are being served by the light plain
+apache server. But this is not the case with dynamically generated
+pages. For example when the base URL in the B<Location> window points
+to the dynamic server --
+(e.g. C<http://www.nowhere.com:8080/perl/index.pl>) all relative URLs
+in the dynamically generated HTML will be served by the heavy mod_perl
+processes. You must use fully qualified URLs and not relative ones!
+C<http://www.nowhere.com/icons/arrow.gif> is a full URL, while
+C</icons/arrow.gif> is a relative one. Using C<<BASE
+HREF="http://www.nowhere.com/">> in the generated HTML is another way
+to handle this problem. Also the C<httpd_perl> server could rewrite
+the requests back to C<httpd_docs> (much slower) and you still need the
+attention of the heavy servers.  This is not an issue if you hide the
+internal port implementations, so the client sees only one server running
+on port C<80>. (See L<Publishing port numbers different from
+80|config/Publishing_Port_Numbers_Differen>)
+
+
+The disadvantages:
+
+=over 4
+
+=item *
+
+An administration overhead.
+
+=over 4
+
+=item *
+
+The need for two different sets of configuration, log and other files.
+We need a special directory layout to manage these. While some
+directories can be shared between the two servers (like the C<include>
+directory, containing the apache include files -- assuming that both
+are built from the same source distribution), most of them should be
+separated and the configuration files updated to reflect the changes.
+
+
+=item *
+
+The need for two sets of controlling scripts (startup/shutdown) and
+watchdogs.
+
+=item *
+
+If you are processing log files, now you probably will have to merge
+the two separate log files into one before processing them.
+
+=back
+
+=item *
+
+Just as in the one server approach, we still have the problem of a
+mod_perl process spending its precious time serving slow clients, when
+the processing portion of the request was completed a long time ago.
+Deploying a proxy solves this, and will be covered in the next
+section.
+
+As with the single server approach, this is not a major disadvantage
+if you are on a fast network (i.e. Intranet). It is likely that you do
+not want a buffering server in this case.
+
+=back
+
+Before you go on with this solution you really want to look at the
+L<Adding a Proxy Server in http Accelerator
+Mode|strategy/Adding_a_Proxy_Server_in_http_Ac> section.
+
+For implementation notes see the "L<One Plain and One mod_perl enabled
+Apache Servers|scenario/One_Plain_and_One_mod_perl_enabl>" section in
+implementations chapter.
+
+=head2 One light non-Apache and One mod_perl enabled Apache Servers
+
+If the only requirement from the light server is for it to serve
+static objects, then you can get away with non-apache servers having
+an even smaller memory footprint. C<thttpd> has been reported to be
+about 5 times faster then apache (especially under a heavy load),
+since it is very simple and uses almost no memory (260k) and does not
+spawn child processes.
+
+Meta: Hey, No personal experience here, only rumours. Please let me
+know if I have missed some pros/cons here. Thanks!
+
+The Advantages:
+
+=over 4
+
+=item *
+
+All the advantages of the 2 servers scenario.
+
+=item *
+
+More memory saving. Apache is about 4 times bigger then B<thttpd>, if
+you spawn 30 children you use about 30M of memory, while B<thttpd>
+uses only 260k - 100 times less! You could use the 30M you've saved to
+run a few more mod_perl servers.
+
+The memory savings are significantly smaller if your OS supports
+memory sharing with Dynamically Shared Objects (DSO) and you have
+configured apache to use it.  If you do allow memory sharing, 30 light
+apache servers ought to use only about 3 to 4Mb, because most of it
+will be shared.  There is no memory sharing if apache modules are
+statically compiled into httpd.
+
+=item *
+
+Reported to be about 5 times faster then plain apache serving static
+objects.
+
+=back
+
+
+The Disadvantages:
+
+=over 4
+
+=item *
+
+Lacks some of apache's features, like access control, error
+redirection, customizable log file formats, and so on.
+
+=back
+
+
+
+
+
+
+
+
+
+
+
+=head1 Adding a Proxy Server in http Accelerator Mode
+
+At the beginning there were 2 servers: one plain apache server, which
+was I<very light>, and configured to serve static objects, the other
+mod_perl enabled (I<very heavy>) and configured to serve mod_perl
+scripts.  We named them C<httpd_docs> and C<httpd_perl> respectively.
+
+The two servers coexist at the same IP address by listening to
+different ports: C<httpd_docs> listens to port 80
+(e.g. http://www.nowhere.com/images/test.gif) and C<httpd_perl>
+listens to port 8080 (e.g. http://www.nowhere.com:8080/perl/test.pl).
+Note that I did not write http://www.nowhere.com:80 for the first
+example, since port 80 is the default port for the http service. Later
+on, I will be changing the configuration of the C<httpd_docs> server
+to make it listen to port 81.
+
+Now I am going to convince you that you B<want> to use a proxy server
+(in the http accelerator mode). The advantages are:
+
+=over 8
+
+=item *
+
+Allow serving of static objects from the proxy's cache (objects that
+previously were entirely served by the C<httpd_docs> server).
+
+=item *
+
+You get less I/O activity reading static objects from the disk (proxy
+serves the most "popular" objects from RAM - of course you benefit
+more if you allow the proxy server to consume more RAM). Since you do
+not wait for the I/O to be completed you are able to serve static
+objects much faster.
+
+=item *
+
+The proxy server acts as a sort of output buffer for the dynamic
+content.  The mod_perl server sends the entire response to the proxy
+and is then free to deal with other requests.  The proxy server is
+responsible for sending the response to the browser.  So if the
+transfer is over a slow link, the mod_perl server is not waiting
+around for the data to move.
+
+Using numbers is always more convincing :) Let's take a user connected
+to your site with 28.8 kbps (bps == bits/sec) modem. It means that the
+speed of the user's link is 28.8/8 = 3.6 kbytes/sec. I assume an
+average generated HTML page to be of 10kb (kb == kilobytes) and an
+average script that generates this output in 0.5 secs. How long
+will the server wait before the user gets the whole output response? A
+simple calculation reveals pretty scary numbers - it will have to wait
+for another 6 secs (20kb/3.6kb), when it could serve another 12
+(6/0.5) dynamic requests in this time.
+
+This very simple example shows us that we need only one twelfth the
+number of children running, which means that we will need only one
+twelfth of the memory (not quite true because some parts of the code
+are shared).
+
+But you know that nowadays scripts often return pages which are blown
+up with javascript code and similar, which can make them of 100kb size
+and the download time will be of the order of... (This calculation is
+left to you as an exercise :)
+
+Many users like to open many browser windows and do many things at
+once (download files and browse graphically I<heavy> sites). So the
+speed of 3.6kb/sec we were assuming before, may often be 5-10 times
+slower.
+
+=item *
+
+We are going to hide the details of the server's implementation. Users
+will never see ports in the URLs (more on that topic later). You can
+have a few boxes serving the requests, and only one serving as a front
+end, which spreads the jobs between the servers in a way that you can
+control.  You can actually shut down a server, without the user even
+noticing, because the front end server will dispatch the jobs to other
+servers. (This is called a Load Ballancing and it's a pretty big
+issue, which will not be discussed in this document. For more
+information see L<'High-Availability Linux
+Project'|download/High_Availability_Linux_Project>)
+
+=item *
+
+For security reasons, using any httpd accelerator (or a proxy in httpd
+accelerator mode) is essential because you do not let your internal
+server get directly attacked by arbitrary packets from whomever.  The
+httpd accelerator and internal server communicate in expected HTTP
+requests. This allows for only your public "bastion" accelerating www
+server to get hosed in a successful attack, while leaving your
+internal data safe.
+
+=back
+
+The disadvantages are:
+
+=over 8
+
+=item *
+
+Of course there are drawbacks. Luckily, these are not functionality
+drawbacks, but they are more administration hassle. You have another
+daemon to worry about, and while proxies are generally stable, you
+have to make sure to prepare proper startup and shutdown scripts,
+which are run at boot and reboot as appropriate. Also, you might want
+to set up the crontab to run a watchdog script.
+
+=item *
+
+Proxy servers can be configured to be light or heavy, the admin must
+decide what gives the highest performance for his application. A proxy
+server like squid is light in the concept of having only one process
+serving all requests. But it can appear pretty heavy when it loads
+objects into memory for faster service.
+
+=back
+
+Have I succeeded in convincing you that you want a proxy server?
+
+If you are on a local area network (LAN), then the big benefit of the
+proxy buffering the output and feeding a slow client is gone.  You are
+probably better off sticking with a straight mod_perl server in this
+case.
+
+=head1 Implementations of Proxy Servers
+
+As of this writing, two proxy implementations are known to be widely
+used with mod_perl - B<squid> proxy server and B<mod_proxy> which is a
+part of the apache server.  Let's compare them.
+
+=head2 The Squid Server
+
+The Advantages:
+
+=over 4
+
+=item *
+
+Caching of static objects.  These are served much faster, assuming
+that your cache size is big enough to keep the most frequently
+requested objects in the cache.
+
+=item *
+
+Buffering of dynamic content, by taking the burden of returning the
+content generated by mod_perl servers to slow clients, thus freeing
+mod_perl servers from waiting for the slow clients to download the
+data. Freed servers immediately switch to serve other requests, thus
+your number of required servers goes down dramatically.
+
+=item *
+
+Non-linear URL space / server setup. You can use Squid to play some
+tricks with the URL space and/or domain based virtual server support.
+
+=back
+
+The Disadvantages:
+
+=over 4
+
+=item *
+
+Proxying dynamic content is not going to help much if all the clients
+are on a fast local net.  Also, a message on the squid mailing list
+implied that squid only buffers in 16k chunks so it would not allow a
+mod_perl to complete immediately if the output is larger.
+
+=item *
+
+Speed. Squid is not very fast today when compared with the plain file
+based web servers available. Only if you are using a lot of dynamic
+features such as mod_perl or similar is there a reason to use Squid,
+and then only if the application and the server are designed with
+caching in mind.
+
+=item *
+
+Memory usage. Squid uses quite a bit of memory.
+
+META: more details?
+
+=item *
+
+HTTP protocol level. Squid is pretty much a C<HTTP/1.0> server, which
+seriously limits the deployment of C<HTTP/1.1> features.
+
+=item *
+
+HTTP headers, dates and freshness. The squid server might give out
+stale pages, confusing downstream/client caches.(You update some
+documents on the site, but squid will still serve the old ones.)
+
+=item *
+
+Stability. Compared to plain web servers, Squid is not the most stable.
+
+=back
+
+The pros and cons presented above lead to the idea that you might want
+to use squid for its dynamic content buffering features, but only if
+your server serves mostly dynamic requests. So in this situation, when
+performance is the goal, it is better to have a plain apache server
+serving static objects, and squid proxying the mod_perl enabled server
+only.
+
+For implementation details see the sections L<Running One Webserver
+and Squid in httpd Accelerator
+Mode|scenario/Running_One_Webserver_and_Squid_> and the L<Running Two
+Webservers and Squid in httpd Accelerator
+Mode|scenario/Running_Two_webservers_and_Squid> in the implementations
+chapter.
+
+
+=head2 Apache's mod_proxy
+
+I do not think the difference in speed between apache's B<mod_proxy>
+and B<squid> is relevant for most sites, since the real value of what
+they do is buffering for slow client connections.  However, squid runs
+as a single process and probably consumes fewer system resources.
+
+The trade-off is that mod_rewrite is easy to use if you want to spread
+parts of the site across different back end servers, while mod_proxy
+knows how to fix up redirects containing the back-end server's idea of
+the location.  With squid you can run a redirector process to proxy to
+more than one back end, but there is a problem in fixing redirects in
+a way that keeps the client's view of both server names and port
+numbers in all cases.
+
+The difficult case is where:
+
+=over
+
+=item * You have DNS aliases that map to the same IP address and 
+
+=item * You want the redirect to port 80 and
+
+=item * The server is on a different port and
+
+=item * You want to keep the specific name the browser has already
+sent, so that it does not change in the client's B<Location> window.
+
+=back
+
+
+
+The Advantages:
+
+=over 4
+
+=item *
+
+No additional server is needed. We keep the one plain plus one
+mod_perl enabled apache servers. All you need is to enable
+C<mod_proxy> in the C<httpd_docs> server and add a few lines to
+C<httpd.conf> file.
+
+=item *
+
+The C<ProxyPass> and C<ProxyPassReverse> directives allow you to hide
+the internal redirects, so if C<http://nowhere.com/modperl/> is
+actually C<http://localhost:81/modperl/>, it will be absolutely
+transparent to the user. C<ProxyPass> redirects the request to the
+mod_perl server, and when it gets the response, C<ProxyPassReverse>
+rewrites the URL back to the original one, e.g:
+
+  ProxyPass        /modperl/ http://localhost:81/modperl/
+  ProxyPassReverse /modperl/ http://localhost:81/modperl/
+
+=item *
+
+It does mod_perl output buffering like squid does. See the L<Using
+mod_proxy|scenario/Building_and_Using_mod_proxy> notes for more details.
+
+=item *
+
+It even does caching. You have to produce correct C<Content-Length>,
+C<Last-Modified> and C<Expires> http headers for it to work. If some
+of your dynamic content does not change frequently, you can
+dramatically increase performance by caching it with C<ProxyPass>.
+
+=item *
+
+C<ProxyPass> happens before the authentication phase, so you do not
+have to worry about authenticating twice.
+
+=item *
+
+Apache is able to accelerate secure HTTP requests completely, while also
+doing accelerated HTTP.  With squid you have to use an external redirection
+program for that.
+
+=item *
+
+The latest (apache 1.3.6 and later) Apache proxy accelerated mode is
+reported to be very stable.
+
+=back
+
+
+The Disadvantages:
+
+=over 4
+
+=item *
+
+
+Users have reported that it might be a bit slow, but the latest version is
+fast enough. 
+
+(META: How fast is enough? :) Any figures here? 
+
+=back
+
+For implementation see the "L<Using
+mod_proxy|scenario/Building_and_Using_mod_proxy>" section in the 
+implementation chapter.
+
+
+=cut
+
+
+
+
+

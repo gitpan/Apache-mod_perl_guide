@@ -1,0 +1,352 @@
+title: Getting Help and Further Learning
+
+=head1 READ ME FIRST
+
+If after reading this guide and other documents listed in this
+section, you feel that your question is not yet answered, please ask
+the apache/mod_perl mailing list to help you. But first try to browse
+the mailing list archive.  Most of the time you will find the answer
+for your question by searching the mailing archive, since there is a
+big chance someone else has already encountered the same problem and
+found a solution for it. If you ignore this advice, do not be
+surprised if your question will be left unanswered - it bores people
+to answer the same question more than once. It does not mean that you
+should avoid asking questions. Just do not abuse the available help
+and B<RTFM> before you call for B<HELP>. (You have certainly heard the
+infamous fable of the shepherd boy and the wolves)
+
+For more information See L<Get helped with mod_perl|help/Get_help_with_mod_perl>.
+
+
+
+
+
+
+=head1 Contacting me
+
+Hi, I wrote this document to help you with mod_perl.  It does not mean
+that if you have any question regarding mod_perl, perl or whatever you
+think I might know, you should send it directly to me. Please see the
+L<Get help with mod_perl|/Get_help_with_mod_perl> section and
+follow the guidelines as prescribed there.
+
+However, you are welcome to submit corrections and suggestions
+directly to me at
+sbekman@iname.com?subject=mod_perl%20guide%20corrections.  If you are
+going to B<submit heavy corrections of the text> (I love those!),
+please help me by downloading the source pages in POD from the main
+(index) page (at the bottom) and directly editing them. I will use
+Emacs Ediff to perform an easy merge of your changes. Thank you!
+
+B<PLEASE NO PERSONAL QUESTIONS, I didn't invite those by writing the
+guide. They all will be immediately deleted. Please ask the questions
+at the mod_perl list and if someone or I can answer your question--it
+will be answered. Thank you!>
+
+
+
+
+
+
+
+=head1 Get help with mod_perl
+
+=over
+
+=item * mod_perl home
+
+http://perl.apache.org
+
+=item * mod_perl Garden project
+
+http://modperl.sourcegarden.org
+
+=item * mod_perl Books
+
+=over
+
+=item * 'Apache Modules' Book
+
+http://www.modperl.com is the home site of The Apache Modules Book, a book
+about creating Web server modules using the Apache API, written by
+Lincoln Stein and Doug MacEachern.
+
+Now you can purchase the book at your local bookstore or from the
+online dealer.  O'Reilly lists this book as:
+
+  Writing Apache Modules with Perl and C
+  By Lincoln Stein & Doug MacEachern
+  1st Edition March 1999
+  1-56592-567-X, Order Number: 567X
+  746 pages, $34.95
+
+=item * 'Enabling web services with mod_perl' Book
+
+http://www.modperlbook.com is the home site of the new mod_perl book,
+that Eric Cholet and Stas Bekman are co-authoring together. We expect
+the book to be published in fall 2000.
+
+Ideas, suggestions and comments are welcome. You may send them to
+info@modperlbook.com .
+
+=back
+
+=item * mod_perl Guide
+
+by Stas Bekman at http://perl.apache.org/guide
+
+=item * mod_perl FAQ
+
+by Frank Cringle at http://perl.apache.org/faq/ .
+
+=item * mod_perl performance tuning guide 
+
+by Vivek Khera at http://perl.apache.org/tuning/ .
+
+=item * mod_perl plugin reference guide 
+
+by Doug MacEachern at http://perl.apache.org/src/mod_perl.html .
+
+=item * Quick guide for moving from CGI to mod_perl
+
+at http://perl.apache.org/dist/cgi_to_mod_perl.html .
+
+=item * mod_perl_traps, common traps and solutions for mod_perl users
+
+at http://perl.apache.org/dist/mod_perl_traps.html .
+
+=item * mod_perl Quick Reference Card
+
+http://www.refcards.com (Apache and other refcards are available from
+this link)
+
+=item * mod_perl Resources Page
+
+http://www.perlreference.com/mod_perl/
+
+
+=item * mod_perl mailing list
+
+The Apache/Perl mailing list (modperl@apache.org) B<is available for
+mod_perl users and developers to share ideas, solve problems and
+discuss things related to mod_perl and the Apache::* modules.> To
+subscribe to this list, send mail to majordomo@apache.org
+with empty C<Subject> and with C<Body>:
+
+  subscribe modperl
+
+A B<searchable> mod_perl mailing list archive available at
+http://forum.swarthmore.edu/epigone/modperl . We owe it to Ken
+Williams.
+
+More archives available:
+
+=over
+
+=item *
+
+http://www.geocrawler.com/lists/3/web/182/0/
+
+=item * 
+
+http://www.bitmechanic.com/mail-archives/modperl/
+
+=item * 
+
+http://www.mail-archive.com/modperl%40apache.org/
+
+=item * 
+
+http://www.davin.ottawa.on.ca/archive/modperl/
+
+=item * 
+
+http://www.progressive-comp.com/Lists/?l=apache-modperl&r=1&w=2#apache-modperl
+
+=item * 
+
+http://www.egroups.com/group/modperl/
+
+=back
+
+=back
+
+
+
+
+
+
+
+
+
+
+=head1 Get help with Perl
+
+=over
+
+=item * The Perl FAQ
+
+http://www.perl.com/CPAN/doc/FAQs/FAQ/PerlFAQ.html
+
+=item * The Perl Home
+
+http://www.perl.com/
+
+=item * The Perl Journal
+
+http://www.tpj.com/
+
+=item * Perl Module Mechanics
+
+http://world.std.com/~swmcd/steven/perl/module_mechanics.html - This
+page describes the mechanics of creating, compiling, releasing and
+maintaining Perl modules.
+
+=back
+
+
+
+
+
+
+
+
+
+
+
+
+=head1 Get help with Perl/CGI
+
+=over
+
+=item * Perl/CGI FAQ
+
+at http://www.perl.com/CPAN/doc/FAQs/cgi/perl-cgi-faq.html
+
+=item * Answers to some bothering Perl and Perl/CGI questions
+
+http://www.singlesheaven.com/stas/TULARC/webmaster/myfaq.html
+
+=item * Idiot's Guide to CGI programming
+
+http://www.perl.com/CPAN/doc/FAQs/cgi/idiots-guide.html
+
+=item * WWW Security FAQ
+
+http://www.w3.org/Security/Faq/www-security-faq.html
+
+=item * CGI/Perl Taint Mode FAQ
+
+http://www.gunther.web66.com/FAQS/taintmode.html (by Gunther
+Birznieks)
+
+=back
+
+
+
+
+
+
+
+
+
+=head1 Get help with Apache 
+
+=over
+
+=item * Apache Project's Home
+
+http://www.apache.org
+
+=item * Apache Quick Reference Card
+
+http://www.refcards.com (Apache and other refcards are available from
+this link)
+
+=item * The Apache FAQ
+
+http://www.apache.org/docs/misc/FAQ.html
+
+=item * Apache Server Documentation
+
+http://www.apache.org/docs/
+
+=item * Apache Handlers
+
+http://www.apache.org/docs/handler.html
+
+=item * mod_rewrite Guide
+
+http://www.engelschall.com/pw/apache/rewriteguide/
+
+=back
+
+
+
+
+
+
+
+
+
+
+=head1 Get help with DBI
+
+=over
+
+=item * Perl DBI examples
+
+http://www.saturn5.com/~jwb/dbi-examples.html (by Jeffrey William
+Baker).
+
+=item * DBI Homepage
+
+http://www.symbolstone.org/technology/perl/DBI/
+
+=item * DBI mailing list information
+
+http://www.fugue.com/dbi/ 
+
+=item * DBI mailing list archives
+
+http://outside.organic.com/mail-archives/dbi-users/
+http://www.xray.mpe.mpg.de/mailing-lists/dbi/
+
+=item * Persistent connections with mod_perl
+
+http://perl.apache.org/src/mod_perl.html#PERSISTENT_DATABASE_CONNECTIONS
+
+=back
+
+
+
+
+
+
+
+
+=head1 Get help with Squid - Internet Object Cache
+
+=over 4
+
+=item *
+
+Home page - http://squid.nlanr.net/
+
+=item *
+
+FAQ - http://squid.nlanr.net/Squid/FAQ/FAQ.html
+
+=item *
+
+Users Guide - http://squid.nlanr.net/Squid/Users-Guide/
+
+=item *
+
+Mailing lists - http://squid.nlanr.net/Squid/mailing-lists.html
+
+=back
+
+
+
+
