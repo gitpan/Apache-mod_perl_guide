@@ -43,3 +43,9 @@ src/status.pod
 src/strategy.pod
 src/style.css
 src/troubleshooting.pod
+src/code/My-DB.pm
+src/code/mysql-3.22.30+_backup.pl
+src/code/mysql-3.22.30+_restore.pl
+src/code/mysql-3.22.29_backup.pl
+src/code/mysql-3.22.29_restore.pl
+src/code/DB_File-Lock2.pm

@@ -2,18 +2,18 @@ title: Getting Help and Further Learning
 
 =head1 READ ME FIRST
 
-If after reading this guide and other documents listed in this
-section, you feel that your question is not yet answered, please ask
-the apache/mod_perl mailing list to help you. But first try to browse
-the mailing list archive.  Most of the time you will find the answer
-for your question by searching the mailing archive, since there is a
-big chance someone else has already encountered the same problem and
-found a solution for it. If you ignore this advice, do not be
-surprised if your question will be left unanswered - it bores people
-to answer the same question more than once. It does not mean that you
-should avoid asking questions. Just do not abuse the available help
-and B<RTFM> before you call for B<HELP>. (You have certainly heard the
-infamous fable of the shepherd boy and the wolves)
+If after reading this guide and the other documents listed in this
+section, and still don't have the answers/information needed, please
+ask the apache/mod_perl mailing list to help. But please, first try to
+browse the mailing list archive.  Most of the time you will find the
+answer to your questions by searching the mailing archive, since it is
+most likely that someone else has already encountered the same problem
+and found a solution for it. If you ignore this advice, you should not
+be surprised if your question is left unanswered - it bores people to
+answer the same question more than once. It does not mean that you
+should avoid asking questions. But you should not abuse the available
+help and should B<RTFM> before you call for B<HELP>. (Remember the
+fable of the shepherd boy and the wolves)
 
 For more information See L<Get helped with mod_perl|help/Get_help_with_mod_perl>.
 
@@ -24,11 +24,11 @@ For more information See L<Get helped with mod_perl|help/Get_help_with_mod_perl>
 
 =head1 Contacting me
 
-Hi, I wrote this document to help you with mod_perl.  It does not mean
-that if you have any question regarding mod_perl, perl or whatever you
-think I might know, you should send it directly to me. Please see the
-L<Get help with mod_perl|/Get_help_with_mod_perl> section and
-follow the guidelines as prescribed there.
+Hi, I wrote this document to help people with mod_perl.  It does not
+mean that if you have any question regarding mod_perl, perl or
+whatever you think I might know, that you should send it directly to
+me. Please see the L<Get help with mod_perl|/Get_help_with_mod_perl>
+section and follow the guidelines described there.
 
 However, you are welcome to submit corrections and suggestions
 directly to me at
@@ -36,12 +36,12 @@ stas@stason.org?subject=mod_perl%20guide%20corrections.  If you are
 going to B<submit heavy corrections of the text> (I love those!),
 please help me by downloading the source pages in POD from the main
 (index) page (at the bottom) and directly editing them. I will use
-Emacs Ediff to perform an easy merge of your changes. Thank you!
+Emacs Ediff to perform an easy merge of such changes. Thank you!
 
 B<PLEASE NO PERSONAL QUESTIONS, I didn't invite those by writing the
-guide. They all will be immediately deleted. Please ask the questions
-at the mod_perl list and if someone or I can answer your question--it
-will be answered. Thank you!>
+guide. They all will be immediately deleted. Please ask questions
+on the mod_perl list and if someone or I can answer your question--it
+will be answered on the list. Thank you!>
 
 
 
@@ -61,6 +61,9 @@ http://perl.apache.org
 
 http://modperl.sourcegarden.org
 
+
+
+
 =item * mod_perl Books
 
 =over
@@ -71,8 +74,8 @@ http://www.modperl.com is the home site of The Apache Modules Book, a book
 about creating Web server modules using the Apache API, written by
 Lincoln Stein and Doug MacEachern.
 
-Now you can purchase the book at your local bookstore or from the
-online dealer.  O'Reilly lists this book as:
+The book should be available from your local bookstore or from your
+favourite on-line bookseller.  O'Reilly lists this book as:
 
   Writing Apache Modules with Perl and C
   By Lincoln Stein & Doug MacEachern
@@ -83,10 +86,10 @@ online dealer.  O'Reilly lists this book as:
 =item * 'Enabling web services with mod_perl' Book
 
 http://www.modperlbook.com is the home site of the new mod_perl book,
-that Eric Cholet and Stas Bekman are co-authoring together. We expect
+that Eric Cholet and Stas Bekman are co-authoring. We expect
 the book to be published in fall 2000.
 
-Ideas, suggestions and comments are welcome. You may send them to
+Ideas, suggestions and comments are welcome. Please send them to
 info@modperlbook.com .
 
 =back
@@ -125,6 +128,22 @@ this link)
 http://www.perlreference.com/mod_perl/
 
 
+=item * Articles
+
+=over
+
+=item * PerlMonth
+
+http://perlmonth.com
+
+=item *  Basic knowledge about Apache stages and
+mod_perl handlers article in German 
+
+http://www.heise.de/ix/artikel/2000/01/156/
+
+=back
+
+
 =item * mod_perl mailing lists
 
 =over
@@ -135,12 +154,12 @@ The Apache/Perl mailing list B<is available for mod_perl users and
 developers to share ideas, solve problems and discuss things related
 to mod_perl and the Apache::* modules.> To subscribe to this list,
 send email to modperl-subscribe@apache.org .  To unsubscribe send
-email to modperl-unsubscribe@apache.org . Use modperl@apache.org
-adress to post to the list.
+email to modperl-unsubscribe@apache.org . Use the modperl@apache.org
+address to post to the list.
 
-A B<searchable> mod_perl mailing list archive available at
-http://forum.swarthmore.edu/epigone/modperl . We owe it to Ken
-Williams.
+A B<searchable> mod_perl mailing list archive is available at
+http://forum.swarthmore.edu/epigone/modperl . Thanks to Ken
+Williams for this.
 
 More archives available:
 
@@ -170,8 +189,8 @@ http://www.egroups.com/group/modperl/
 
 =item * The advocacy mailing list
 
-The advocacy list for mod_perl advocacy issues, discussions about
-site, etc.
+The list for mod_perl advocacy issues, discussions about
+sites, etc.
 
 Subscribe by sending a mail to advocacy-subscribe@perl.apache.org.
 Unsubscribe by sending a mail to advocacy-unsubscribe@perl.apache.org.
@@ -184,13 +203,13 @@ The archive: http://www.mail-archive.com/advocacy@perl.apache.org/.
 
 The modperl developers list is the list where you can watch mod_perl
 getting patched.  No real discussions happen on this list, but if you
-want to know about the latest changes in the mod_perl core before the
-rest of the people, this is a list to be on.
+want to know about the latest changes in the mod_perl core before
+everyone else, this is a list to be on.
 
 To subscribe to this list, send email to
 modperl-cvs-subscribe@apache.org .  To unsubscribe send email to
-modperl-cvs-unsubscribe@apache.org .  Use modperl-cvs@apache.org
-adress to post to the list.
+modperl-cvs-unsubscribe@apache.org .  Use the modperl-cvs@apache.org
+address to post to the list.
 
 No archives available.
 
@@ -219,7 +238,7 @@ No archives available.
 
 http://www.perl.com/CPAN/doc/FAQs/FAQ/PerlFAQ.html
 
-=item * The Perl Home
+=item * The Perl Home Page
 
 http://www.perl.com/
 
@@ -309,6 +328,20 @@ http://www.apache.org/docs/handler.html
 =item * mod_rewrite Guide
 
 http://www.engelschall.com/pw/apache/rewriteguide/
+
+=item * articles
+
+Security and Apache: An Essential Primer
+http://linuxplanet.com/linuxplanet/print/1527/
+
+Using Apache with Suexec on Linux
+http://linuxplanet.com/linuxplanet/print/1445/
+
+=item * Limit the number of Apache children
+that can be servicing a requested resource at one time.
+
+A C Apache module available at http://www.fremen.org/apache/
+
 
 =back
 

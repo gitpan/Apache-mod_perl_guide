@@ -2,6 +2,131 @@
 		### mod_perl Guide CHANGES file ###
 		###################################
 
+04.10.2000 ver 1.22
+
+* updated the long due credits section
+
+* snippets: new: "Authentication Snippets" (Michael Finke, Eric
+  Cholet)
+
+* debug: new: "Apache::DumpHeaders" (Ask Bjoern Hansen)
+
+* debug: new: "Apache::DebugInfo" (Geoffrey Young)
+
+* config: updated: "PerlFreshRestart" with DSO notes (Doug, Vivek
+  Khera)
+
+* troubleshooting: new: "Can't upgrade that kind of scalar ..." (Doug)
+
+* performance: new: "Bloatware" (Tom Christiansen)
+
+* performance: new: "CGI.pm versus Apache::Request" (Doug)
+
+* performance: new: "Apache::Registry versus pure PerlHandler" (Doug)
+
+* performance: new: "TMTOWTDI: Convenience and Performance"
+
+* install: "Is it possible to run mod_perl enabled Apache as suExec?"
+  (Randal L. Schwartz, Matt Sergeant)
+
+* performance: updated: "Benchmarking PerlHandlers"
+
+* performance: new: "Keeping the Shared Memory Limit"
+
+* porting: new: "File tests operators"
+
+* performance: updated "PerlSetupEnv Off" with a test script
+
+* snippets: new: "Getting the Front-end Server's Name in the Back-end
+  Server" (Sean Dague)
+
+* porting: extended "Taint mode" -- a suggestion for services that
+  move to mod_perl and have part of the scripts that won't run under
+  enabled Taint mode (Gunther Birznieks, Ken Williams)
+
+* modules: new: "Apache::OutputChain -- Chain Stacked Perl Handlers"
+  (Honza Pazdziora, Eric Cholet)
+
+* snippets: new: "SSI and Embperl -- Doing Both" (Michael Schout)
+
+* performance: new: "-Dusemymalloc Perl Build Option" (Doug, Jeffrey
+  W. Baker)
+
+* strategy: added unedited answer for the question "Multithreading or
+  not Multithreading" (Shane shane@isupportlive.com)
+
+* install: updated "Automating installation" (James G Smith)
+
+* performance: added a workaround for limiting memory usage under
+  Linux to "Limiting the Resources Used by httpd Children" (Kevin
+  Murphy)
+
+* debug: added clarification fd leakage in "Safe Resource Locking"
+  (Bill Moseley)
+
+* multiuser: extended the scenario for multi-user/multi-webserver on
+  one machine option, how to enforce port and similar settings without
+  forbidding user to modify his httpd.conf. (inspired by Greg Cope)
+
+* scenario: new: "Caching in mod_proxy" (Ilya Obshadko)
+
+* porting: new: "Accessing Request Object in non-Perl*Handler Modules"
+  (Doug)
+
+* config: new: "Adding Custom Configuration Directives" (Doug)
+
+* snippets: new: "Convert a POST Request into a GET Request" (Doug)
+
+* scenario: extended the "Getting the Remote Server IP in the Back-end
+  server in the Proxy Setup" section with notes about the modules
+  configuration precedence problem and its solution. (Ilya Obshadko,
+  Ewan Edwards)
+
+* strategy: new "Pros and Cons of Building mod_perl as DSO" (based on
+  http://www.apache.org/docs/dso.html by Ralf S. Engelschall)
+
+* strategy: new: "mod_perl and mod_ssl" (Tom Mornini, Vivek Khera, Mads
+  Toftum)
+
+* snippets: added a "PerlTransHandler example" (Randal L. Schwartz,
+  Ajay Shah)
+
+* config: extended examples for "<Perl> sections", added the package
+  declaration caveat, Apache::ReadConfig namespace and more.
+
+* performance: extended the "Reducing the Number of stat() Calls"
+  section, with examples of PerlTransHandler and reducing stat()s for
+  .htaccess look-ups
+
+* help: added the perlmonth.com and Gerald Richter's article reference
+
+* porting: updated the "Right headers generation": OS with EBCDIC as
+  character set and sending proper headers. (Doug)
+
+* porting: added: "Apache::print() and CORE::print()" (Doug)
+
+* debug: updated: Sys::Signal, SIGALRM and perl5.6 issue (Doug and Bill
+  Moseley)
+
+* config: $Apache::Server::StrictPerlSections (Doug)
+
+* scenario: more practical mod_rewrite examples by Geoffrey Young.
+
+* minor corrections: download.pod by Ron Pool, scenario.pod by Terry
+  West and Eric Cholet, config.pod by Richard More, performance.pod by
+  Stephen Judd and Steve Reppucci, frequent.pod by Andreas Piesk.
+
+* review: Mark Summerfield has joined the group of the kind people who
+  review and correct the Guide. He has reviewed these chapters:
+  advocacy, config, control, databases, dbm, debug, download,
+  frequent, hardware, help, install.
+
+* review: Ged W. Haywood was very kind to review and correct the
+  debug chapter.
+
+
+
+
 03.04.2000 ver 1.21
 
 * help: updated the mod_perl list subscription info, added the
@@ -13,7 +138,7 @@
   SQL DB and mod_perl" (Vivek Khera, Jeffrey W. Baker, John Armstrong,
   Mike Miller, Leslie Mikesell, Tom Brown, Ed Phillips, Marko van der
   Puil) Special thanks to Jeffrey for working on the this section
-  before it went into the Gude.
+  before it went into the Guide.
 
 * perfomance: added the section "Memory Swapping is Considered Bad"
 
@@ -129,7 +254,7 @@
   Apache Modules" (David Harris)
 
 * snippets: added "mod_rewrite Based On Query String and URI
-  Implemented in Perl" (darren chamberlain)
+  Implemented in Perl" (Darren Chamberlain)
 
 * config: added "Knowing the proxy_pass'ed Connection Type" (Geoff
   Crawshaw)
@@ -219,7 +344,7 @@
 
 * performance: added "Upload/Download of Big Files" (Ken Williams)
 
-* install: added a reference to "Static debian package" (by David
+* install: added a reference to "Static debian package" (David
   Huggins-Daines)
 
 * troubleshooting: added Windows: "Apache::DBI and
@@ -423,7 +548,7 @@
 * snippets: added "Terminating a child process on Request Completion"
   (Doug)
 
-* troubleshooting": added "Apache.pm failed to load!" (Doug)
+* troubleshooting: added "Apache.pm failed to load!" (Doug)
 
 * snippets: added "Reading POST Data, then Redirecting" (Doug)
 

@@ -6,12 +6,12 @@ If you need a light database, with an easy API, using simple key-value
 pairs to store and manipulate the records, this is a solution that
 should be amongst the first you consider.  The maximum practical size
 of a dbm database depends on your hardware and the desired response
-times of course, but as a rough guide consider 5000 to 10000 records
+times of course, but as a rough guide consider 5,000 to 10,000 records
 to be reasonable.
 
 Some of the earliest databases implemented on Unix were dbm files, and
 many are still in use today.  As of this writing the Berkeley DB is
-the most powerful dbm implementation.
+the most powerful dbm implementation (http://www.sleepycat.com).
 
 With dbm, the whole database is rarely read into a memory. Combine
 this feature with the use of smart storage techniques, and dbm files
@@ -27,7 +27,7 @@ Several different indexing algorithms can be used with dbm:
 
 =item *
 
-The C<HASH> algorithm gives a C<0(1)> complexity of search and update,
+The C<HASH> algorithm gives an C<0(1)> complexity of search and update,
 fast insert and delete, but a slow sort. (You have to do it yourself.)
 
 =item *
@@ -51,7 +51,7 @@ depends very much on your application.
 
 B<dbm> databases are not limited to storing key/value pairs.  They can
 store more complicated data structures with the help of the C<MLDBM>
-module. This module can dump and restore the whole symbol table of
+module. This module can store and restore the whole symbol table of
 your script, including arrays, hashes and other complicated data
 structures.
 
@@ -63,16 +63,15 @@ storage method. You can use a script like this:
   #!/usr/bin/perl -w
   
   #
-  # This script gets as a parameter a Berkeley DB file(s) which is stored
-  # with DB_BTREE algorithm, and will backup it with .bak and create
-  # instead the db with the same records but stored with DB_HASH
-  # algorithm
+  # This script takes as its parameters a list of Berkeley DB file(s)
+  # which are stored with DB_BTREE algorithm, and will back them up
+  # using .bak extension and create instead dbms with the same records
+  # but stored using the DB_HASH   # algorithm
   #
   # Usage: btree2hash.pl filename(s)
   
   use strict;
   use DB_File;
-  use File::Copy;
   
     # Do checks 
   die "Usage: btree2hash.pl filename(s))\n" unless @ARGV;
@@ -82,8 +81,8 @@ storage method. You can use a script like this:
     die "Can't find $filename: $!\n" unless -e $filename and -r $filename;
   
       # First backup the file
-    move("$filename","$filename.btree") 
-      or die "can't move $filename $filename.btree:$!\n";
+    rename "$filename", "$filename.btree" 
+      or die "can't rename $filename $filename.btree:$!\n";
   
     my %btree;
     my %hash;
@@ -110,12 +109,12 @@ well.
 Where does mod_perl fit into the picture?
 
 If you are using a read only dbm file you can have it work faster if
-you keep it open (tied) all the time, so when your CGI script wants to
+you keep it open (tied) all the time, so that when your CGI script wants to
 access the database it is already tied and ready to be used. It will
 work with dynamic (read/write) databases as well but you need to use
 locking and data flushing to avoid data corruption.
 
-Although mod_perl and dbm can give huge performance gains to your CGIs
+Although mod_perl and dbm can give huge performance gains to your CGI
 scripts, you should be very careful. You need to consider locking, and
 the consequences of C<die()> and unexpected process deaths.
 
@@ -147,13 +146,13 @@ becomes unlocked. The lock status becomes I<WRITE> on success.
 
 The treatment of the I<WRITE> lock request is most important.
 
-If the DB is I<READ> locked, a process that makes a WRITE request will
-poll until there are no reading or writing processes left. Lots of
-processes can successfully read the file, since they do not block each
-other.  This means that a process that wants to write to the file (so
-first it needs to obtain an exclusive lock) may never get a chance to
-squeeze in. The following diagram represents a possible scenario where
-everybody can read but no one can write:
+If the DB is I<READ> locked, a process that makes a I<WRITE> request
+will poll until there are no reading or writing processes left. Lots
+of processes can successfully read the file, since they do not block
+each other.  This means that a process that wants to write to the file
+(so first it needs to obtain an exclusive lock) may never get a chance
+to squeeze in. The following diagram represents a possible scenario
+where everybody can read but no one can write:
 
   [-p1-]                 [--p1--]
      [--p2--]
@@ -167,8 +166,8 @@ dbm handle with dynamic dbm files. It will work perfectly with static
 DBM files without any need to lock files at all.
 
 Ken Williams solved the above problem with his
-C<L<Tie::DB_Lock|dbm/Tie__DB_Lock>> module, which I will present in on
-of the next sections.
+C<L<Tie::DB_Lock|dbm/Tie__DB_Lock>> module, which I will discuss in
+one of the following sections.
 
 There are three locking wrappers for C<DB_File> in CPAN right now. Each
 one implements locking differently and has different goals in mind. It
@@ -187,13 +186,13 @@ why this happens.
 You may not use a tied file's filehandle for locking, since you get
 the filehandle after the file has been already tied. It's too late to
 lock. The problem is that the database file is locked B<after> it is
-opened. When the database is opened, the first 4k (in my dbm library)
-are read and then cached in memory. Therefore, a process can open the
-database file, cache the first 4k, and then block while another
-process writes to the file.  If the second process modifies the first
-4k of the file, when the original process gets the lock is now has an
-inconsistent view of the database.  If it writes using this view it
-may easily corrupt the database on disk.
+opened. When the database is opened, the first 4k (in Berkley dbm
+library) is read and then cached in memory. Therefore, a process can
+open the database file, cache the first 4k, and then block while
+another process writes to the file.  If the second process modifies
+the first 4k of the file, when the original process gets the lock is
+now has an inconsistent view of the database.  If it writes using this
+view it may easily corrupt the database on disk.
 
 This problem can be difficult to trace because it does not cause
 corruption every time a process has to wait for a lock. One can do
@@ -234,14 +233,14 @@ C<DB_File::Lock> -- extremely lightweight C<DB_File> wrapper that
 simply flocks a lockfile before tie-ing the database and drops the
 lock after the untie.  Allows one to use the same lockfile for
 multiple databases to avoid deadlock problems, if desired. Use for
-databases where updates are reads are quick and simple flock locking
+databases where updates and reads are quick and simple flock locking
 semantics are enough. Refer to C<DB_File::Lock> manpage for more
 information.
 
 =item *
 
 C<DB_File::Lock2> -- does the same thing as C<DB_File::Lock>, but has
-a little different implementation, as I wrote it before David Harris
+a slightly different implementation, as I wrote it before David Harris
 has released his C<DB_File::Lock> and I didn't want to kill mine, I'll
 keep it here for a while :).  C<DB_File::Lock2> is covered
 L<here|dbm/DB_File__Lock2>.
@@ -297,7 +296,7 @@ that this code still needs some testing, so B<be
 careful> if you use it on a production machine.
 
 
-And you use it like this:
+You use it like this:
 
   use DB_File::Lock2 ();
 
@@ -350,16 +349,16 @@ contents of the DB, unsorted.
   }
   untie %mydb;
   
-    # now, read them and printout (unsorted)
+    # now, read them and printout (unsorted) 
+    # notice that 'read' is a default lock mode
   tie %mydb, 'DB_File::Lock2', $dbfile;
   while (my($k,$v) = each %mydb) {
     print "$k => $v\n";
   }
   untie %mydb;
 
-If your CGI was interrupted in the middle, C<DESTROY> block will take
-care of unlocking the dbm file and flush any changes. So your DB will
-be safe against possible corruption because of unclean program
-termination.
+If your CGI script was interrupted in the middle, the C<DESTROY> block will
+take care of unlocking the dbm file and flush any changes. So your DB will be
+safe against possible corruption because of unclean program termination.
 
 =cut

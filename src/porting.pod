@@ -566,6 +566,9 @@ or
 
   PerlSetEnv PERL5LIB /home/httpd/perl:/home/httpd/mymodules
 
+Note that this setting will be ignored if you have the
+C<PerlTaintMode> mode turned on.
+
 =item * 
 
 In the startup file directly alter the C<@INC>. For example
@@ -670,7 +673,7 @@ compiled.  When that's done, C<@INC> is reset to its original
 value.
 
 To make sure that you have set C<@INC> correctly, configure
-L</perl-status location|debug/Apache_Status_Embedded_inter>, fetch
+L</perl-status location|debug/Apache_Status_Embedded_Inter>, fetch
 http://www.example.com/perl-status?inc and look at the bottom of the
 page, where the contents of C<@INC> will be shown.
 
@@ -1620,45 +1623,41 @@ So if you have two different C<Foo> modules in two different
 directories and two scripts C<script1.pl> and C<script2.pl>, placed
 like this:
 
-  ./perl/tool1/Foo.pm
-  ./perl/tool1/tool1.pl
-  ./perl/tool2/Foo.pm
-  ./perl/tool2/tool2.pl
+  ./tool1/Foo.pm
+  ./tool1/tool1.pl
+  ./tool2/Foo.pm
+  ./tool2/tool2.pl
 
 
 Where a sample code could be:
 
-  ./perl/tool1/tool1.pl
-  --------------------
+  ./tool1/tool1.pl
+  ----------------
   use Foo;
   print "Content-type: text/plain\r\n\r\n";
   print "I'm Script number One\n";
   foo();
-  --------------------
 
-  ./perl/tool1/Foo.pm
-  --------------------
+  ./tool1/Foo.pm
+  --------------
   sub foo{
     print "<B>I'm Tool Number One!</B>\n";
   }
   1;
-  --------------------
 
-  ./perl/tool2/tool2.pl
-  --------------------
+  ./tool2/tool2.pl
+  ----------------
   use Foo;
   print "Content-type: text/plain\r\n\r\n";
   print "I'm Script number Two\n";
   foo();
-  --------------------
 
-  ./perl/tool2/Foo.pm
-  --------------------
+  ./tool2/Foo.pm
+  --------------
   sub foo{
     print "<B>I'm Tool Number Two!</B>\n";
   }
   1;
-  --------------------
 
 Both scripts call C<use Foo;>. Only the first one called will know
 about C<Foo>. When you call the second script it will not know about
@@ -1675,21 +1674,30 @@ You will see the following in the error_log file:
 
 =item Scenario 2
 
-If the files do not declare a package, the above is true for files you
-require() as well:
+If the files do not declare a package, the above is true for libraries
+(i.e. I<my-lib.pl">) you require() as well:
 
-Suppose the content of the scripts and C<config.pl> files is exactly
-like in the example above, and you have a directory structure like this:
+Suppose that you have a directory structure like this:
 
-  ./perl/tool1/config.pl
-  ./perl/tool1/tool1.pl
-  ./perl/tool2/config.pl
-  ./perl/tool2/tool2.pl
+  ./tool1/config.pl
+  ./tool1/tool1.pl
+  ./tool2/config.pl
+  ./tool2/tool2.pl
 
-and both scripts contain
+and both scripts contain:
 
   use lib qw(.);
   require "config.pl";
+
+while I<./tool1/config.pl> can be something like this:
+
+  $foo = 0;
+  1;
+
+and I<./tool2/config.pl>:
+
+  $foo = 1;
+  1;
 
 The second scenario is not different from the first, there is almost
 no difference between use() and require() if you don't have to import
@@ -1701,9 +1709,9 @@ C<%INC> already includes the key I<"config.pl">!
 
 It is interesting that the following scenario will fail too!
 
-  ./perl/tool/config.pl
-  ./perl/tool/tool1.pl
-  ./perl/tool/tool2.pl
+  ./tool/config.pl
+  ./tool/tool1.pl
+  ./tool/tool2.pl
 
 where C<tool1.pl> and C<tool2.pl> both require() the B<same>
 C<config.pl>.
@@ -1721,10 +1729,10 @@ The first two faulty scenarios can be solved by placing your library
 modules in a subdirectory structure so that they have different path
 prefixes. The file system layout will be something like:
 
-  ./perl/tool1/Tool1/Foo.pm
-  ./perl/tool1/tool1.pl
-  ./perl/tool2/Tool2/Foo.pm
-  ./perl/tool2/tool2.pl
+  ./tool1/Tool1/Foo.pm
+  ./tool1/tool1.pl
+  ./tool2/Tool2/Foo.pm
+  ./tool2/tool2.pl
 
 And modify the scripts:
 
@@ -1733,10 +1741,10 @@ And modify the scripts:
 
 For require() (scenario number 2) use the following:
 
-  ./perl/tool1/tool1-lib/config.pl
-  ./perl/tool1/tool1.pl
-  ./perl/tool2/tool2-lib/config.pl
-  ./perl/tool2/tool2.pl
+  ./tool1/tool1-lib/config.pl
+  ./tool1/tool1.pl
+  ./tool2/tool2-lib/config.pl
+  ./tool2/tool2.pl
 
 And each script contains respectively:
 
@@ -1762,7 +1770,7 @@ as a key in C<%INC>;
 This solution solves the problem of the first two scenarios. I was
 surprised that it worked for the third scenario as well!
 
-With this solution you loose some portability. If you move the tool
+With this solution you lose some portability. If you move the tool
 around in the file system you will have to change the base directory
 or write some additional script that will automatically update the
 hardcoded path after it was moved. Of course you will have to remember
@@ -1772,15 +1780,15 @@ to invoke it.
 
 Make sure you read all of this solution.
 
-Declare a package in the required files!  It should be unique to the
-rest of the package names you use.  C<%INC> will then use the unique
-package name for the key. It's a good idea to use at least two-level
-package names for your private modules, e.g. C<MyProject::Carp> and
-not C<Carp>, since the latter will collide with an existing standard
-package.  Even if as of the time of your coding it doesn't yet exist,
-a package might enter the next perl distribution as a standard module
-and your code will be broken. Foresee problems like this and save
-yourself future trouble.
+Declare a package name in the required files!  It should be unique to
+the rest of the package names you use.  C<%INC> will then use the
+unique package name for the key. It's a good idea to use at least
+two-level package names for your private modules,
+e.g. C<MyProject::Carp> and not C<Carp>, since the latter will collide
+with an existing standard package.  Even if as of the time of your
+coding it doesn't yet exist, a package might enter the next perl
+distribution as a standard module and your code will be
+broken. Foresee problems like this and save yourself future trouble.
 
 What are the implications of package declaration?
 
@@ -2007,7 +2015,7 @@ way. C<CORE::exit()> cuts off the server's legs.
 Note that C<Apache::exit(-2)> or
 C<Apache::exit(Apache::Constants::DONE)> will cause the server to exit
 gracefully, completing the logging functions and protocol requirements
-etc.
+etc. (Apache::Constants::OK == 0).
 
 If you need to shut down the child cleanly after the request was
 completed, use the C<$r-E<gt>child_terminate> method. You can call it
@@ -2018,8 +2026,7 @@ connection is broken, because of the C<keepalive> flag, and the parent
 tells the child to cleanly quit, because C<MaxRequestsPerChild> is
 smaller than the number of requests served.
 
-You can accomplish this in two ways--in the C<Apache::Registry>
-script:
+In the C<Apache::Registry> script you would do:
 
   Apache->request->child_terminate;
 
@@ -2031,7 +2038,10 @@ You would want to use the latter example only if you wanted the child
 to terminate every time the registered handler is called.  Probably
 this is not what you want.
 
-Here is an example of assigning of the postprocessing handler:
+Even if you don't need to call the child_terminate() at the end of the
+request if you want the process to quit afterwards, here is an example
+of assigning of the postprocessing handler, in case you might want to
+execute your own code a moment before the process quits.
 
   my $r = shift;
   $r->post_connection(\&exit_child);
@@ -2047,13 +2057,6 @@ L<Apache::GTopLimit|modules/Apache_GTopLimit_Limit_Apache> (based on
 I<libgtop> and C<GTop.pm>) is a similar module. It does the same
 thing, plus you can configure it to terminate processes when their
 shared memory shrinks below some specified size.
-
-As mentioned before, it is unnecessary to postpone the execution of
-child_terminate(). You can call it anywhere in the code, it won't
-terminate the child's execution until the request has been
-served. Don't confuse it with exit().
-
-
 
 
 
@@ -2124,7 +2127,26 @@ C<print()>.
 
 
 
+=head1 Apache::print() and CORE::print()
 
+Under mod_perl C<CORE::print()> will redirect its data to
+C<Apache::print()> since the STDOUT filehandle is tied to the
+I<Apache> module. This allows to run the CGI scripts unmodified under
+C<Apache::Registry> and chaining the output of one content handler to
+the input of the other handler.
+
+C<Apache::print()> behaves mostly like the built-in I<print()>
+function. In addition it sets a timeout so that if the client
+connection is broken the handler won't wait forever trying to send
+data.
+
+There is also an optimization built into C<Apache::print()>.  If any
+of the arguments to the method are scalar references to strings, they
+are automatically dereferenced for you.  This avoids needless copying
+of large strings when passing them to subroutines. For example:
+
+ $long_string = "A" x 10000000;
+ $r->print(\$long_string);
 
 
 
@@ -2136,7 +2158,6 @@ request came from. C<STDERR> is tied to the I<error_log> file.
 
 To print to STDOUT you can either use a regular print() (which is
 automagically tied to the the socket) or the C<$r-E<gt>print> method.
-
 
 
 
@@ -2169,12 +2190,12 @@ lexically scoped.  You have to use local() instead.
 =head1 Generating correct HTTP Headers
 
 A HTTP response header consists of at least two fields. HTTP response
-and C<Content-type>:
+and MIME type header C<Content-type>:
 
   HTTP/1.0 200 OK
   Content-Type: text/plain
 
-after adding one more new line, you can start printing the content. A
+After adding one more new line, you can start printing the content. A
 more complete response includes the date timestamp and server
 type, like in this response:
 
@@ -2206,13 +2227,13 @@ know what server you are running under. You needed to send only the
 response MIME type (C<Content-type>) under mod_cgi, why should you do
 that manually under mod_perl. 
 
-Actually do want to set some headers manually, but not everytime. So
-mod_perl gives you the default set of headers, just like in the
-example above. And if you want to override or add more headers you can
-do that as well. Let's see how to do that.
+Actually something you do want to set some headers manually, but not
+everytime. So mod_perl gives you the default set of headers, just like
+in the example above. And if you want to override or add more headers
+you can do that as well. Let's see how to do that.
 
-When writing your own handlers and scripts with the Perl API the
-proper way to send the HTTP header is with send_http_header()
+When writing your own handlers and scripts with the Perl Apache API
+the proper way to send the HTTP header is with send_http_header()
 method. If you need to add or override methods you can use the
 headers_out() method:
 
@@ -2237,16 +2258,16 @@ A typical handler looks like this:
   $r->send_http_header;
   return OK if $r->header_only;
 
-If the client issues a HTTP C<HEAD> request rather than the usual
+If the client issues an HTTP C<HEAD> request rather than the usual
 C<GET>, to be compliant with the HTTP protocol we should not send the
-document body, but the the HTTP header only. When Apache receives a
-HEAD request, it sets I<header_only()> to true.  If we see that this
-has happened, we return from the handler immediately with an C<OK>
-status code.
+document body, but the HTTP header only. When Apache receives a HEAD
+request, I<header_only()> returns I<true>.  If we see that this has
+happened, we return from the handler immediately with an C<OK> status
+code.
 
 Generally, you don't need the explicit content type setting, since
-Apache does it for you, by looking up the MIME type of the request by
-matching the extension of the URI in the MIME tables (from the
+Apache does this for you, by looking up the MIME type of the request
+by matching the extension of the URI in the MIME tables (from the
 I<mime.types> file). So if the request URI is I</welcome.html>, the
 C<text/html> content-type will be picked. However for CGI scripts or
 URIs that cannot be mapped by a known extension, you should set the
@@ -2258,16 +2279,17 @@ similar handlers. If you take a basic CGI script like this:
   print "Content-type: text/plain\r\n\r\n";
   print "Hello world";
 
-it wouldn't work, because the HTTP header will not be sent.  By
+it wouldn't work, because the HTTP header will not be sent out.  By
 default, mod_perl does not send any headers itself.  You may wish to
 change this by adding
 
   PerlSendHeader On
 
-in the C<<Location>> part of your configuration.  Now, the response
-line and common headers will be sent as they are by mod_cgi. Just
-as with mod_cgi, C<PerlSendHeader> will not send the MIME type and a
-terminating double newline. Your script must send that itself, e.g.:
+in the C<Apache::Registry> C<<Location>> section of your
+configuration.  Now, the response line and common headers will be sent
+as they are by mod_cgi.  Just as with mod_cgi, C<PerlSendHeader> will
+not send the MIME type and a terminating double newline. Your script
+must send that itself, e.g.:
 
   print "Content-type: text/html\r\n\r\n";
 
@@ -2278,7 +2300,14 @@ exactly the other way around.
 
 Note, that in most UNIX CGI scripts, developers use a simpler "\n\n"
 and not "\r\n\r\n". There are occasions where sending "\n" without
-"\r" can cause problems, make it a habit to send "\r\n" every time.
+"\r" can cause problems, make it a habit to always send "\r\n" every
+time.
+
+If you use an OS which uses the EBCDIC as character set (e.g.
+BS2000-Posix), you should use this method to send the Content-type
+header:
+
+  shift->send_http_header('text/html');
 
 The C<PerlSendHeader On> directive tells mod_perl to intercept
 anything that looks like a header line (such as C<Content-Type:
@@ -2299,6 +2328,10 @@ like this:
      $r->send_http_header;
  }
 
+
+Note that you can always use the code in the else part of the above
+example, no matter of whether C<PerlSendHeader> is directive takes an
+effect or not.
 
 If you use C<CGI.pm>'s C<header()> function to generate HTTP headers,
 you do not need to activate this directive because C<CGI.pm> detects
@@ -2444,7 +2477,7 @@ reinitialized, since the soubroutine wouldn't be recompiled.
 Let's make our smart method more elaborate with C<PerlSendHeader>
 directive settings, so it always does the right thing. It's especially
 important if you write an application that you are going to
-distribute, hopefully as Open Source.
+distribute, hopefully under one of the Open Source or GPL licences.
 
 You can continue to improve this subroutine even further to handle
 additional headers, such as cookies.
@@ -2585,9 +2618,6 @@ C<END> blocks encountered during main server startup, i.e. those
 pulled in by the C<PerlRequire> or by any C<PerlModule>, are
 suspended.
 
-Apache versions 1.3b3 and later run the C<END> blocks at
-C<child_exit()>.
-
 Except during the cleanup phase, any C<END> blocks encountered during
 compilation of C<Apache::Registry> scripts, including subsequent
 invocations when the script is cached in memory, are called after the
@@ -2701,6 +2731,19 @@ chapter). If you aren't forcing all your scripts to run under B<Taint>
 mode you are looking for trouble from malicious users. (See the
 I<perlsec> manpage for more information)
 
+If you have some scripts that won't run under Taint mode, run only the
+ones that run under mod_perl with enabled Taint mode and the rest on
+another server with disabled Taint mode -- this can be either a
+mod_cgi in the front-end server or another back-end mod_perl server.
+You can use the mod_rewrite module and redirect requests based on the
+file extensions. For example you can use I<.tcgi> for the taint-clean
+scripts, and I<cgi> for the rest.
+
+When you have this setup you can start working toward cleaning the
+rest of the scripts, to make them run under the Taint mode. Just
+because you have a few dirty scripts doesn't mean that you should
+jeopardize your whole service.
+
 Since the C<-T> switch doesn't have an equivalent perl variable, mod_perl
 provides the C<PerlTaintCheck> directive to turn on taint checks. In
 C<httpd.conf>, enable this mode with:
@@ -2714,11 +2757,20 @@ the C<PerlTaintCheck> configuration directive and will otherwise
 ignore it.
 
 
+
 =head2 Other switches
 
 Finally, if you still need to to set additional perl startup flags
 such as C<-d> and C<-D>, you can use an environment variable
-C<PERL5OPT>. See
+C<PERL5OPT>. Switches in this variable are taken as if they were on
+every Perl command line.
+
+Only the C<-[DIMUdmw]> switches are allowed.
+
+When the C<PerlTaintCheck> variable is turned on, the value of
+C<PERL5OPT> will be ignored.
+
+See also
 L<Apache::PerlRun|modules/Apache_PerlRun_Run_unaltered_>.
 
 
@@ -2765,6 +2817,8 @@ time.  And, of course, clean scripts will still run under mod_cgi
 
 
 =head1 Passing ENV variables to CGI
+
+META: you have a duplication with config.pod here.
 
 To pass an environment variable from a configuration file, add to it:
 
@@ -2838,7 +2892,20 @@ around this.
 
 
 
+=head1 File tests operators
 
+Remember that with mod_perl you might get negative times when you use
+file test operators like C<-M> -- last modification time, C<-A> --
+last access time, C<-C> -- last inode-change time, and others.  C<-M>
+returns the difference in time between the modification time of the
+file and the time the script was started.  Because the C<^T> variable
+is not reset on each script invocation, and is equal to the time when
+the process was forked, you might want to perform:
+
+  $^T = time;
+
+at the beginning of your scripts to simulate the regular perl script
+behaviour of file tests.
 
 
 
@@ -2848,6 +2915,9 @@ around this.
 
 
 =head1 Filehandlers and locks leakages
+
+META: duplication at 
+debug.pod: =head3 Safe Resource Locking
 
 When you write a script running under mod_cgi, you can get away with
 sloppy programming, like opening a file and letting the interpreter 
@@ -2919,6 +2989,46 @@ automatically reloaded when changed on disk. See L<Reloading Modules
 and Required Files|/Reloading_Modules_and_Required_F> for more
 info.
 
+
+
+
+
+
+
+=head1 Accessing Request Object in non-Perl*Handler Modules
+
+C<Perl*Handler>s can obtain a reference to the request object when it
+is passed to them via C<@_>. For example:
+
+  sub handler {
+    my $r = shift;
+    # ... some code
+    return OK;
+  }
+
+In the C<Apache::Registry> scripts (and friends), the request object
+is available through C<Apache-E<gt>request($r)> method. For example:
+
+  my $r = Apache->request;
+  print $r->uri;
+
+In order to make the above work, C<Apache::Registry> internally passes
+the original object to C<Apache-E<gt>request($r)> (transparantly to
+the users of itself). It does:
+
+    sub handler {
+    my $r = shift;
+    Apache->request($r);
+    # ... lots of woodoo code :)
+    return OK;
+  }
+
+Some modules, like C<CGI.pm>, rely on the fact that
+C<Apache-E<gt>request()> will retrieve the request object. So when you
+use these modules with script running under C<Apache::Registry> (and
+friends) everything is fine. However if you write your own
+C<Perl*Handler> you should explicitly write C<Apache-E<gt>request($r)>
+to make these modules work, just like in the above code snippet.
 
 
 
@@ -3014,7 +3124,7 @@ line scripts.  Consider this example:
   print $@ if $@;
   print "Done with script\n";
 
-First you'll see:
+When executed as a plain script you'll see:
 
   Foo->DESTROY
   Done with script
@@ -3025,9 +3135,11 @@ and you'll see:
   Done with script
   Foo->DESTROY
 
-In this case, under mod_perl you wouldn't see C<Foo-E<gt>DESTROY>
-until the server shutdown, or until your module properly took care of
-things.
+If you run this example with circular reference enabled under mod_perl
+you won't see C<Foo-E<gt>DESTROY> until the server shutdown, or until
+your module properly took care of things. Note that the warn() call
+logs its messages to the I<error_log> file, so you should expect the
+printings there and not together with STDOUT.
 
 
 

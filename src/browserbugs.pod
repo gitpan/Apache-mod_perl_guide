@@ -21,8 +21,9 @@ One problem with publishing 8080 port numbers is that (so I was told)
 IE 4.x has a bug when re-posting data to a non-port-80 URL. It drops
 the port designator and uses port 80 anyway.
 
-See L<Publishing Port Numbers Different from
-80|config/Publishing_Port_Numbers_Differen>
+See L<Publishing Port Numbers other than
+80|config/Publishing_Port_Numbers_other_th>.
+
 
 
 =cut

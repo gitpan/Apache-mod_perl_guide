@@ -410,7 +410,8 @@ snippets from his emails are included in the guide.
 
 =item *
 
-B<Wesley Darlington> for contributing a big section for scenario chapter.
+B<Wesley Darlington> for contributing a big section for scenario
+chapter.
 
 =item *
 
@@ -424,9 +425,14 @@ document.
 
 =item *
 
-B<Ged W. Haywood> for reviewing and fixing a big part of the guide,
-providing lots of constructive critics and helping to reorganize the
-guide to make it more user friendly.
+B<Ged W. Haywood> for reviewing and fixing the whole guide, providing
+lots of constructive critics and helping to reorganize the guide to
+make it more user friendly.
+
+=item *
+
+B<Mark Summerfield> for reviewing and fixing a big part of the guide,
+to improve readability and suggesting useful extensions.
 
 =item *
 
@@ -451,37 +457,67 @@ Credits of course go to ( alphabetically sorted ):
 
 =over
 
+=item * Ajay Shah
+
 =item * Andreas J. Koenig
+
+=item * Andreas Piesk
 
 =item * Andrei A. Voropaev
 
+=item * Andrew Ford
+
+=item * Anthony D. Ettinger
+
 =item * Ask Bjoern Hansen
+
+=item * Autarch
+
+=item * Bill Moseley
 
 =item * Brian Moseley
 
 =item * Chad K. Lewis
 
+=item * Chris Nokleberg
+
 =item * Christof Damian
 
+=item * Christophe Dupre
+
 =item * Cliff Rayman
+
+=item * Craig
 
 =item * Daniel Koch
 
 =item * Daniel W. Burke
 
+=item * Darren Chamberlain
+
 =item * Dave Hodgkinson
 
 =item * David Harris
 
+=item * David Huggins-Daines
+
 =item * David Landgren
+
+=item * David Mitchell
 
 =item * Dean Fitz
 
 =item * Doug Bagley
 
+=item * Doug Kyle
+
 =item * Ed Park
 
+=item * Ed Phillips
+
 =item * Edmund Mergl
+
+=item * Edwin Pratomo
 
 =item * Eric Cholet
 
@@ -489,23 +525,35 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Evan A. Zacks
 
-=item * Frank Schoeters
+=item * Ewan Edwards
 
-=item * G.Richter
+=item * Frank Schoeters
 
 =item * Garr Updegraff
 
 =item * Ged W. Haywood
 
-=item * Geoffrey S Young
+=item * Geoff Crawshaw
+
+=item * Geoffrey Young
 
 =item * Gerald Richter
+
+=item * Gerd Knops
+
+=item * Greg Cope
 
 =item * Gunther Birznieks
 
 =item * Henrique Pantarotto
 
+=item * Honza Pazdziora
+
 =item * Howard Jones
+
+=item * Ilya Obshadko
+
+=item * James Furness
 
 =item * James G Smith
 
@@ -517,13 +565,21 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Jay J
 
-=item * Jeff Baker
-
 =item * Jeff Rowe
 
 =item * Jeffrey W. Baker
 
 =item * Jie Gao
+
+=item * Joao Fonseca
+
+=item * Joe Slag
+
+=item * John Armstrong
+
+=item * John Deighan
+
+=item * John Hyland
 
 =item * John Milton
 
@@ -535,19 +591,43 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Joshua Chamas
 
+=item * Kavitha
+
+=item * Ken Williams
+
+=item * Kevin Murphy
+
 =item * Leslie Mikesell
 
 =item * Lincoln Stein
 
+=item * Mads Toftum
+
 =item * Mark Mills
+
+=item * Mark Summerfield
+
+=item * Marko van der Puil
 
 =item * Marshall Dudley
 
+=item * Matt Sergeant
+
 =item * Matthew Darwin
+
+=item * Michael Blakeley
+
+=item * Michael Finke 
 
 =item * Michael Hall
 
+=item * Michael Schout
+
+=item * Mike Depot
+
 =item * Mike Fletcher
+
+=item * Mike Miller
 
 =item * Nancy Lin
 
@@ -555,37 +635,75 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Nathan Vonnahme
 
+=item * Nick Tonkin
+
 =item * Oleg Bartunov
+
+=item * Pascal Eeftinck
 
 =item * Perrin Harkins
 
 =item * Peter Galbavy
 
+=item * Peter Haworth
+
 =item * Peter Skov
 
 =item * Philip Jacob
+
+=item * Philip Newton
+
+=item * Radu Greab
 
 =item * Radu Greab
 
 =item * Ralf Engelschall
 
+=item * Ralf S. Engelschall
+
 =item * Randal L. Schwartz
 
 =item * Randy Harmon
 
+=item * Randy Kobes
+
 =item * Rauznitz Balazs
+
+=item * Rex Staples
 
 =item * Richard A. Wells
 
 =item * Richard Dice
 
+=item * Richard More
+
 =item * Rick Myers
 
 =item * Robin Berjon
 
+=item * Scott Fagg
+
+=item * Sean Dague
+
+=item * Shane shane@isupportlive.com
+
+=item * Stephane Benoit
+
+=item * Stephen Judd
+
 =item * Steve Reppucci
 
+=item * Steve Willer
+
+=item * Terry West
+
+=item * Tom Brown
+
+=item * Tom Christiansen
+
 =item * Tom Hughes
+
+=item * Tom Mornini
 
 =item * Tzvetan Stoyanov
 
@@ -593,7 +711,11 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Vivek Khera
 
+=item * Ward Vandewege
+
 =item * Wesley Darlington
+
+=item * Yann Kerhervé
 
 =item *  
 

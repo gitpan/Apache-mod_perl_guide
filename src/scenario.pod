@@ -231,8 +231,8 @@ server you will see them working very much faster.
 If your programming techniques are sloppy, some of your scripts will
 not work and they may exhibit strange behaviour.  Depending on the
 degree of sloppiness they may need anything from minor tweaking to a
-major rewrite to make them work properly.  (See L<Sometimes script
-works, sometimes does not|debug/Sometimes_script_works_sometime>)
+major rewrite to make them work properly.  (See L<Sometimes My Script
+Works, Sometimes It Does Not|debug/Sometimes_My_Script_Works_Somet> )
 
 The above setup is very basic, but as with Perl, you can start to
 benefit from mod_perl from the very first moment you try it.  As you
@@ -445,7 +445,7 @@ modules need to be re-compiled against the latest header files.
   % cd /usr/src/httpd_perl/mod_perl-x.xx
 
   % /usr/local/bin/perl Makefile.PL \
-  APACHE_PREFIX=/usr/local/ \
+  APACHE_PREFIX=/usr/local \
   APACHE_SRC=../apache_x.x.x/src \
   DO_HTTPD=1 \
   USE_APACI=1 \
@@ -575,9 +575,9 @@ scenario you can hide the nonstandard port number from firewalls and
 users, by using either mod_proxy's C<ProxyPass> directive or a proxy
 server like Squid.
 
-For more details see L<Publishing Port Numbers Different From 80
-|config/Publishing_Port_Numbers_Differen>, L<Running One Webserver and
-Squid in httpd Accelerator
+For more details see L<Publishing Port Numbers other than
+80|config/Publishing_Port_Numbers_other_th>, L<Running One Webserver
+and Squid in httpd Accelerator
 Mode|scenario/Running_One_Webserver_and_Squid_>, L<Running Two
 Webservers and Squid in httpd Accelerator
 Mode|scenario/Running_Two_webservers_and_Squid> and L<Using
@@ -930,8 +930,8 @@ your server will be rewritten correctly.  After a time users will
 change their bookmarks.  You can send them an email if you know the
 address, or you could leave a note on your pages asking users to
 update their bookmarks.  You will avoid this problem if you do not
-publish non-80 ports in the first place.  See L<Publishing port
-numbers different from 80|config/Publishing_Port_Numbers_Differen>.
+publish non-80 ports in the first place.  See L<Publishing Port
+Numbers other than 80|config/Publishing_Port_Numbers_other_th>.
 
 <META> Need to write up a section about server logging with squid. One
 thing I sure would like to know is how requests are logged with this
@@ -1249,7 +1249,7 @@ C<RewriteRule> that proxies everything else to the heavy Apache.
 Beware: if you put these two lines in the light I<httpd.conf> before
 the static directories are mentioned, then in this setup the light
 httpd may find itself in an infinite loop if somebody were to request
-for example I<</img>>.
+for example I<E<lt>/imgE<gt>>.
 
 Another way in which C<:8080>'s can creep into URLs is if you have
 Perl code which issues a redirect to C<http://$ENV{HTTP_HOST}/...>.
@@ -1658,15 +1658,35 @@ during the Apache B<./configure> stage.
 
 
 
-=head1 mod_proxy_add_forward and X-Forwarded-For header
+=head1 Getting the Remote Server IP in the Back-end server in the Proxy Setup
 
 Ask Bjoern Hansen has written the C<mod_proxy_add_forward> module for
 Apache.  It sets the C<X-Forwarded-For> field when doing a
 C<ProxyPass>, similar to what Squid can do.  Its location is specified
-in the help section.  Basically, this module adds an extra HTTP header
-to proxying requests.  You can access that header in the
-mod_perl-enabled server, and set the IP address of the remote server.
-You won't need to compile anything into the back-end server.
+in the L<download|download/mod_proxy_add_forward> section.
+
+Basically, this module adds an extra HTTP header to proxying requests.
+You can access that header in the mod_perl-enabled server, and set the
+IP address of the remote server.  You won't need to compile anything
+into the back-end server.
+
+=head2 Build
+
+Download the module and use its location as a value of the
+I<--activate-module> argument for I<./configure> utility within the
+Apache source code, so the module could be found.
+
+  ./configure \
+  "--with-layout=Apache" \
+  "--activate-module=src/modules/extra/mod_proxy_add_forward.c" \
+  "--enable-module=proxy_add_forward" \
+  ... other options ...
+
+I<--enable-module=proxy_add_forward> enables this module as you have
+guessed already.
+
+
+=head2 Use
 
 If you are using C<Apache::{Registry,PerlRun}> just put something like
 the following into I<startup.pl>:
@@ -1690,6 +1710,10 @@ And in C<httpd.conf>:
 
   PerlPostReadRequestHandler My::ProxyRemoteAddr
 
+Otherwise you retrieve it directly in your code.
+
+=head2 Security
+
 Different sites have different needs.  If you use the header to set
 the IP address, Apache believes it.  This is reflected in the logging
 for example.  You really don't want anyone but your own system to set
@@ -1707,6 +1731,8 @@ C<r-E<gt>connection-E<gt>remote_ip>.
 From that point on, the remote IP address is correct.  You should be
 able to access C<REMOTE_ADDR> as usual.
 
+=head2 Caveats
+
 It was reported that Ben Laurie's Apache-SSL does not seem to put the
 IP addresses in the C<X-Forwarded-For> header--it does not set up such
 a header at all.  However, the C<REMOTE_ADDR> it sets up and contains
@@ -1716,13 +1742,47 @@ You could do the same thing with other environment variables, although
 I think several of them are preserved.  You should run some tests or,
 maybe better, inspect the code to see which.
 
+=head2 mod_proxy_add_forward Module's Order Precedence Importance
 
+Some users report that they cannot get this module to work as
+advertised; they verify that the module is built in, but the front-end
+server is not generating the X-Forwarded-For header when requests are
+being proxied to the back-end server, and as a result, the back-end
+server has no idea what the remote IP is.
 
+As it turns out, I<mod_proxy_add_forward> needs to be configured in
+Apache before I<mod_proxy> in order to operate properly, since Apache
+gives highest precedence to the last defined module.
 
+Moving the two build options required to enable mod_proxy_add_forward
+while compiling Apache build appears to have no effect on the default
+configuration order of modules, since in each case, the builds show
+mod_proxy_add_forward last in the list (or first via I</server-info>).
 
+The solution is to explicitly define the configuration order in the
+I<http.conf> file, so that mod_proxy_add_forward appears before
+mod_proxy, and therefore gets executed after mod_proxy. (Modules are
+being executed in 'reverse' order, i.e. module that was I<Added> first
+will be executed last.)
 
+Obviously, this list would need to be tailored to match the build
+environment, but to easy this task just insert C<AddModule> directive
+before each entry reported by C<httpd -l> (and removing
+I<httpd_core.c>, of course):
 
+  ClearModuleList
+  AddModule mod_env.c
+  [more modules snipped]
+  AddModule mod_proxy_add_forward.c
+  AddModule mod_proxy.c
+  AddModule mod_rewrite.c
+  AddModule mod_setenvif.c
 
+Note that the above snippet is added to I<httpd.conf>.
+
+With this change, the C<X-Forwarded-For> header is now being sent to
+the back-end server, and the remote IP appears in the back-end
+server's access log.
 
 
 
@@ -1793,9 +1853,23 @@ These is the configuration of the logging facilities.
 It says: log all the rewrites thru the pipe to C<rotatelogs> utility
 which will rotate the logs every 2 hours (86400 secs).
 
+More examples:
+
+Redirect all those ie5 requests for I<favicon.ico> to a central image:
+
+  RewriteRule .*favicon.ico /wherever/favicon.ico [PT,NS]
+
+A quick way to make dynamic pages look static:
+
+  RewriteRule ^/wherever/([a-zA-Z]+).html /perl-bin/$1.cgi [PT]
 
 
+=head1 Caching in mod_proxy
 
+This is not really a mod_perl related, so I'll just stress one
+point. If you want the caching to work the following HTTP headers
+should be supplied: C<Last-Modified>, C<Content-Length> and
+C<Last-Modified>.
 
 =cut
 

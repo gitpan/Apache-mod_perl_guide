@@ -188,9 +188,9 @@ complicated and time consuming if your code has some thousands of
 lines.  In addition, under mod_perl, certain uses of the C<eval>
 operator and "here documents" are known to throw off Perl's line
 numbering, so the messages reporting warnings and errors can have
-incorrect line numbers.  (See L<Finding the Line Number the
-Error/Warning has been Triggered
-at|debug/Finding_the_Line_Number_the_Erro> for more information).
+incorrect line numbers. (See L<Finding the Line Which Triggered the
+Error or Warning|debug/Finding_the_Line_Which_Triggered> for more
+information).
 
 Getting the trace helps a lot.
 

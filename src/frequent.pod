@@ -2,9 +2,9 @@ title: Frequent mod_perl problems
 
 =head1 Coverage
 
-Some problems come up very often on the mailing list.  If you think
+Some problems come up very often on the mailing list.  If there is
 some important problem that is being reported frequently on the list
-is not included below, even if it is found elsewhere in the Guide,
+which is not included below, even if it is found elsewhere in the Guide,
 please L<tell me|help/Contacting_me>.
 
 
@@ -31,7 +31,9 @@ reliably.  If mod_perl is compiled statically into Apache, it just
 works, and you don't need to configure the web server with anything,
 and you'll probably need to comment out lines like "LoadModule ...".
 
-Also dee the section" L<mod_perl Deployment
+META: Not clear on last sentence -- are you saying that if you have a static version people I<will> have to comment out lines or they won't? If they will then the text is correct, if the won't then it should be: "...server with anything, and we shouldn't even need to comment out lines..."
+
+Also see the section" L<mod_perl Deployment
 Overview|strategy/mod_perl_Deployment_Overview>".
 
 

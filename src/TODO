@@ -1,5 +1,112 @@
 ###########################################
 
+You must rewrite the 
+
+performance.pod
+=head2 Preload Perl modules - Real Numbers
+
+It's a crap!!!
+
+First define the goal of testing and probably using GTop to make the
+process easier.
+
+###########################################
+
+debug.pod:
+
+Collect all these notes about stack traces generation (here in this file)
+
+the stacktrace looks right.  it would be more useful to see the line
+number, which you can see if you follow this tip for building mod_perl 
+from the SUPPORT doc:
+
+=item CORE DUMPS
+
+If you get a core dump, please send a backtrace if possible.
+Before you try, build mod_perl with perl Makefile.PL PERL_DEBUG=1
+which will:
+ -add `-g' to EXTRA_CFLAGS
+ -turn on PERL_TRACE
+ -set PERL_DESTRUCT_LEVEL=2 (additional checks during Perl cleanup)
+ -link against libperld if it exists
+
+
+
+###########################################
+
+Add a new section: 
+
+Transitioning from Apache::Registry to Apache handlers
+
+That should be pretty easy to convert, since you already have your main
+program logic off in a separate module.
+
+> Should I just use Apache::Request instead of CGI.pm? (I do use the
+> cookie & checkbox/pulldown functionality often). 
+
+Use Apache::Request and Apache::Cookie (both in the libapreq
+distribution).  I don't use the sticky forms stuff in CGI.pm, so I don't
+know if there's a handy replacement.  Check CPAN or just roll your own.
+Maybe you could make a subclass of Apache::Request that adds somemethods
+for this.
+
+> If there are any tutorials out there, I'd love some links. 
+
+It really isn't difficult enough to merit a tutorial, in my opinion.  It's
+just ordinary perl module stuff. 
+
+
+
+###########################################
+
+eagle book appendix B lists all the Makefile.PL options (we better
+include them all)
+
+###########################################
+
+> > META: Does it matter where we declare Apache::Peek, i.e. before/after
+> > Apache::Status?
+> > 
+> > No, it doesn't.
+> 
+> I asked this because when you talked about Apache::Status you made it
+> very clear that it *had to be first* so I kind of felt that since you'd
+> been explicit about that you ought to have said that the order of
+> Apache::Peek didn't matter -- since both Apache::Status and Apache::DBI
+> have order dependencies I think you should say which one's don't have  
+> order dependencies.
+
+
+###########################################
+
+A reader suggested:
+
+> It might be helpful to replicate some information about the the Apache Life
+> Cycle ( Eagle book pg 56 ), before talking about server startup file.
+
+config.pod
+
+###########################################
+
+debug: =head3 Safe Resource Locking
+
+You must review the section and correct this issue:
+
+If the file is reopened in the next script invocation, the previous fh
+will be closed and unlocked, but only from within the same process. 
+
+Regarding leakages, if you use open IN, ... probably there is no
+leakage because it's the same handler. In case of gensym or IO::File
+use you should check this issue.
+
+All the above is tentative and should be validated.
+
+###########################################
+
+I think that the Syg::Signal is being duplicated in two places!
+
+###########################################
+
 From: "Joseph R. Junkin" <jjunkin@datacrawler.com>
 To: Stas Bekman <sbekman@stason.org>
 Subject: Re: [summary+rfc] When One Machine is not Enough...
@@ -711,63 +818,138 @@ included in the server configuration
 ###################################
 
 
-IPC: http://www.cpan.org/modules/by-module/IPC/
-
- see IPC::MM, interface to rse's libmm, worth a look I'm sure.
- IPC::ShareLite
- IPC::Shareable (there is an example in the Perl Cookbook)
-
-
-From: Tom Christiansen <tchrist@jhereg.perl.com>
-To: Eric Cholet <cholet@logilune.com>
-Cc: "'modperl@apache.org'" <modperl@apache.org>,
-     'Mahesh Ganesan' <mGanesan@mvsn.com>
-Subject: Re: MOD_PERL question 
-
->> Can you kindly explain the above with an example.
-
->I've never used IPC::Shareable. "perldoc IPC::Shareable" should tell you<SNIP>
-
-Here's my perennial example:
-
-    use IPC::Shareable;
-
-    $handle = tie $buffer, 'IPC::Shareable', undef, { destroy => 1 };
-    $SIG{INT} = sub { die "$$ dying\n" };
-
-    for (1 .. 10) { 
-        unless ($child = fork) {        # i'm the child
-            die "cannot fork: $!" unless defined $child;
-            squabble();
-            exit;
-        } 
-        push @kids, $child;  # in case we care about their pids
-    }
-
-    while (1) {
-        print "Buffer is $buffer\n";
-        sleep 1;
-    } 
-    die "Not reached";
-
-    sub squabble {
-        my $i = 0;
-        while (1) { 
-            next if $buffer =~ /^$$\b/o;  
-            $handle->shlock();
-            $i++;
-            $buffer = "$$ $i";
-            $handle->shunlock();
-        }
-    } 
-
-I've had problems with the build of IPC::Shareable on my current
-system.  Its "make test" fails, and true enough, the Apache::SpeedLimit
-module conseuqently fails.  Some random linux and/or glibc bug, perhaps.
-
-
-
 ###################################
+
+This is a stuff to be integrated into the DB section, all mostly by jwb:
+
+Date: Thu, 14 Oct 1999 17:21:18 -0700
+From: Jeffrey Baker <jwb@cp.net>
+To: modperl@apache.org, dbi-users@isc.org
+Cc: sbekman@iil.intel.com
+Subject: More on web application performance with DBI
+
+Hi all,
+
+I have converted my text-only guide to web application performance
+using mod_perl and DBI into HTML.  The guide now lives alongside my
+DBI examples page at http://www.saturn5.com/~jwb/dbi-performance.html
+.
+
+I have also conducted a silly benchmark to see how all of these
+optimization affect performance.  Please remember that it is dangerous
+to extrapolate the results of a benchmark, especially one as
+rudimentary as this.  With that said please consider the following
+data.
+
+Environment:
+DB Server: Oracle 8.0.6, Sun Ultra2, 2 CPUs, 2GB RAM, Sun A1000 disks
+App Server: Linux, PII 350, 128MB RAM, Apache 1.3.6, mod_perl 1.19
+Benchmark Client: ApacheBench on same machine as application server
+
+Each benchmark consisted of a single request selecting one row from
+the database with a randomly selected primary key.  The benchmark was
+run through 1000 requests with 10 simultaneous clients.  The results
+were recorded using each level of optimization from my tutorial.
+
+Zero optimization: 41.67 requests/second
+Stage 1 (persistent connections): 140.17 requests/second
+Stage 2 (bound parameters): 139.20 requests/second
+Stage 3 (persistent statement handles): 251.13 requests/second
+
+It is interesting that the Stage 2 optimization didn't gain anything
+over Stage 1.  I think this is because of the relative simplicity of
+my query, the small size of the test database (1000 rows), and the
+lack of other clients connecting to the database at the same time.  In
+a real application, the cache thrashing that is caused by dynamic SQL
+statements would probably be detrimental to performance.  In any case
+Stage 2 paves the way for Stage 3, which certainly does increase the
+request rate!
+
+So, check it out at http://www.saturn5.com/~jwb/dbi-performance.html
+
+Date: Wed, 23 Feb 2000 23:18:23 -0800
+From: Jeffrey W. Baker <jwbaker@acm.org>
+To: modperl@apache.org
+Subject: Re: Database connection pooling... (beyond Apache::DBI)
+
+Greg Stark wrote:
+> 
+> Sean Chittenden <sean@serverninjas.com> writes:
+> 
+> >       Howdy.  We're all probably pretty familiar with Apache::DBI and
+> > the fact that it opens a database connection per apache process.  Sounds
+> > groovy and works well with only one or two servers.  Everything is gravy
+> > until you get a cluster of servers, ie 20-30 machines, each with 300+
+> > processes.
+> 
+> 300+ perl processes per machine? No way. The only way that would make _any_
+> sense is if your perl code is extremely i/o dependent and your perl code is
+> extremely light. Even then you're way better off having the i/o operations
+> queued quickly and processed asynchronously.
+
+This conversation happens on an approximately biweekly schedule,
+either on modperl or dbi-users, or some other list I have the
+misfortune of frequenting.  Please allow me to expand upon this
+subject a bit.
+
+I have not yet gotten a satisfactory answer from anyone who starts
+these threads regarding why they want connection pooling.  I suspect
+that people think it is needed because everyone else (Netscape,
+Microsoft, Bea) is doing it.  There is a particular kind of
+application where pooled connections are useful, and there are
+particular situations where it is a waste.  Every project I have ever
+done falls into the latter category, and I can only think of a few
+cases that fall under the former.
+
+Connection pooling is a system where your application server threads
+or processes, which number n on a single machine, share a pool of
+database connections which number fewer than n.  This is done to
+minimize the number of database connections which are open at once,
+which in turn is supposed to reduce the load on the database server.
+This is effective when database activity is a small fraction of the
+total load on the application server.  For example, if your
+application server mostly performs matrix manipulation, and only
+occassionally hits the database, it would make sense for it to
+relinquish the connection when it is not in use.
+
+The downside to connection pooling is that it imposes some overhead.
+The connections must be managed properly, and the scheme should be
+transparent to the programmer whose code is using it.  So when a piece
+of code requests a database connection, the connection manager needs
+to decide which one to return.  It may have to wait for one to free
+up, or it may have to open one based on some low-water-mark hueristic.
+It may also need to decide that a connection consumer has died or gone
+away, possibly taking the connection with it.  So you can see that
+opening a pooled connection is more computationally expensive than
+opening a dedicated connection.
+
+This pooling overhead is a total waste of time when the majority of
+what your application is doing is database-related.  If your program
+will issue 100 queries and performa transaction during the course of
+fulfilling a request, pooled connections will not make sense.  The
+reason is that Apache already provides a mechanism for killing off
+database connections in this scenario.  If a process or thread is
+sitting about idle, Apache will come along an terminate it, freeing
+the database connection in the process.  For database-bound or
+transactional programs, the one-to-one mapping of processes to
+database connections is ideal.
+
+Pooling is also less attractive because modern databases can handle
+many connections.  Oracle with MTS will run fine with just as many
+connections as you care to open.  The application designer should
+study how many connections he realistically plans to open.  If your
+application is bound by database performance, it makes sense to cap
+the number of clients, so you would not allow you applications to open
+too many connections.  If your application is transactional, you don't
+have any choice but to give each processes its own dedicated
+connection.  If your application is compute-bound, then your database
+is lightly loaded and you won't mind opening a lot of connections.
+
+The summary is that if your application is database-bound, or is
+processing transactions, you don't need or even want connection
+pooling.
+
+
 
 ###################################
 
@@ -1369,7 +1551,7 @@ if (! defined($cookie) || $no_cookie) {
 
 
 ##########################################################################
-                                                     
+                 
 
 #################################################################
 

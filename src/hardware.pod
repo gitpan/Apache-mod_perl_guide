@@ -3,22 +3,22 @@ title: Choosing an Operating System and Hardware
 =head1 Is it important?
 
 You can invest a lot of time and money into server tuning and code
-rewriting according the guidelines you have just learned, but your
+rewriting according the guidelines you have just learned, but your code's
 performance will be really bad if you do not take into account the
 hardware demands, and do not wisely choose the operating system suited
-for your needs. While the tips below apply to any webserver, they are
-written for an administrator of a mod_perl-enabled webserver
+to your needs. While the tips below apply to any webserver, they are
+aimed at administrators of mod_perl-enabled webservers.
 
 =head1 Choosing an Operating System
 
 First let's talk about Operating Systems (OS). While I am personally a
 Linux devotee, I do not want to start yet another OS war. Assuming
 this, I will try to define what you should be looking for, then when
-you know what do you want from your OS, go find it. Visit the Web
+you know what you want from your OS, go find it. Visit the Web
 sites of operating systems you are interested in.  You can gauge
 user's opinions by searching relevant discussions in newsgroup and
 mailing list archives such as Deja - http://deja.com and eGroups -
-http://egroups.com . I will leave this fan research up to you. But I
+http://egroups.com . I will leave this fan research to the reader. But I
 would use Linux or something from the *BSD family.
 
 =head2 Stability and Robustness
@@ -31,128 +31,129 @@ off-line, for your customers will go shop at another service like
 yours, unless you have a monopoly :) . If the OS of your choice
 crashes every day or so, I would throw it away, after doing a little
 investigation, for there might be a reason for a system crash. Like a
-runaway server that eats up all the memory and disk, so you cannot
-blame the OS for that. Generally, people who use the OS for some time
-can tell you a lot about its stability.
+runaway server that eats up all the memory and disk space, so you
+cannot blame the OS for that. Generally, people who use the OS for
+some time can tell you a lot about its stability.
 
 =head2 Memory Management
 
 You want an OS with a good memory management, some OSes are well known
 as memory hogs. The same code can use twice as much memory on one OS
-compared to the other. If the size of the mod_perl process is 10Mb and
+compared to another. If the size of the mod_perl process is 10Mb and
 you have tens of these running, it definitely adds up!
 
 =head2 Memory Leakages
 
-Some OSes and/or the libraries (like C runtime libraries) suffer from
-memory leaks. You cannot afford such a system, for you are already
+Some OSes and/or their libraries (like C runtime libraries) suffer from
+memory leaks. We cannot afford such systems, for we already
 know that a single mod_perl process sometimes serves thousands of
-requests before itimer terminates. So if a leak occurs on every request,
-your memory demands will be huge. Of course your code can be the cause
+requests before it terminates. So if a leak occurs on every request,
+our memory demands will be huge. Of course our code can be the cause
 of the memory leaks as well (check out the C<Apache::Leak>
-module). Certainly, you can lower the number of requests to be served
+module). Certainly, we can lower the number of requests to be served
 over the process' life, but that can degrade performance.
 
 =head2 Sharing Memory
 
-You want an OS with good memory sharing capabilities. As you have
-learned, if you preload the modules and scripts at server startup,
-they are shared between the spawned children, at least for a part of a
-process' life span, since memory pages become "dirty" and cease to
-be shared. This feature can save you up a lot of memory!
+We want an OS with good memory sharing capabilities. As we have
+learnt, if we preload the modules and scripts at server startup, they
+are shared between the spawned children, at least for a part of a
+process' life span, since memory pages can become "dirty" and cease to
+be shared. This feature can save us a lot of memory!
 
 =head2 Cost and Support
 
-If you are in a big business you are probably do not mind paying
-another $1000 for some fancy OS and to get the bundled support for
-it. But if your resources are low, you will look for cheaper and free
-OS. Free does not mean bad, it can be quite opposite as we all either
-know from our own experience or read about in news. Free OSes could
-have and do have the best support you can find. It is very easy to
-understand - most of the people are not rich and will try to use a
-cheaper or free OS first if it does the work for them. Since it really
-fits their needs, many people keep using it and eventually know it
-well enough to be able to provide support for others in trouble.  Why
-would they do this for free? For the spirit of the first days of the
-Internet, when there was no commercial Internet and people helped each
-other, because someone helped them in first place. I was there, I was
-touched by that spirit and I will do anything to keep that spirit
-alive.
+If we are in a big business we probably do not mind paying another
+$1000 for some fancy OS with bundled support.  But if our resources
+are low, we will look for cheaper and free OSs. Free does not mean
+bad, it can be quite the opposite as we all either know from our own
+experience or have read about in the news. Free OSs could have and do
+have the best support we can find. It is very easy to understand -
+most of the people are not rich and will try to use a cheaper or free
+OS first if it does the work for them. Since it really fits their
+needs, many people keep using it and eventually know it well enough to
+be able to provide support for others in trouble.  Why would they do
+this for free? For the spirit of the first days of the Internet, when
+there was no commercial Internet and people helped each other, because
+someone helped them in first place. I was there, I was touched by that
+spirit and I will do anything to keep that spirit alive.
 
 But, let's get back to our world. We are living in material world, and
-our bosses pay us to keep the systems running. So if you feel that you
-cannot provide the support yourself and you do not trust the available
-free resources, you must pay for an OS backed by a company, and blame
-them for any problem. Your boss wants to be able to sue someone if the
+our bosses pay us to keep the systems running. So if we feel that we
+cannot provide the support ourselves and we do not trust the available
+free resources, we must pay for an OS backed by a company, and blame
+them for any problem. Our boss wants to be able to sue someone if the
 project has a problem caused by the external product that is being
-used in the project.  If you buy a product and the company selling it,
-claims support, you have someone to sue. You do not have someone to
-sue other than getting yourself fired if you go with Open Source and
+used in the project.  If we buy a product and the company selling it,
+claims support, we have someone to sue. We do not have someone to
+sue other than getting ourself fired if we go with Open Source and
 it fails.
 
 Also remember that if you spend less or zero money on OS and Software,
-you will be able to buy a better and stronger hardware.
+you will be able to buy better and stronger hardware.
 
 =head2 Discontinued products
 
 You have invested a lot of time and money into developing some
 proprietary software that is bundled with the OS you were developing
-on. Like writing a mod_perl handler that takes advantage of some
-proprietary features of the OS and it will not run on any other
+under. Like writing a mod_perl handler that takes advantage of some
+proprietary features of the OS and will not run on any other
 OS. Things are under control, the performance is great and you sing
-from happiness. But... one day the company who wrote your beloved OS
-goes bankrupt, which is not unlikely to happen nowadays. You are stuck
-with their last masterpiece and no support! What you are going to do
-then? Invest more into porting the software to another OS...
+with happiness. But... one day the company who wrote our beloved OS
+goes bankrupt, which is not unlikely to happen nowadays, or they
+produce a newer incompatible version and they will not support the old
+version our code runs under (and this happens regularly). You are
+stuck with their last masterpiece and no support! What you are going
+to do then? Invest more into porting the software to another OS...
 
 Everyone can be hit by this mini-disaster, so it is better to check
 the background of the company when making your choice, but still you
-never know what will happen tomorrow. The OSes in this hazard group
-are completely developed by a single companies. Free OSes are probably
+never know what will happen tomorrow. The OSs in this hazard group
+are completely developed by single companies. Free OSs are probably
 less susceptible to this, for development is distributed between many
 companies and developers, so if a person who developed a really
 important part of the kernel lost interest in continuing, someone else
 will pick the falling flag and carry on.  Of course if tomorrow some
 better project showed up, developers might migrate there and finally
-drop the development, but we are here not to let this happen.
-
-In the final analysis, the decision is yours.
+drop the development: but in practice people are given support on older
+versions and helped to migrate to current versions.
 
 =head2 OS Releases
 
-Actively developed OSes generally try to keep the pace with the latest
+Actively developed OSs generally try to keep pace with the latest
 technology developments, and continually optimize the kernel and other
 parts of the OS to become better and faster. Nowadays, Internet and
 networking in general are the hottest targets for system
-developers. Sometimes a simple OS upgrade to a latest stable version,
-can save you an expensive hardware upgrade. Also, remember that when
-you buy new hardware, chances are that the latest software will make
-the most of it. Since the existing software (drivers) might support
-the brand new product because of its backwards compatibility with
-previous products of the same family, it might not reap all the
+developers. Sometimes a simple OS upgrade to the latest stable
+version, can save you an expensive hardware upgrade. Also, remember
+that when you buy new hardware, chances are that the latest software
+will make the most of it. Since the existing software (drivers) might
+support the brand new product because of its backwards compatibility
+with previous products of the same family, it might not reap all the
 benefits of the new features. It means that you could spend much less
 money for almost the same functionality if you were to buy a previous
 model of the same product.
 
 =head1 Choosing Hardware
 
-Since I am not fond of the idea of updating this section every day a
-new processor or memory type comes out, I will only hint what should
-you look for and suggest that sometimes the most expensive machine is
-not the one which provides the best performance.
+Since I am not fond of the idea of updating this section every time a
+new processor or memory type comes out, I will only hint about what
+you should look for and suggest that sometimes the most expensive
+machine is not the one which provides the best performance.
 
 Your demands are based on many aspects and components. Let's discuss
 some of them.
 
-In discussion course you might meet some unfamiliar terms, here are
-some of them:
+In discussion course we use terms that may be unfamiliar to some readers: 
 
 =over 4
 
 =item *
 
-Clustering - a bunch of machines connected together to perform one big
-or many small computational tasks in a reasonable time.
+Clustering - a group of machines connected together to perform one big
+or many small computational tasks in a reasonable time. Clustering is also
+used to provide 'fail-over' where if one machine fails its work is
+transparently transferred to another without any interruption of service.
 
 =item *
 
@@ -162,7 +163,7 @@ so you use a clustering approach, distributing the load over a number
 of machines. The central server, the one users access when they type
 the name of the service, works as a dispatcher, by redirecting
 requests to the rest of the machines, sometimes it also collects the
-results and return them to the users. One of the advantages is that
+results and returns them to the users. One of the advantages is that
 you can take one of the machines down for a repair or upgrade, and
 your service will still work - the main server will not dispatch the
 requests to the machine that was taken down. I will just say that
@@ -186,23 +187,23 @@ RAID - META
 =head2 Expected site traffic
 
 If you are building a fan site, but want to amaze your friends with a
-mod_perl guest book, an old 486 machine will do it. If you are into a
+mod_perl guest book, an old 486 machine could do it. If you are into a
 serious business, it is very important to build a scalable server, so
-if your service is successful and becomes popular, you get your
-server's traffic doubled every few days, you should be ready to add
-more resources dynamically. While we can define the webserver
-scalability more precisely, the important thing is to make sure that
-you can add more power to your webserver(s) without investing
-additional money into a software developing (almost, you will need a
-software to connect your servers if you add more of them). It means
-that you should choose a hardware/OS that can talk to other machines
-and become a part of the cluster.
+if your service is successful and becomes popular, your server's
+traffic doubles every few days, you should be ready to add more
+resources dynamically. While we can define the webserver scalability
+more precisely, the important thing is to make sure that you can add
+more power to your webserver(s) without investing additional money
+into a software development (almost, you will need a software to
+connect your servers if you add more of them). It means that you
+should choose a hardware/OS that can talk to other machines and become
+a part of the cluster.
 
-From the other hand if you prepare for a big traffic and buy a monster
-to do the work for you, what happens if your service does not prove to
-be as successful as you thought it would be. Then you spent too much
-money and meanwhile there were a new faster processors and other
-hardware components released, so you loose again.
+From the other hand if you prepare for a lot of traffic and buy a
+monster to do the work for you, what happens if your service does not
+prove to be as successful as you thought it would be. Then you've
+spent too much money and meanwhile there were a new faster processors
+and other hardware components have been released, so you lose again.
 
 Wisdom and prophecy , that's all it takes :)
 
@@ -219,20 +220,20 @@ powerful.
 If you really need a lot of power do not think about a single strong
 machine (unless you have money to throw away), think about clustering
 and load balancing. You can probably buy 10 times more older but very
-cheap machines and have a 8 times more power, then purchasing only one
+cheap machines and have a 8 times more power, than purchasing only one
 single new machine. Why is that? Because as I mentioned before
 generally the performance improvement is marginal while the price is
-much bigger. Because 10 machines will do faster disk I/O, than one
+much higher. Because 10 machines will do faster disk I/O, than one
 single machine, even if the disk is much faster. Yes, you have more
 administration overhead, but there is a chance you will have it
 anyway, for in a short time the machine you have just invested in will
 not stand the load anyway and you will have to purchase more and think
-how to implement load balancing and file system distribution.
+about how to implement load balancing and file system distribution.
 
 Why I am so convinced? Facts! Look at the most used services on the
 Internet: search engines, email servers and the like -- most of them
-are using a clustering approach. While you may not always notice that,
-they do it by hiding the real implementation behind the proxy servers.
+are using a clustering approach. While you may not always notice this,
+because they hide the real implementation behind proxy servers.
 
 =head2 Internet Connection
 
@@ -259,7 +260,7 @@ has good global connectivity. If the Web site is going to be visited
 mostly by people in a certain country or region, your server should
 probably be located there.
 
-And a bad connectivity can directly influence your machine's
+And bad connectivity can directly influence your machine's
 performance. Here is a story, one of the developers told on the
 mod_perl mailing list:
 
@@ -286,7 +287,7 @@ mod_perl mailing list:
 =head2 I/O performance
 
 If your service is I/O bound (does a lot of read/write operations to
-disk, remember that relational databases are sitting on disk as well)
+disk, remember that relational databases are sitting on disk as well),
 you need a very fast disk. So you should not spend money on Video card
 and monitor (monochrome card and 14" B&W are perfectly adequate for a
 server -- you will probably be telnetted or ssh-ed in most of the
@@ -312,44 +313,44 @@ onboard is not good enough.
 
 How much RAM (Randomly Accessed Memory) do you need? Nowadays, chances
 are you will hear: "Memory is cheap, the more you buy the better". But
-how much is enough? The answer pretty straightforward: "You do not
+how much is enough? The answer is pretty straightforward: "You do not
 want your machine to swap". When the CPU needs to write something into
 memory, but notices that it is already full, it takes the least
 frequently used memory pages and swaps them out. Swapping out means
 writing the data to disk.  Another process then references some of its
-own data, which happens to be on one of the pages that were just
+own data, which happens to be on one of the pages that has just been
 swapped out. The CPU, ever obliging, swaps it back in again, probably
 swapping out some other data that will be needed very shortly by
 another process. Carried to the extreme, the CPU and disk start to
 thrash hopelessly in circles, without getting any real work done.  The
 less RAM there is, the more often this scenario arises. Worse, you can
-exhaust swap space as well, and then the troubles really set in...
+exhaust swap space as well, and then the troubles really start...
 
-How do you make a decision? You know the highest rate your server
-expects to serve pages and how long it takes to do so. Now you can
-calculate how many server processes you need. Knowing the maximum size
-any of your servers can get, you know how much memory you need. You
-probably need less memory than you have calculated if your OS supports
-memory sharing and you know how to make best use of this feature
-(preloading the modules and scripts at server startup). Do not forget
-that other essential system processes need memory as well, so you
-should plan not only for the web server, but also take into account
-the other players. Remember that requests can be queued, so you can
-afford to let your client wait for a few moments until a server is
-available to serve it, your numbers will be more correct, since you
-generally do not have the highest load, but you should be ready to
-bear the peaks. So you need to reserve at least 20% of free memory for
-peak situations. Many sites have crashed a few moments after a big
-scoop about them was posted and unexpected number of requests suddenly
-came in. (This is called a Slashdot effect, which was born at
-http://slashdot.org ) If you are about to announce something cool, be
-aware of the possible consequences.
+How do you make a decision? You know the highest rate at which your
+server expects to serve pages and how long it takes to do so. Now you
+can calculate how many server processes you need. Knowing the maximum
+size any of your servers can get, you know how much memory you
+need. You probably need less memory than you have calculated if your
+OS supports memory sharing and you know how to make best use of this
+feature (preloading the modules and scripts at server startup). Do not
+forget that other essential system processes need memory as well, so
+you should plan not only for the web server, but also take into
+account the other players. Remember that requests can be queued, so
+you can afford to let your client wait for a few moments until a
+server is available to serve it; your numbers will be more correct,
+since you generally do not have the highest load, but you should be
+ready to bear the peaks. So you need to reserve at least 20% of free
+memory for peak situations. Many sites have crashed a few moments
+after a big scoop about them was posted and an unexpected number of
+requests suddenly came in. (This is called the Slashdot effect, which
+was born at http://slashdot.org ) If you are about to announce
+something cool, be aware of the possible consequences.
 
 =head2 Bottlenecks
 
 The most important thing to understand is that you might use the most
 expensive components, but still get bad performance. Why? Let me
-introduce an annoying word: A bottleneck.
+introduce an annoying word: bottleneck.
 
 A machine is an aggregate of many big and small components. Each one
 of them may be a bottleneck. If you have a fast processor but a small
@@ -357,7 +358,7 @@ amount of RAM (memory), the processor will be under-utilized waiting
 for the kernel to swap the memory pages in and out, because memory is
 too small to hold the most used ones. If you have a lot of memory and
 a fast processor and a fast disk, but a slow controller - the
-performance will be bad, and you have wasted money.
+performance will still be bad, and you will have wasted money.
 
 Use a fast NIC (Network Interface Card) that does not create a
 bottleneck. If it is slow, the whole service is slow. This is the most
@@ -368,9 +369,9 @@ disk-bound!
 
 To use your money optimally you have to understand the hardware very
 well, so you will know what to pick. Otherwise, you should hire a
-knowledgeable hardware consultants and employ him/her on a regular
-basis, since your demands will probably change as time goes by and
-your hardware will likewise be forced to adapt as well.
+knowledgeable hardware consultants and employ them on a regular basis,
+since your needs will probably change as time goes by and your
+hardware will likewise be forced to adapt as well.
 
 =cut
 

@@ -2,13 +2,13 @@ title: mod_perl Advocacy
 
 =head1 Thoughts about scalability and flexibility
 
-Your need for scalability and flexibility depends on your needs from
-the web.  If you want only a simple guest book or database gateway
+Your need for scalability and flexibility depends on what you need from
+your web site.  If you only want a simple guest book or database gateway
 with no feature headroom, you can get away with any
 EASY_AND_FAST_TO_DEVELOP_TOOL (Exchange, MS IIS, Lotus Notes, etc).
 
-Experience shows that you will soon want more functionality, that's
-the point you'll discover the limitations of these "easy" tools.
+Experience shows that you will soon want more functionality, at which
+point you'll discover the limitations of these "easy" tools.
 Gradually, your boss will ask for increasing functionality and at some
 point you'll realize that the tool lacks flexibility and/or
 scalability.  Then your boss will either buy another
@@ -19,8 +19,10 @@ easier.
 
 If you and your company are serious about delivering flexible Internet
 functionality, do your homework.  Then urge your boss to invest a
-little extra time and resources to choose the right tool for the job.
-Your long-term Internet site will prove the results.
+little extra time and resource into choosing the right tool for the job.
+The extra quality and manageability of your site along with your ability to
+deliver new and improved functionality of high quality and in good time will
+prove the superiority of using solid flexible tools.
 
 =head1 The boss, the developer and advocacy
 
@@ -29,22 +31,22 @@ process.  Remember that the boss considers input from sales people,
 developers, the media and associates before handing down large
 decisions.  Of course, results count!  A sales brochure makes very
 little impact compared to a working demonstration, and demonstrations
-of company-specific and developer-specific results count big!
+of company-specific and developer-specific results count for a lot!
 
 Personally, when I discovered mod_perl I did a lot of testing and
 coding at home and at work. Once I had a working heavy application, I
-came to my boss with 2 URLs - one for the plain CGI server and the
+came to my boss with two URLs - one for the plain CGI server and the
 other for the mod_perl-enabled server. It took about 30 secs for my boss
-to say: `Go with it''. Of course the moment I did it, I have had to
-provide all the support for other developers, that is why I took
-time to learn it in first place (that is how this guide was born!).
+to say: `Go with it'. Of course since the moment I did it, I have had to
+provide all the support for other developers, which is why I took
+time to learn it in first place (and why this guide was created!).
 
-Chances are that if you've done your homework, you've learned the
-tools and can deliver results, you'll have a successful project.
-If you convince your boss to try a tool that you don't know very well,
-your results may suffer.  If your boss follows your development
-process closely and sees much worse than expected progress, he might
-say "forget it" and wish never to give mod_perl a second chance.
+Chances are that if you've done your homework, learnt the tools and
+can deliver results, you'll have a successful project.  If you
+convince your boss to try a tool that you don't know very well, your
+results may suffer.  If your boss follows your development process
+closely and sees much worse than expected progress, you might be told
+to "forget it" and never give mod_perl a second chance.
 
 Advocacy is a great thing for the open-source software movement, but
 it's best done quietly until you have confidence that you can show
@@ -83,32 +85,32 @@ Perl is even faster to develop with if you know what CPAN is :)
 
 =item *
 
-Math intensive code and other stuff which is faster in C/C++, plugged
-in into Perl with XS/SWIG and transparent to perl user of the modules.
+Math intensive code and other stuff which is faster in C/C++, can be
+plugged into Perl with XS/SWIG and may be used transparently by Perl
+programmers.
 
 =item *
 
-Most CGI apps do text processing, where perl excels at
+Most CGI apps do text processing, which perl excels at
 
 =item *
 
-Forking and loading (unless code is shared) a C/C++ optimized CGI
-produces an overhead
+Forking and loading (unless code is shared) of C/C++ optimized CGI
+programs produces an overhead
 
 =item *
 
-Bandwidth is a bigger bottleneck than perl performance (vs C/C++) (not
-true for Intranets, and might change for Internet in a number of
-years)
+Bandwidth is a bigger bottleneck than perl performance (vs C/C++) (except
+for Intranets, although this might change in a number of years)
 
 =item *
 
-For database driven apps, db itself is a bottleneck.  lots of posts
-talk about latency vs throughput.
+For database driven applications, the database itself is a bottleneck.  
+Lots of posts talk about latency vs throughput.
 
 =item *
 
-mod_perl, FastCGI, velocigen and perlexec are good solutions for plain
+mod_perl, FastCGI, Velocigen and PerlEx are good replacements for plain
 mod_cgi slowness
 
 =item *

@@ -108,7 +108,10 @@ Your mileage may vary.
 
 The DSO module (C<mod_so>) adds size and complexity to your binaries.
 
-See L<Build mod_perl as DSO inside Apache source tree via
+Refer to the section L<"Pros and Cons of Building mod_perl as
+DSO|strategy/Pros_and_Cons_of_Building_mod_pe"> for more information.
+
+Build details: L<Build mod_perl as DSO inside Apache source tree via
 APACI|install/Build_mod_perl_as_a_DSO_inside_t>
 
 
@@ -287,11 +290,11 @@ C<http://www.nowhere.com/icons/arrow.gif> is a full URL, while
 C</icons/arrow.gif> is a relative one. Using C<<BASE
 HREF="http://www.nowhere.com/">> in the generated HTML is another way
 to handle this problem. Also the C<httpd_perl> server could rewrite
-the requests back to C<httpd_docs> (much slower) and you still need the
-attention of the heavy servers.  This is not an issue if you hide the
-internal port implementations, so the client sees only one server running
-on port C<80>. (See L<Publishing port numbers different from
-80|config/Publishing_Port_Numbers_Differen>)
+the requests back to C<httpd_docs> (much slower) and you still need
+the attention of the heavy servers.  This is not an issue if you hide
+the internal port implementations, so the client sees only one server
+running on port C<80>. (See L<Publishing Port Numbers other than
+80|config/Publishing_Port_Numbers_other_th>)
 
 
 The disadvantages:
@@ -401,10 +404,8 @@ redirection, customizable log file formats, and so on.
 
 =back
 
-
-
-
-
+META: It seems that khttpd, or Phhttpd should be even faster for
+static content serving, add more info about these two!
 
 
 
@@ -959,6 +960,250 @@ have to serve and the hit rate.
 
 
 
+=head1 Do not put mod_ssl into mod_perl server
+
+If you need an SSL functionality, you can get it by adding the mod_ssl
+or equivalent apache_ssl to the light front-end server (httpd_docs) or
+the heavy back-end mod_perl server (httpd_perl). ( The configuration
+and installation instructions are located
+L<here|install/mod_perl_and_mod_ssl_openssl_>.)
+
+The question is whether it's a good idea to add mod_ssl into the
+back-end mod_perl enabled server.  Given that your internal network is
+secured or if both the front and back end servers are running on the
+same machine and you can ensure a safe communication between the
+processes there is no need for an encrypted traffic between them.
+
+If this is the situation you don't have to put mod_ssl into the
+already too much heavy mod_perl server. You will have the external
+traffic encrypted by the front-end server, which will proxy-pass the
+unencrypted request and response data internally.
+
+Another important point is if you put the mod_ssl on the back-end, you
+have to tunnel back your images to it (i.e. have the back-end serve
+the images) defeating the whole purpose of having the front-end
+lightweight server. 
+
+You cannot serve a secure page which includes non-secured
+information. If you fetch an html over SSL and have an C<<IMG>> tag
+that fetches the image from the non-secure server, the image show
+broken. This is true for any other non-secured object as well. Of
+course if the generated response doesn't include any embedded objects,
+like images -- this is not a problem.
+
+Choosing the front-end machine to have an SSL functionality also
+simplifies configuration of mod_perl by eliminating VirtualHost
+duplication for SSL. mod_perl configuration files can be plenty
+difficult without the mod_ssl overhead.
+
+Also assuming that you have front-end machines under-worked anyway,
+especially if you run a high-volume web service deploying a cluster of
+machines to serve requests, you save some CPU as it's known that SSL
+connections are about 100 times more CPU intensive than non-SSL
+connections.
+
+Of course caching session keys so you don't have to set up a new
+symmetric key for every single connection, improves the situation.  If
+you use the shared memory session caching mechanism that mod_ssl
+supports, then the overhead is actually rather small except for the
+initial connection.
+
+But then on the other hand, why even bother to run a full scale
+mod_ssl in front? You might as well just choose a small tunnel/port
+forwarding application like Stunnel or one of the many other mentioned
+at http://www.openssl.org/related/apps.html.
+
+Of course if you do a heavy SSL processing you should really be
+offloading it to dedicated cryptography hardware.
+
+
+
+
+
+
+
+
+=head1 Pros and Cons of Building mod_perl as DSO
+
+On modern Unix derivatives there exists a nifty mechanism usually
+called dynamic linking/loading of Dynamic Shared Objects (DSO) which
+provides a way to build a piece of program code in a special format
+for loading it at run-time into the address space of an executable
+program.
+
+As of Apache 1.3, the configuration system supports two optional
+features for taking advantage of the modular DSO approach: compilation
+of the Apache core program into a DSO library for shared usage and
+compilation of the Apache modules into DSO files for explicit loading
+at run-time.
+
+Should you use this method? Read the pros and cons and decide for
+yourself.
+
+Pros:
+
+=over 
+
+=item *
+
+The server package is more flexible at run-time because the actual
+server process can be assembled at run-time via C<LoadModule>
+I<httpd.conf> configuration commands instead of I<Configuration>
+C<AddModule> commands at build-time.  For instance this way one is
+able to run different server instances (standard & SSL version, with
+and without mod_perl) with only one Apache installation.
+
+=item *
+
+The server package can be easily extended with third-party modules
+even after installation.  This is at least a great benefit for vendor
+package maintainers who can create a Apache core package and
+additional packages containing extensions like PHP3, mod_perl,
+mod_fastcgi, etc.
+
+=item *
+
+Easier Apache module prototyping because with the DSO/apxs pair you
+can both work outside the Apache source tree and only need an S<apxs
+-i> command followed by an S<apachectl restart> to bring a new version
+of your currently developed module into the running Apache server.
+
+
+=back
+
+Cons:
+
+=over 
+
+=item *
+
+The DSO mechanism cannot be used on every platform because not all
+operating systems support dynamic loading of code into the address
+space of a program.
+
+=item *
+
+The server is approximately 20% slower at startup time because of the
+symbol resolving overhead the Unix loader now has to do.
+
+=item *
+
+The server is approximately 5% slower at execution time under some
+platforms because position independent code (PIC) sometimes needs
+complicated assembler tricks for relative addressing which are not
+necessarily as fast as absolute addressing.
+
+=item *
+
+Because DSO modules cannot be linked against other DSO-based libraries
+(ld -lfoo) on all platforms (for instance a.out-based platforms
+usually don't provide this functionality while ELF-based platforms do)
+you cannot use the DSO mechanism for all types of modules. Or in other
+words, modules compiled as DSO files are restricted to only use
+symbols from the Apache core, from the C library (libc) and all other
+dynamic or static libraries used by the Apache core, or from static
+library archives (libfoo.a) containing position independent code. The
+only chances to use other code is to either make sure the Apache core
+itself already contains a reference to it, loading the code yourself
+via dlopen() or enabling the SHARED_CHAIN rule while building Apache
+when your platform supports linking DSO files against DSO libraries.
+
+=item *
+
+Under some platforms (many SVR4 systems) there is no way to force the
+linker to export all global symbols for use in DSO's when linking the
+Apache httpd executable program. But without the visibility of the
+Apache core symbols no standard Apache module could be used as a
+DSO. The only chance here is to use the SHARED_CORE feature because
+this way the global symbols are forced to be exported. As a
+consequence the Apache src/Configure script automatically enforces
+SHARED_CORE on these platforms when DSO features are used in the
+Configuration file or on the configure command line.
+
+=back
+
+
+
+
+
+=head1 Multithreading or not Multithreading
+
+I want to quote this question that showed up and the mod_perl list and
+the answer in their entireness. By the way, this question has been
+asked before perl5.6 and apache2.0 have been released (both with
+multithread support).
+
+John Henckel has asked:
+
+Thanks for your help.  I am slowly coming to terms with the fact that
+Perl is not multithreaded and so it will never be able to scale the
+way I need it to.  It is only a couple thousand lines of code.  I will
+have to rewrite it as a servlet in Java or else a C program using the
+FastCGI protocol.
+
+Many people thing FCGI can't handle multiple concurrent requests,
+however, that is only a perl limitation.  The C-FCGI interface, with
+multithreading, can process hundreds of CGI request simulataneously in
+ONE process with ONE socket to the Apache server.
+
+Shane has replied:
+
+Arg...!  Okay, lets backup.  Multithreading is not a good idea.  What
+your talking about is a process which takes 4 seconds to complete...,
+what are we talking about, remote system communication?  You have a
+process which takes 4 seconds to finish, it doesn't matter what you
+use as your design... it still takes 4 seconds.  If you have 100
+requests for a 4 second process... its going to take 400 seconds.
+(Actually, due to context switching, probably more like 500)
+
+Multi-threading ADDs, not subtracts from the load.  But you see it all
+depends on what sort of architecture your going to use too.  If you
+going to use a single processor machine, multithreading is going to
+slow the whole process down.  If your using a computer that has 100s
+of processors, then clearly, multithreading is the approach to take.
+
+The perl "limitation" of which is you speak is not a limitation per
+se.  Its a limitation if your only using one instance of the perl
+interpretor.  But you are free to use more than one instance of that
+interpretor.  (perldoc perlembed) However, it makes zero sense to have
+more interpretors than processors... due the context switching issue.
+
+The best way to solve the problem is to have one "processing" thread
+per processor.  (I.e. the thread that does work on the request that is
+supposed to take 4 seconds) That thread can be directly written in c,
+or you can write some code for a perl interpretor to process.  No big
+deal.., just keep in mind, if you start opening up more processing
+threads than processors you have and start cramming requests down
+throat faster than once per four seconds, the things going to tumble
+like dominos.  The best thing you could possibly do is this: Setup an
+engine of your own to handle this 4 second long process.  Initiate as
+many threads as you have processors.  Start a queue of processes that
+can be however long.  Hand out 4 second long processes to the queue.
+
+This design will keep things from crashing.  Even better would be to
+have a series of computers that grab requests from others.  I.e. setup
+a central thread written in c, then have it act as a queue.
+Processing threads grab new requests from that queue, and deliver
+them.  This is of course based on your effort of running a process
+that takes 4 seconds.
+
+If this is about remote communication, which I have no idea why it
+wouldn't be unless your doing some strange number crunching, then what
+you want to do is read up on select(), and poll().  Or if you want to
+have it work really well, read up on rt signal queues, and run on the
+2.3.x linux kernel, or some other unix variant.
+
+I'll reiterate... having more threads than processors in ANY language
+is a bad idea, if it can be avoided.  Which it can if you use the
+newer programming stuff.  Moving to Java will not solve your problems,
+it will create 100x worse ones in terms of performance.  Moving to c
+will not solve your problems.  Moving to Perl will not solve your
+problem.  Investigating your problem clearly will help eventually
+solve your problem.  (BTW: No CGI request should take 4 seconds to
+process, unless you are querying a database on the other side of the
+planet.  Unless its some sort of mathematics lab searching for prime
+numbers or something.  I might sound like I'm joking..., but I most
+certainly am not.)
 
 
 

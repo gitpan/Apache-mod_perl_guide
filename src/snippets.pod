@@ -220,6 +220,34 @@ If for some reason you need to use them in Error control code use:
   $r->err_header_out("Cache-control","no-cache");
 
 
+=head1 Convert a POST Request into a GET Request
+
+First, let me stress it: B<You can only read POST data once>.  If you
+need to read it more than once, you need to save it somewhere.
+
+A transparent way to do this is to switch the request method from POST
+to GET and store the POST data in the query string:
+
+  package Apache::POST2GET;
+  use Apache::Constants qw(M_GET);
+  
+  sub handler {
+    my $r = shift;
+    if ($r->method eq 'POST') { 
+       my $content = $r->content;
+       $r->args($content);
+       $r->method('GET');
+       $r->method_number(M_GET);
+       $r->headers_in->unset('Content-length');
+    }
+  }
+  __END__
+
+Then add this directive to I<httpd.conf>:
+
+  PerlInitHandler Apache::POST2GET
+
+
 
 
 =head1 Redirect a POST Request, Forwarding the Content
@@ -848,6 +876,38 @@ Set it up in I<httpd.conf> as:
   PerlTransHandler Apache::Redirect::Based::On::Query::String::Plus::URI
 
 
+=head1 PerlTransHandler example
+
+Suppose that before a content handler get invoked you want make this
+translation:
+
+  /articles/10/index.html  =>  /articles/index.html?id=10
+
+This I<TransHandler> will do that for you:
+
+  My/Trans.pm
+  -----------
+  package My::Trans;
+  use Apache::Constants qw(:common);
+  sub handler {
+    my $r = shift;
+    my $uri = $r->uri;
+    my ($id) = ($uri =~ m|^/articles/(.*?)/|);
+    $r->uri("/articles/index.html");
+    $r->args("id=$id");
+    return DECLINED;
+  }
+  1;
+
+and the settings:
+
+  PerlModule My::Trans 
+  PerlTransHandler My::Trans
+
+Notice the technique to set the I<args>.  By the time the
+apache-request object has been created, args are handled in a separate
+slot, so you cannot just push them into an original URI.
+
 
 
 
@@ -880,6 +940,117 @@ directive handlers. Otherwise, something like this should work:
 And in the I<httpd.conf>:
 
   PerlFixupHandler My::MimeTypeDispatch
+
+
+
+
+
+
+
+
+=head1 SSI and Embperl -- Doing Both
+
+This handler allows to use both SSI and Embperl in the same request:
+
+Use it in a C<<FilesMatch>> Section or similar:
+
+  PerlModule Apache::EmbperlFilter Apache::SSI
+  <FilesMatch "\.epl">
+     PerlSetVar Filter On
+     PerlHandler Apache::EmbperlFilter Apache::SSI
+  </FilesMatch>
+
+
+  package Apache::EmbperlFilter;
+  
+  use Apache::Util qw(parsedate);
+  use HTML::Embperl;
+  use Apache::SSI ();
+  use Apache::Constants;
+  
+  use strict;
+  use vars qw($VERSION);
+  
+  $VERSION = '0.03';
+  my ($r, %param, $input, $output);
+  
+  sub handler {
+      $r = shift;
+      my ($fh, $status) = $r->filter_input();
+      unless ($status == OK) {
+          return $status
+      }
+      local $/ = undef;
+      $input = scalar(<$fh>);
+      %param = ();
+      $param{input} = \$input;
+      $param{req_rec} = $r;
+      $param{output} = \$output;
+      $param{mtime} = mtime();
+      $param{inputfile} = $r->filename();
+      HTML::Embperl::ScanEnvironement(\%param);
+      HTML::Embperl::Execute(\%param);
+      print $output;
+      return OK;
+  }
+  
+  sub mtime {
+      my $mtime = undef;
+      if (my $last_modified = $r->headers_out->{'Last-Modified'}) {
+          $mtime = parsedate $last_modified;
+      }
+      $mtime;
+  }
+  
+  1;
+  __END__
+
+
+
+
+
+
+
+
+
+=head1 Getting the Front-end Server's Name in the Back-end Server
+
+Assuming that you have more than one front-end server, and you want to
+dynamically figure out the front-end server name in the back-end
+server, mod_proxy and mod_rewrite provide the solution.
+
+Compile apache with both mod_proxy and mod_rewrite, then use a
+directive something like this
+
+  RewriteEngine On
+  RewriteLog /somewhere/rewrite.log
+  RewriteLogLevel 3
+  RewriteRule ^/foo/bar(.*)$
+  http://example.com:8080/foo/bar/$1?IP=%{REMOTE_HOST} [QSA,P]
+
+This will have all the urls starting with I</some/url> proxied off to
+the other server at the same url.  It will append the C<REMOTE_HOST>
+header as a query string arguement. (QSA = Query String Append, P =
+Proxy). There is probably a way to remap it as an X-Header of somesort,
+but if query string is good enough for you, then this should work
+really nicely.
+
+
+
+=head1 Authentication Snippets
+
+Getting authenticated username: C<$r-E<gt>connection-E<gt>user()>, or
+C<$ENV{REMOTE_USER}> if you're in CGI emulation.
+
+The code example:
+
+  my $r = shift;
+  
+  my ($res, $sent_pwd) = $r->get_basic_auth_pw;
+  return $res if $res; #decline if not Basic
+  
+  my $user = $r->connection->user;
+
 
 
 =head1 Using DESTROY to Finalize Output
@@ -1013,6 +1184,8 @@ C<ServerErrorLogFix>). But we'll leave that as an exercise to the
 reader, and hope that it won't be needed in the next mod_perl
 release. After all, it's a little awkward to need a C<LogHandler> to
 clean up after ourselves....
+
+
 
 
 

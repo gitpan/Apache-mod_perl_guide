@@ -142,23 +142,20 @@ too large or have too little of shared memory.  You can choose to set
 up the process size limiter to check the process size on every
 request:
 
-
-
-
     # in your startup.pl:
     use Apache::GTopLimit;
-
+  
     # Control the life based on memory size
     # in KB, so this is 10MB
     $Apache::GTopLimit::MAX_PROCESS_SIZE = 10000;
-
+  
     # Control the life based on Shared memory size
     # in KB, so this is 4MB
     $Apache::GTopLimit::MIN_PROCESS_SHARED_SIZE = 4000;
-
+  
     # watch what happens  
     $Apache::GTopLimit::DEBUG = 1;
-
+  
     # in your httpd.conf:   
     PerlFixupHandler Apache::GTopLimit
     # you can set this up as any Perl*Handler that handles
@@ -358,6 +355,56 @@ send, compare with a regular configuration send.
 
 Notice that the rightmost PerlHandler must be a content producer. Use
 C<Apache::PassFile> or another similar module.
+
+
+
+
+
+
+
+
+=head1 Apache::OutputChain -- Chain Stacked Perl Handlers
+
+Apache::OutputChain was written as a way of exploring possibilities of
+stacked handlers in mod_perl. It ties the STDOUT to object, which
+catches the output and makes it easy to build a chain of modules that
+work on output stream of data.
+
+Examples of modules that are build on this idea are
+C<Apache::SSIChain>, C<Apache::GzipChain> and C<Apache::EmbperlChain>
+-- the first processes the SSI's in the stream, the second compresses
+the output on the fly, the last adds the Embperl processing.
+
+The syntax goes like
+
+  <Files *.html>
+    SetHandler perl-script
+    PerlHandler Apache::OutputChain Apache::SSIChain Apache::PassHtml
+  </Files>
+
+The modules are written in the reverse order of their execution --
+here the C<Apache::PassHtml> module simply picks the file's content
+and sends it to STDOUT ... here it's processed by C<Apache::SSIChain>
+...  and then goes to C<Apache::OutputChain> that sends the result to
+the browser.
+
+Alternative to this approach is C<Apache::Filter>, which has more
+natural "forward" configuration order and it's easier to make other
+modules to be compliant with C<Apache::Filter>.
+
+It works with C<Apache::Registry> as well, for example:
+
+  Alias /foo /home/httpd/perl/foo
+  <Location /foo>
+    SetHandler "perl-script"
+    Options +ExecCGI
+    PerlHandler Apache::OutputChain Apache::GzipChain Apache::Registry
+  </Location>
+
+It's really a regular C<Apache::Registry> setup, except for the added
+modules in the PerlHandler line.
+L<Apache::GzipChain|modules/Apache_GzipChain_compress_HTM> allows to
+compress the output on the fly.
 
 
 

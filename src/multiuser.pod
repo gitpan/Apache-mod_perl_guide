@@ -120,19 +120,50 @@ only root can bind port 80. That is why user has to use ports numbers
 
 Another problem you will have to solve is how to assign ports between
 users. Since user can pick any port above 1024 to run his server on,
-you will have to make some regulation here. A simple example will
-stress the importance of this problem: I am a malicious user or I just
-a rival of some fellow who runs his own server on your ISP. All I
-should do is to find out what port his server is listening to
-(e.g. with help of C<netstat(8)>) and configure my own server to
-listen on the same port. While I am unable to bind to this same port,
-imagine what will happen when you reboot your system and my startup
-script happen to be run before my rivals! I get the port first, now
-all requests will be redirected to my server and let your imagination
-go wild about what nasty things might happen then. Of course the ugly
-things will be revealed pretty soon, but the damage has been done.
+you will have to make some regulation here.
+
+A simple example will stress the importance of this problem: I am a
+malicious user or I just a rival of some fellow who runs his own
+server on your ISP. All I should do is to find out what port his
+server is listening to (e.g. with help of C<netstat(8)>) and configure
+my own server to listen on the same port. While I am unable to bind to
+this same port, imagine what will happen when you reboot your system
+and my startup script happen to be run before my rivals! I get the
+port first, now all requests will be redirected to my server and let
+your imagination go wild about what nasty things might happen then.
+
+Of course the ugly things will be revealed pretty soon, but the damage
+has been done.
 
 =back
+
+Basically you can preassign each user a port, without her having to
+worry about finding a free one, enforce the C<MaxClients> and similar
+values by implementing the following scenario:
+
+For each user have two configuration files, the main file,
+I<httpd.conf> (non-writable by user) and the user's file,
+I<username.httpd.conf> where she can specify her own configuration
+parameters and override the ones defined in I<httpd.conf>.  This is
+how the main config file looks like:
+
+  httpd.conf
+  ----------
+  # Some global/default settings
+  Include username.httpd.conf
+  # Section for user specific params
+
+  username.httpd.conf
+  -------------------
+  # Setting that you user would like to add/override,
+  # like <Location> and PerlModule directives, etc.
+
+So in the I<httpd.conf> you can override the port number and other
+settings, since user could modify them. Since this section is being
+processed last, these are the setting that will take the effect. You
+can use L<Perl sections|config/Apache_Configuration_in_Perl> to
+make the configuration much easier.
+
 
 
 =item 3
@@ -155,8 +186,7 @@ So money is not an obstacle.
 If you are about to use B<Virtual Hosts> you might want to read these
 sections:
 
-
-L<Perl Sections|config/_Perl_Perl_Sections>
+L<Apache Configuration in Perl|config/Apache_Configuration_in_Perl>
 
 L<Easing the chores of configuring the virtual hosts with
 mod_macro|config/Configuring_Apache_mod_perl_wi>

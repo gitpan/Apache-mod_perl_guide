@@ -286,6 +286,14 @@ connections.
 
 
 
+=head2 Can't upgrade that kind of scalar ...
+
+Fixed in mod_perl 1.22_01-dev (aka in the CVS version following the
+release of 1.22. Either grab the CVS version or wait for 1.23 to be
+released.
+
+
+
 
 =head2 caught SIGPIPE in process
 
@@ -388,8 +396,8 @@ vs.
 In the second case, C<$param> will always be C<defined>, either
 C<$q-E<gt>param('test')> returns some value or C<undef>.
 
-Also read about L<finding the Line Number the Error/Warning has been
-Triggered at|debug/Finding_the_Line_Number_the_Erro>.
+Also read about L<Finding the Line Which Triggered the Error or
+Warning|debug/Finding_the_Line_Which_Triggered>.
 
 =head2 Undefined subroutine &Apache::ROOT::perl::test_2epl::some_function called at
 

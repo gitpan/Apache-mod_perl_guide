@@ -6,8 +6,8 @@ Nowadays millions of people surf the Internet. There are millions of
 Terabytes of data lying around. To manipulate the data new smart
 techniques and technologies were invented. One of the major inventions
 was the relational database, which allows us to search and modify huge
-stores of data in very little time. We use B<SQL> (Structured Query
-Language) to manipulate the contents of these databases.
+stores of data very quickly. We use B<SQL> (Structured Query Language)
+to access and manipulate the contents of these databases.
 
 =head1 Apache::DBI - Initiate a persistent database connection
 
@@ -15,27 +15,28 @@ When people started to use the web, they found that they needed to
 write web interfaces to their databases.  CGI is the most widely used
 technology for building such interfaces. The main limitation of a CGI
 script driving a database is that its database connection is not
-persistent - on every request the CGI script has to initiate a
-connection to the database, and when the request is completed the
-connection is closed. C<Apache::DBI> was written to remove this
-limitation. When you use it, you have a database connection which
-persists for the process' entire life.  So when your mod_perl script
-needs to use a database, C<Apache::DBI> provides a valid connection
-immediately and your script starts work right away without having to
-initiate a database connection first.
+persistent - on every request the CGI script has to re-connect to the
+database, and when the request is completed the connection is closed.
+
+C<Apache::DBI> was written to remove this limitation. When you use it,
+you have a database connection which persists for the process' entire
+life.  So when your mod_perl script needs to use a database,
+C<Apache::DBI> provides a valid connection immediately and your script
+starts work right away without having to initiate a database
+connection first.
 
 This is possible only with CGI running under a mod_perl enabled
 server, since in this model the child process does not quit when the
 request has been served.
 
-It's almost as straightforward as is it sounds, there are just a few
+It's almost as straightforward as is it sounds; there are just a few
 things to know about and we will cover them in this section.
 
 
 =head2 Introduction
 
-The DBI module can make use of the Apache::DBI module.  When it loads,
-the DBI module tests if the environment variable
+The DBI module can make use of the C<Apache::DBI> module.  When it
+loads, the DBI module tests if the environment variable
 C<$ENV{GATEWAY_INTERFACE}> starts with C<CGI-Perl>, and if the
 C<Apache::DBI> module has already been loaded. If so, the DBI module
 will forward every connect() request to the C<Apache::DBI>
@@ -48,15 +49,15 @@ If there is no appropriate database handle or if the ping() method
 fails, C<Apache::DBI> establishes a new connection and stores the
 handle for later re-use. When the script is run again by a child that
 is still connected, C<Apache::DBI> just checks the cache of open
-connections by matching I<host>,I<username> and I<password> parameters
-against it. A matching connection is returned if available or a new
-one is initiated and then returned.
+connections by matching the I<host>, I<username> and I<password>
+parameters against it. A matching connection is returned if available
+or a new one is initiated and then returned.
 
 There is no need to delete the disconnect() statements from your
 code. They won't do anything because the C<Apache::DBI> module
 overloads the disconnect() method with an empty one.
 
-When this module should be used and when shouldn't?
+When should this module be used and when shouldn't it be used?
 
 You will want to use this module if you are opening several database
 connections to the server. C<Apache::DBI> will make them persistent
@@ -67,7 +68,7 @@ connect() you will save the connection time for every connect()
 request from your C<DBI> module. This can be a huge benefit for a
 server with a high volume of database traffic.
 
-You must NOT use this module if you are opening a special connection
+You must B<not> use this module if you are opening a special connection
 for each of your users.  Each connection will stay persistent and in a
 short time the number of connections will be so big that your machine
 will scream in agony and die.
@@ -85,7 +86,7 @@ following directive to C<httpd.conf>
   PerlModule Apache::DBI
 
 Note that it is important to load this module before any other
-C<Apache*DBI> module and C<DBI> module itself!
+C<Apache*DBI> module and before the C<DBI> module itself!
 
 You can skip preloading C<DBI>, since C<Apache::DBI> does that. But
 there is no harm in leaving it in, as long as it is loaded after
@@ -109,9 +110,11 @@ every connection you are going to use. For example:
    }
   );
 
-As noted above, use this method only if you only want all of apache to
-be able to connect to the database server as one user (or as a very
-few users).
+As noted above, use this method only if you want all of apache to be
+able to connect to the database server as one user (or as a very few
+users), i.e. if your user(s) can effectively share the connection. Do
+B<not> use this method if you want for example one unique connection
+per user.
 
 Be warned though, that if you call C<connect_on_init()> and your
 database is down, Apache children will be delayed at server startup,
@@ -121,7 +124,7 @@ driver, this can take several minutes!
 
 =head2 Debugging Apache::DBI
 
-If you are not sure this module is working as advertised, you should
+If you are not sure if this module is working as advertised, you should
 enable Debug mode in the startup script by:
 
   $Apache::DBI::DEBUG = 1;
@@ -163,7 +166,8 @@ option:
 
   nohup $ledir/mysqld [snipped other options] -O wait_timeout=172800
 
-172800 seconds is equal to 48 hours. This change solves the problem.
+
+(172800 seconds is equal to 48 hours. This change solves the problem.)
 
 Note that as from version C<0.82>, C<Apache::DBI> implements ping()
 inside the C<eval> block.  This means that if the handle has timed out
@@ -172,7 +176,7 @@ it should be reconnected automatically, and avoid the morning bug.
 
 =head3 Opening connections with different parameters
 
-When it received a connection request, before it will decide to use an
+When it receives a connection request, before it decides to use an
 existing cached connection, C<Apache::DBI> insists that the new
 connection be opened in exactly the same way as the cached
 connection. If I have one script that sets C<LongReadLen> and one that
@@ -259,8 +263,8 @@ class method. To enable trace information for a specific handle use
 the similar C<$h-E<gt>trace> method.
 
 Using the handle trace option with a C<$dbh> or C<$sth> is handy for
-limiting the trace info to the specific bit of code you are interested
-in.
+limiting the trace info to the specific bit of code that you are
+interested in.
 
 Trace Levels:
 
@@ -273,10 +277,10 @@ Trace Levels:
 =item * 2 - trace method entry with parameters and exit with results.
 
 =item * 3 - as above, adding some high-level information from the
-driver also adds some internal information from the DBI.
+driver and also adding some internal information from the DBI.
 
 =item * 4 - as above, adding more detailed information from the driver
-also includes DBI mutex information when using threaded perl.
+and also including DBI mutex information when using threaded perl.
 
 =item * 5 and above - as above but with more and more obscure
 information.
@@ -356,10 +360,6 @@ various cleanups and allows this module to be used under mod_perl and
 C<mod_cgi> as well. Note that you will not get the benefit of
 persistent database handles with mod_cgi.
 
-Notice the C<DESTROY> block at the end of the module, which makes
-various cleanups and allows this module to be used under C<mod_cgi> as
-well.
-
 =head2 The My::DB module
 
 =code My-DB.pm The My::DB module
@@ -377,7 +377,7 @@ object:
 
 Now you can use any of C<My::DB>'s methods. Assume that we have a
 table called I<tracker> where we store the names of the users and what
-they are doing in each and every moment (think about online community
+they are doing at each and every moment (think about an online community
 program).
 
 I will start with a very simple query--I want to know where the users
