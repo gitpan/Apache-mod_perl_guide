@@ -133,8 +133,9 @@ sub Prompt{
 sub get_target_dir{
   
   my @try_dirs = qw(/home/httpd/docs /home/httpd/html /home/httpd/htdocs
-		    /home/www/docs /home/www/html /home/www/htdocs );
-  
+                    /home/www/docs /home/www/html /home/www/htdocs
+                    /Library/WebServer/Documents );
+
   my $suggest_dir = "/home/httpd/docs";
   for (@try_dirs) {
     $suggest_dir=$_, last if -e $_;

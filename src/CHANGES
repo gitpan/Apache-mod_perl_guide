@@ -2,6 +2,51 @@
 		### mod_perl Guide CHANGES file ###
 		###################################
 
+09.02.2001 ver 1.30
+
+* snippets.pod
+
+  o adding a note about not being able to set Content-type and
+    Content-encoding headers in non-OK responses (Geoffrey Young).
+
+* modules.pod
+
+  o removing a myth about Apache::Registry suffering from
+    "XYZ123456.html ==> /perl/foo.pl?p1=XYZ&p2=123456" kind of URI
+    rewrites (multiply cached version of the same files). It's not
+    true, at least it works OK now. (Geoff Young)
+
+* install.pod
+
+  o covalent/ex-raven + mod_perl installation scenario nuked, since
+    covalent doesn't distibute their sources any more, but only as a
+    DSO package.
+
+* porting.pod
+
+  o added a ref to Text::Reform in format/write section (Matt
+    Sergeant)
+
+  o s/\$^M/\$^T/ (Glenn)
+
+  o explained the caveat of not having the path in @INC with
+    Apache::Reload.
+
+* help.pod:
+
+  o adding a link to High Availability project
+
+  o adding a link to the list of Apache projects' mailing lists
+
+* Minor corrections:
+
+  o Aaron Johnson went through the guide and cleaned it up from typos
+    and mistakes in English.
+
+  o strategy.pod: (Mike MacKenzie)
+
+
+
 04.26.2001 ver 1.29
 
 * dbm.pod:

@@ -139,7 +139,7 @@ three options by caching and buffering page results.
 
 The next part of this chapter discusses the pros and the cons of each
 of these presented configurations.  L<Real World Scenarios
-Implementaion|scenario/> describes the implementation techniques of
+Implementation|scenario/> describes the implementation techniques of
 these schemes.
 
 We will look at the following installations:
@@ -508,7 +508,7 @@ twelfth of the memory (not quite true because some parts of the code
 are shared).
 
 But you know that nowadays scripts often return pages which are blown
-up with javascript code and similar, which can make them 100kb size
+up with JavaScript code and similar, which can make them 100kb size
 and the download time will be of the order of... (This calculation is
 left to you as an exercise :)
 
@@ -783,7 +783,7 @@ implementation chapter.
 
 
 
-=head1 When One Machine is not Enough for RDBMS DataBase and mod_perl
+=head1 When One Machine is not Enough for RDBMS Database and mod_perl
 
 Imagine a scenario where you start your business as a small service
 providing web-site.  After a while your business becomes very popular
@@ -829,13 +829,13 @@ The client, who will see the data on its screen and can give
 instructions to modify or process the data.  In our case, an Internet
 browser.
 
-=item * Tier 1
+=item * Tier 2
 
 The application server, which does the actual processing of the data
 and sends it back to the client.  In our case, a mod_perl enabled
 Apache server.
 
-=item * Tier 1
+=item * Tier 3
 
 The database server, which stores and retrieves all the data for the
 application server.
@@ -1106,7 +1106,7 @@ the second set. Now we assume that the first code set requires only
 server size, and the second set needs 11MBytes (7MB shared and 4MB
 unshared).
 
-Lets compare this new requirement with our original 50:50 setup (qhere
+Lets compare this new requirement with our original 50:50 setup (here
 we have assigned the same number of clients for each code set).
 
 So now the first mod_perl server running the first code set will have

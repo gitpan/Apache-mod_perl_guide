@@ -273,7 +273,7 @@ your I<.tcshrc> file or its equivalent.  For I<bash> users this is
 I<.bashrc>, or you can put it in I</etc/profile> for use by all users.
 
 If you cannot access your I<error_log> file because you are unable to
-telnet to your machine (generally the case with some ISPs who provide
+telnet to your machine (generally the case when an ISP provides
 user CGI support but no telnet access), you might want to use a CGI
 script I wrote to fetch the latest lines from the file (with a bonus
 of colored output for easier reading).  You might need to ask your ISP
@@ -469,13 +469,13 @@ errors.
 But in general case, you don't need to use the above setting.
 
 If you use this setting and you would like to log when a request was
-cancelled by a SIGPIPE in your Apache I<access_log>, you must define a
+canceled by a SIGPIPE in your Apache I<access_log>, you must define a
 custom C<LogFormat> in your I<httpd.conf>, like so:
 
   PerlFixupHandler Apache::SIG
   LogFormat "%h %l %u %t \"%r\" %s %b %{SIGPIPE}e"
 
-If the server has noticed that the request was cancelled via a
+If the server has noticed that the request was canceled via a
 C<SIGPIPE>, then the log line will end with C<1>, otherwise it will
 just be a dash. e.g.:
 
@@ -627,7 +627,7 @@ First let's go one step back and recall what are the problems and
 solutions for this issue under mod_cgi.
 
 Under mod_cgi the resource locking issue is a problem only if you
-happened to create external lock files and and use them for lock
+happened to create external lock files and use them for lock
 indication, instead of using flock().  If the script running under
 mod_cgi is aborted between the lock and the unlock code, and you
 didn't bother to write cleanup code to remove old dead locks then you
@@ -717,7 +717,7 @@ If the file the script reads is big, it'd take a relatively long time
 for this code to complete. All this time the file remains open and
 locked. While it's other processes may access this file for reading
 (shared lock), the process that wants to modify the file (which
-requires an acquision of the exclusive lock), will be blocked waiting
+requires an acquisition of the exclusive lock), will be blocked waiting
 for this section to complete.
 
 We can optimize the critical section this way:
@@ -756,7 +756,7 @@ it afterwards, without creating a possible bottleneck.
   }
 
 Here is another similar example, but now it uses an exclusive lock.
-The script reads in a file and writes it back, prepending a number of
+The script reads in a file and writes it back, adding a number of
 new text lines to the head of the file.
 
   critical_section_ex.pl
@@ -795,7 +795,7 @@ file between the two events.  (You could get away with I<+E<lt>> as
 well, please refer to the I<perlfunc> manpage for more information
 about the open() function.)
 
-Next, the code prepares the lines of text it wants to prepend to the
+Next, the code prepares the lines of text it wants to add to the
 head of the file, and assigns them and the content of the file to the
 C<@lines> array.  Now we have our data ready to be written back to the
 file, so we seek() to the start of the file and truncate() it to zero
@@ -807,7 +807,7 @@ might undergo in the future.  The truncate() operation does not carry
 any significant performance penalty.  Finally we write the data back
 to the file and close it, which unlocks it as well.
 
-Did you notice that we created the text lines to be prepended as close
+Did you notice that we created the text lines to be added as close
 to the place of usage as possible?  This complies with good
 I<"locality of code"> style, but it makes the critical section longer.
 In such cases you should sacrifice style, in order to make the
@@ -843,7 +843,7 @@ script with a shorter critical section looks like this:
   close $fh; # close unlocks the file
 
 There are two important differences.  First, we prepare the text lines
-to be prepended I<before> the file is locked.  Second, instead of
+to be added I<before> the file is locked.  Second, instead of
 creating a new array and copying lines from one array to another, we
 append the file directly to the C<@lines> array.
 
@@ -2143,7 +2143,7 @@ C<!1> would repeat the first command:
     DB<3> 
 
 Where C<$]> is the perl's version number. As you see C<!1> prints the
-value of C<$]>, prepended by the command that was executed.
+value of C<$]>, preceded by the command that was executed.
 
 Things start to get more interesting as the code does.  In the example
 script below (save it to a file called I<test.pl>) we've increased the
@@ -2934,7 +2934,7 @@ discover why there is problem (diagnostics).
 
 Sometimes you can find a process hanging because of some kind of the
 system problem. For example if the processes was doing some disk IO
-operation it might get stuck in uninterruptible sleep (C<'D'> disk
+operation it might get stuck in uninterruptable sleep (C<'D'> disk
 wait in ps(1) report, C<'U'> in top(1)) which indicates that either
 something is broken in your kernel or that you're using NFS. Or and
 you cannot S<kill -9> this process.
@@ -3200,7 +3200,7 @@ a startup file:
      Carp::confess("caught SIGUSR2!");
   };
 
-The above code asigns a signal handler for the C<USR2> signal. This
+The above code assigns a signal handler for the C<USR2> signal. This
 signal has been chosen because it's least likely to be used by the
 other parts of the server.
 
@@ -3346,7 +3346,7 @@ hangs in this snippet:
   }
 
 We I<"easily"> figure out that the first three system calls implement
-the C<$i++>, while the other other three are responsible for the
+the C<$i++>, while the other three are responsible for the
 C<sleep 1> call.
 
 Generally the situation is the reverse of our example.  You detect the
@@ -3416,7 +3416,7 @@ Here we see that process 3037 is blocking, so we attach to it:
   flock(3, LOCK_EX
 
 It's clear from the above trace, that the process waits for an exclusive
-lock. (Note, that the missing closing parentnheses is not a typo!)
+lock. (Note, that the missing closing parentheses is not a typo!)
 
 As you become familiar with watching the traces of different
 processes, you will understand what is happening more easily.
@@ -3489,7 +3489,7 @@ in the line, while C<step> steps into them).
 C/C++ debuggers are a very large topic and beyond the scope of this
 document, but the gdb man page is quite good and you can try C<info
 gdb> as well.  You might also want to check the C<ddd> (Data Display
-Debbuger) which provides a visual interface to C<gdb> and other
+Debugger) which provides a visual interface to C<gdb> and other
 debuggers.  It even knows how to debug Perl programs!
 
 For completeness, let's see the gdb trace of the httpd process that's
@@ -3907,7 +3907,7 @@ The output:
     CUR = 0
 
 We can see that on the second and subsequent calls C<$sv> already has
-preallocated memory.
+previously allocated memory.
 
 So, if you can afford the memory, a larger buffer means fewer C<brk()>
 syscalls.  If you watch that example with C<strace> you will only see
@@ -3923,7 +3923,7 @@ Now only the parent has to brk() at server startup, each child already
 will already have an allocated buffer.  Just reset to "" when you are
 done.
 
-Note: Preallocating a scalar in this
+Note: Previously allocating a scalar in this
 way saves reallocation in v5.005 but may not do so in other versions.
 
 
@@ -4024,7 +4024,7 @@ increments it on each request and prints it out.  Running this script
 in a multiple server environments will result in something like C<1>,
 C<9>, C<4>, C<19> (a different number each time you hit the browser's
 reload button) since each time your script will be served by a
-different child.  (On some operating systmes, e.g. AIX, the parent
+different child.  (On some operating systems, e.g. AIX, the parent
 httpd process will assign all of the requests to the same child
 process if all of the children are idle).  But if you run in C<httpd
 -X> single server mode you will get C<2>, C<3>, C<4>, C<5>...

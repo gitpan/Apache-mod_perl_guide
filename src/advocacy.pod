@@ -62,7 +62,7 @@ advocate your ideas to your boss.  Then you'll have the knowledge;
 your company will have the benefit; and mod_perl will have the
 reputation it deserves.
 
-=head1 A summary of perl/cgi discussion at slashdot.org
+=head1 A summary of perl/CGI discussion at slashdot.org
 
 Well, there was a nice discussion of merits of Perl in CGI world. 
 I took the time to summarize this thread, so here is what I've got:

@@ -55,7 +55,7 @@ that you have I<libperl.so> in
 I<E<lt>perlrootE<gt>/E<lt>versionE<gt>/E<lt>architectureE<gt>/CORE>. For
 example in I</usr/local/lib/perl5/5.00503/sun4-solaris/CORE>.
 
-Then make sure that that directory is included in the environment
+Then make sure that directory is included in the environment
 variable C<LD_LIBRARY_PRELOAD>.  Under normal circumstances, Apache
 should have the path configured at compile time, but this way you can
 override the library path.
@@ -74,10 +74,10 @@ override the library path.
   /usr/local/apache/perl/tmp.pl line 11
 
 On BSD style filesystems C<LD_LIBRARY_PATH> is not searched for setuid
-programs (a.k.a., Apache). This isn't a problem for CGIs since they
-don't do a setuid (and are forked off), but Apache does, and mod_perl
-is in Apache. Therefore the first solution is to explicitly load the
-library from the system wide I<ldconfig> configuration file:
+programs (a.k.a., Apache). This isn't a problem for CGI script since
+they don't do a setuid (and are forked off), but Apache does, and
+mod_perl is in Apache. Therefore the first solution is to explicitly
+load the library from the system wide I<ldconfig> configuration file:
 
   # echo $ORACLE_HOME/lib >> /etc/ld.so.conf
   # ldconfig
@@ -91,7 +91,7 @@ I<Makefile> ( after running C<perl Makefile.PL>) as follows:
 
 (my_oracle_home) is, of course, the home path to your oracle
 installation.  In particular, the file libclntsh.so.8.0 should exist
-in that directory.  (If you use cpan, the build directory for
+in that directory.  (If you use CPAN, the build directory for
 DBD::Oracle should be in ~/.cpan/build/DBD-Oracle-1.06/ if you're
 logged in as root.)
 
@@ -121,7 +121,7 @@ to load mod_perl by adding:
 
   AddModule mod_perl.c
 
-in your config file.
+in your I<httpd.conf>.
 
 This can also happen when you try to run a non-mod_perl Apache server 
 using the configuration from a mod_perl server.
@@ -510,7 +510,7 @@ of lines, like:
 
 Why the looping?
 
-Perl can get I<very> confused inside an endless loop in your code.  
+Perl can get I<very> confused inside an infinite loop in your code.  
 It doesn't necessarily mean that your code did call C<exit()>.  Perl's 
 malloc went haywire and called C<croak()>, but no memory is left to 
 properly report the error, so Perl is stuck in a loop writing that 
@@ -539,7 +539,7 @@ If you compile with that option and add 'C<use Apache::Debug level
 =E<gt> 4;>' to your PerlScript, it will allocate the C<$^M> emergency
 pool and the C<$SIG{__DIE__}> handler will call C<Carp::confess>,
 giving you a stack trace which should reveal where the problem is.
-See the C<Apache::Resource> module for prevention of spinning httpds.
+See the C<Apache::Resource> module for ways to control httpd processes.
 
 Note that Perl 5.005 and later have C<PERL_EMERGENCY_SBRK> turned on 
 by default.
@@ -627,7 +627,7 @@ does not much more than:
 Besides that, it flushes the C<Apache::Registry> cache, and empties any
 dynamic stacked handlers (e.g. C<PerlChildInitHandler>).
 
-Lots of SegFaults and other problems were reported by users who had
+Lots of Segfaults and other problems were reported by users who had
 turned C<PerlFreshRestart> B<On>.  Most of them have gone away when it
 was turned off.  It doesn't mean that you shouldn't use it, if it works
 for you.  Just beware of the dragons...
@@ -635,7 +635,7 @@ for you.  Just beware of the dragons...
 Note that if you have mod_perl enabled Apache built as DSO and you
 restart it, the whole Perl interpreter is completely torn down
 (perl_destruct())and restarted.  The value of C<PerlFreshRestart> is
-irrelevent at this point.
+irrelevant at this point.
 
 =head2 Constant subroutine XXX redefined
 

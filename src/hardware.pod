@@ -29,7 +29,7 @@ be looking for to support an Apache/mod_perl server, then when you
 know what you want from your OS, you can go out and find it.  Visit
 the Web sites of the operating systems you are interested in.  You can
 gauge user's opinions by searching the relevant discussions in
-newsgroup and mailing list archives.  Deja - http://deja.com and
+newsgroups and mailing list archives.  Deja - http://deja.com and
 eGroups - http://egroups.com are good examples.  I will leave this fan
 research to the reader.
 
@@ -45,7 +45,7 @@ do a little investigation.  There might be a simple reason which you
 can find and fix.  There are OSs which won't work unless you reboot
 them twice a day.  You don't want to use the OS of this kind, no
 matter how good the OS' vendor sales department.  Do not follow flushy
-advertisments, follow developers advices instead.
+advertisements, follow developers advices instead.
 
 Generally, people who have used the OS for some time can tell you a
 lot about its stability.  Ask them.  Try to find people who are doing
@@ -359,7 +359,7 @@ list:
 
 If your service is I/O bound (does a lot of read/write operations to
 disk) you need a very fast disk, especially if the you need a
-relational database, which are the main I/O stream creaters.  So you
+relational database, which are the main I/O stream creators.  So you
 should not spend the money on Video card and monitor!  A cheap card
 and a 14" monochrome monitor are perfectly adequate for a Web server,
 you will probably access it by C<telnet> or C<ssh> most of the time.
@@ -369,7 +369,7 @@ other disasters.
 
 You must think about RAID or similar systems if you have an enormous
 data set to serve (what is an enormous data set nowadays?  Gigabytes,
-terabytes?) or you expect a really big web traffic.
+Terabytes?) or you expect a really big web traffic.
 
 Ok, you have a fast disk, what's next?  You need a fast disk
 controller.  There may be one embedded on your computer's motherboard.

@@ -69,7 +69,7 @@ experience and B<not only> how good your code benchmarks are.
 
 =head1 System Analysis
 
-Before we try to solve a problem we need to indentify it. In our case
+Before we try to solve a problem we need to identify it. In our case
 we want to get the best performance we can with as little monetary and
 time investment as possible.
 
@@ -154,7 +154,7 @@ result sets, since in most cases we would try to show which coding
 approach is preferable and the you shouldn't try to compare the
 absolute results collected while running the same benchmarks on your
 machine, since you won't have the exact hardware and software setup
-anyway. So this kind of comparisment would be misleading. Compare the
+anyway. So this kind of comparison would be misleading. Compare the
 relative results from the tests running on your machine, don't compare
 your absolute results with those in this Guide.
 
@@ -805,7 +805,7 @@ The C<Apache::VMonitor> module with help of the C<GTop> module allows
 you to watch all your system information using your favorite browser
 from anywhere in the world without a need to telnet to your machine.
 If you are looking at what information you can retrieve with C<GTop>,
-you should look at C<Apache::VMonitor> as it deployes a big part of
+you should look at C<Apache::VMonitor> as it deploys a big part of
 the API C<GTop> provides.
 
 If you are running a true BSD system, you may use
@@ -1028,10 +1028,10 @@ server as it adds quite a bit of overhead for each request.
 
 In order to get the best performance it helps to get intimately
 familiar with the Operating System (OS) the web server is running
-on. There are many OS specific things that you may be able to optimise
+on. There are many OS specific things that you may be able to optimize
 which will improve your web server's speed, reliability and security.
 
-The following sections will unveal some of the most important details
+The following sections will reveal some of the most important details
 you should know about your OS.
 
 
@@ -1069,7 +1069,7 @@ it is 100 or 10000 it probably does not really matter if you can save
 RAM by using a lower value.
 
 Do not forget that if you preload most of your code at server startup,
-the newly forked child gets ready very very fast, because it inherits
+the newly forked child gets ready very fast, because it inherits
 most of the preloaded code and the perl interpreter from the parent
 process.
 
@@ -2162,7 +2162,7 @@ the child code when forking. Since if you don't and there is some code
 outside the I<if/else block>, the child process will execute it as
 well. But under mod_perl there is another nuance--you must use
 C<CORE::exit()> and not C<exit()>, which would be automatically
-overriden by C<Apache::exit()> if used in conjunction with
+overridden by C<Apache::exit()> if used in conjunction with
 C<Apache::Registry> and similar modules. And we want the spawned
 process to quit when its work is done, otherwise it'll just stay alive
 use resources and do nothing.
@@ -2578,7 +2578,7 @@ Another important nuance is that we have to close all STD* stream in
 the forked process, even if the called program does that.
 
 If the external program is written in Perl you may pass complicated
-data stuctures to it using one of the methods to serialize Perl data
+data structures to it using one of the methods to serialize Perl data
 and then to restore it. The C<Storable> and C<FreezeThaw> modules come
 handy. Let's say that we have program I<master.pl> calling program
 I<slave.pl>:
@@ -2654,7 +2654,7 @@ I<Hi> string as an argument.
 
 Perl's system() is B<not> the C<system(3)> call [C-library].  This is
 how the arguments to system() get interpreted.  When there is a single
-argument to system(), it'll be checked for for having shell
+argument to system(), it'll be checked for having shell
 metacharacters first (like C<*>,C<?>), and if there are any--Perl
 interpreter invokes a real shell program (S</bin/sh -c> on Unix
 platforms).  If you pass a list of arguments to system(), they will be
@@ -3352,7 +3352,7 @@ brought one at a time and not concurrently as is the case if each
 C<IMG> tag opens a separate connection.
 
 Since keepalive connections will not incur the additional three-way
-TCP handshake, turning it off will be kinder to the network.
+TCP handshake they are kinder to the network.
 
 SSL connections benefit the most from C<KeepAlive> in case you didn't
 configure the server to cache session ids.
@@ -3491,7 +3491,7 @@ C<stat()> calls to a non-existing file, samples the time at the end
 and prints the average time it took to make a single C<stat()> call.
 I'm sampling a 1M stats, so I'd get a correct average result.
 
-Before we actually run the script one should destinguish between two
+Before we actually run the script one should distinguish between two
 different situation. When the server is idle the time between the
 first and the last system call will be much shorter than the same time
 measured on the loaded system. That is because on the idle system, a
@@ -3517,7 +3517,7 @@ And now run the I<stat_call_sample.pl> script in the other console.
 
 You can see that the average time has doubled (about 8
 microseconds). And this is obvious, since there were two processes
-competing over CPU. Now if run 4 occurences of the above code:
+competing over CPU. Now if run 4 occurrences of the above code:
 
   % perl -e '1**1 while 1' &
   % perl -e '1**1 while 1' &
@@ -4087,7 +4087,7 @@ glued with Perl using the XS code.
 
 Therefore assuming that the only functionality that you need is the
 parsing of the key-value pairs, and assuming that every key has a
-single value, we will compare the following almost indentical scripts,
+single value, we will compare the following almost identical scripts,
 by trying to pass various query strings.
 
 The code that we have used:
@@ -4269,7 +4269,7 @@ An even better solution is to keep buffering enabled, and use a
 Perl API C<rflush()> call to flush the buffers when needed.  This way
 you can place the first part of the page that you are going to send to
 the user in the buffer, and flush it a moment before you are going to do
-some lenghty operation, like a DB query.  So you kill two birds with one
+some lengthy operation, like a DB query.  So you kill two birds with one
 stone: you show some of the data to the user immediately, so she will
 feel that something is actually happening, and you have no performance
 hit from disabled buffering.
@@ -4281,7 +4281,7 @@ hit from disabled buffering.
   print $q->start_html;
   print $q->p("Searching...Please wait");
   $r->rflush;
-    # imitate a lenghty operation
+    # imitate a lengthy operation
   for (1..5) {
     sleep 1;
   }
@@ -4403,7 +4403,7 @@ The benchmarking result:
     function:  0 wallclock secs ( 0.80 usr +  0.05 sys =  0.85 CPU)
       method:  1 wallclock secs ( 1.51 usr +  0.08 sys =  1.59 CPU)
 
-We are are interested in the 'total CPU times' and not the 'wallclock
+We are interested in the 'total CPU times' and not the 'wallclock
 seconds'.  It's possible that the load on the system was different for
 the two tests while benchmarking, so the wallclock times give us no
 useful information.
@@ -4631,7 +4631,7 @@ functions.
 
 Somewhat overlapping with the previous section we want to revisit the
 various approaches of mungling with strings, and compare the speed of
-using lists of strings compared to interpolatoin. We will add a string
+using lists of strings compared to interpolation. We will add a string
 concatenation angle as well.
 
 When the strings are small, it almost doesn't matter whether
@@ -4720,7 +4720,7 @@ Lists are fast because Perl can simply deal with each element in
 turn. This is true if you don't run join() on the list at the end to
 create a single string from the elements of list. This operation might
 be slower than direct append to the string whenever a new string
-springs into existance.
+springs into existence.
 
 
 
@@ -4952,7 +4952,7 @@ module):
   while(@row_ary  = $sth->fetchrow_array) {
 	# do DB accumulation into some variable
   }
-  # print the output using the the data returned from the DB
+  # print the output using the data returned from the DB
 
 In the example above the httpd_process will grow by the size of the
 variables that have been allocated for the records that matched the
@@ -5165,7 +5165,7 @@ effect.
 
 If you don't want to set this limit by default but only for those
 requests that are likely to get the memory unshared. In this case the
-memory size testing would be be done only if you decide that you want
+memory size testing would be done only if you decide that you want
 it. You register the post-processing check by using the
 set_min_shared_size() function. For example:
 
@@ -5279,7 +5279,7 @@ environment variable C<PERL_RLIMIT_CPU> defines the maximum amount of
 CPU time the process can use. If it runs for longer than this, it gets
 killed, no matter what it does, either processing a new request or
 just waiting.  This is very useful when you have a code with a bug and
-the process starts to spin in an endless loop or alike using a lot of
+the process starts to spin in an infinite loop or alike using a lot of
 CPU and never completing the request. 
 
 META: verify this.
@@ -5484,9 +5484,9 @@ implementations.)
 Another popular use of mod_perl is to take advantage of its ability to
 maintain persistent open database connections.
 
-You want to have a persistent database connection because the the most
+You want to have a persistent database connection because the most
 expensive part of a network transaction for most databases is the
-business of building and tearning down connections.
+business of building and tearing down connections.
 
 Of course the persistence doesn't help with the latency problems
 during the actual use of the database connections.  Oracle is
@@ -5965,7 +5965,7 @@ Mode|strategy/Adding_a_Proxy_Server_in_http_Ac>.
 =head1 Upload and Download of Big Files
 
 You don't want to tie up your precious mod_perl backend server
-children doing something as long and simple as transfering a file,
+children doing something as long and simple as transferring a file,
 especially a big one.  The overhead saved by mod_perl is typically
 under one second, which is an enormous saving for the scripts whose
 run time is under one second.  The user won't really see any important
@@ -6012,7 +6012,7 @@ and followed by one of these option groups:
 
 I<no arguments>
 
-=item 1 Minumum
+=item 1 Minimum
 
   APACI_ARGS='--disable-module=env, \
               --disable-module=negotiation, \
@@ -6043,14 +6043,14 @@ summarize the results:
 
   Build group    httpd size (bytes)  Difference
   ---------------------------------------------
-  Minumum              892928         +     0
+  Minimum              892928         +     0
   Default              994316         +101388
   Everything          1044432         +151504
   Everything+Debug    1162100         +269172
 
 
 Indeed when you strip most of the default things, the server size is
-slimmer.  But the savings are insignificant since you don't muliply
+slimmer.  But the savings are insignificant since you don't multiply
 the added size by the number of child processes if your OS supports
 sharing memory.  The parent processes is a little bigger, but it
 shares these memory pages with its child processes. Of course not
@@ -6085,7 +6085,7 @@ important ones.
 Newer Perl versions also have build time options to reduce runtime
 memory consumption. These options might shrink the size of your httpd
 by about 150k -- quite a big number if you remember to multiply it by the
-number of chidren you use.
+number of children you use.
 
 The C<-DTWO_POT_OPTIMIZE> macro improves allocations of data with size
 close to a power of two; but this works for big allocations (starting

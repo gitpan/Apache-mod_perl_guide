@@ -117,7 +117,7 @@ information about it.
 
 Note that it requires the C<Apache::Scoreboard> module to work.
 
-Referer to the C<Apache::Watchdog::RunAway> manpage for the
+Refer to the C<Apache::Watchdog::RunAway> manpage for the
 configuration details.
 
 
@@ -275,7 +275,7 @@ Oriented interface.
   </Location>
 
 C<Apache::RegistryNG> inherits from C<Apache::PerlRun>, but the
-handler() is overriden.  Aside from the handler(), the rest of
+handler() is overridden.  Aside from the handler(), the rest of
 C<Apache::PerlRun> contains all the functionality of
 C<Apache::Registry> broken down into several subclass-able methods.
 These methods are used by C<Apache::RegistryNG> to implement the exact
@@ -287,18 +287,6 @@ C<Apache::Registry>, unless you want to do add or change the
 functionality of the existing I<Registry.pm>.  For example,
 C<Apache::RegistryBB> (Bare-Bones) is another subclass that skips the
 stat() call performed by C<Apache::Registry> on each request.
-
-One situation where C<Apache::RegistryNG> may definitely be required
-is if you are rewriting URIs (using either mod_rewrite or your own
-handler) in certain ways.
-
-For instance if you have a rewrite rule of the form:
-
-  XYZ123456.html  ==> /perl/foo.pl?p1=XYZ&p2=123456
-
-C<Apache::Registry> loses big, as it recompiles I<foo.pl> for each
-unique URL -- C<Apache::RegistryNG> should be used instead.
-
 
 
 
@@ -380,7 +368,7 @@ manpage)
 
 Have you ever served a huge HTML file (e.g. a file bloated with
 JavaScript code) and wondered how could you send it compressed, thus
-dramatically cutting down the download times?  After all java applets
+dramatically cutting down the download times?  After all Java applets
 can be compressed into a jar and benefit from faster download times.
 Why can't we do the same with plain ASCII (HTML, JS etc.)?  ASCII text
 can often be compressed by a factor of 10.
@@ -449,7 +437,7 @@ And this one:
     PerlHandler Apache::RegistryFilter Apache::Gzip
   </Location>
 
-will compess the output of the C<Apache::Registry> scripts. Yes, you
+will compress the output of the C<Apache::Registry> scripts. Yes, you
 should use C<Apache::RegistryFilter> instead of C<Apache::Registry>
 for it to work.
 
@@ -520,7 +508,7 @@ which will load the production version of the module and it'll be used
 to process the request. If on the other hand if the request to the
 I</status-dev/perl> location will be issued, as configured in the
 former configuration section, a similar thing will happen, but a
-different path (I</home/httpd/dev/lib>) will be prepanded to C<@INC>:
+different path (I</home/httpd/dev/lib>) will be prepended to C<@INC>:
 
   delete $INC{Apache/Status.pm};
   unshift @INC, /home/httpd/dev/lib;
@@ -533,7 +521,7 @@ the file to be reloaded by the fixup handler, using the value of
 C<PerlINC> for C<@INC>.  That's local to the fixup handler, so you
 won't actually see C<@INC> changed in your script.
 
-Additionaly the modules with different versions can be unloaded at the
+In addition the modules with different versions can be unloaded at the
 end of request, using the C<PerlCleanupHandler> handler:
 
   <Location /status/perl>

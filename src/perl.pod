@@ -301,7 +301,7 @@ This creates an alias for the variable in the I<current> package, so
 that you can access it without using the fully qualified name.
 
 Whilst global variables are useful for sharing data and are necessary in some
-contexts it is usually wisest to minimise their use and use I<lexical
+contexts it is usually wisest to minimize their use and use I<lexical
 variables>, discussed next, instead.
 
 Note that when you create a variable, the low-level business of
@@ -1901,7 +1901,7 @@ any changes you apply will only last until the end of the enclosing
 scope. In the mod_perl situation where the child server doesn't
 usually exit, if in one of your scripts you modify a global variable
 it will be changed for the rest of the process' life and will affect
-all the scripts executed by the same process. Therefore localising
+all the scripts executed by the same process. Therefore localizing
 these variables is highly recommended, I'd say mandatory.
 
 We will demonstrate the case on the input record separator
@@ -2153,7 +2153,7 @@ not seem so at first sight:
   eval {                           try {
     # execute here                   // execute here
     # raise our own exception:       // raise our own exception:
-    die "Oops" if /error/;           if(oops==1){throw Exception.Oops;}
+    die "Oops" if /error/;           if(error==1){throw Exception.Oops;}
     # execute more                   // execute more
   } ;                              }
   if($@) {                         catch {
@@ -2214,7 +2214,7 @@ The code unfortunately prints out:
 Which isn't quite what you would expect, especially if that
 C<$SIG{__DIE__}> handler is hidden away deep in some other module that
 you didn't know about. There are work arounds however. One is to
-localise C<$SIG{__DIE__}> in every exception trap you write:
+localize C<$SIG{__DIE__}> in every exception trap you write:
 
   eval {
       local $SIG{__DIE__};
@@ -2259,9 +2259,9 @@ error message, and again in your exception handler to de-construct
 that string into something meaningful (unless of course all you want
 your exception handler to do is dump the error to the browser). The
 other problem is that you have no way of automatically detecting where
-the exception occured using C<eval{}> construct. In a C<$SIG{__DIE__}>
+the exception occurred using C<eval{}> construct. In a C<$SIG{__DIE__}>
 block you always have the use of the caller() function to detect where
-the error occured. But we can fix that...
+the error occurred. But we can fix that...
 
 A little known fact about exceptions in perl 5.005 is that you can
 call die with an object. The exception handler receives that object in
@@ -2289,7 +2289,7 @@ advantage you need to change your script to have some sort of global
 exception handling. This is much more trivial than it sounds. If
 you're using C<Apache::Registry> to emulate CGI you might consider
 wrapping your entire script in one big eval block, but I would
-discourage that. A better method would be to modularise your script
+discourage that. A better method would be to modularize your script
 into discrete function calls, one of which should be a dispatch
 routine:
 

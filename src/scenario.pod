@@ -14,7 +14,7 @@ your machine.
 
 =head2 Installation in 10 lines
 
-The Installation is very very simple.  This example shows installation
+The Installation is very simple.  This example shows installation
 on the Linux operating system.
 
   % cd /usr/src
@@ -375,7 +375,7 @@ The only thing that you might find unusual, is that I<apachectl> will
 be now called I<httpd_docsctl> and the configuration file
 I<httpd.conf> now will be called I<httpd_docs.conf>.
 
-We will leave the decision making about the preffered configuration
+We will leave the decision making about the preferred configuration
 and installation way to the reader. In the rest of the guide we will
 continue using the regular names resulted from using the standard
 configuration and the manual executable name adjustment as described
@@ -621,7 +621,7 @@ knows that there might be more than one server running.  Do not
 confuse this scenario with C<mod_rewrite>, where a server redirects
 the request somewhere according to the rewrite rules and forgets all
 about it.  (i.e. works as a one way dispatcher, which dispatches the
-jobs but is not responsible fo
+jobs but is not responsible for.)
 
 Squid can be used as a straightforward proxy server.  ISPs and other
 companies generally use it to cut down the incoming traffic by caching
@@ -692,7 +692,7 @@ carry the I<Caching Directives>: C<Last-Modified> and C<Expires>.
 What are they for? If you set the headers correctly, there is no need
 to tell the Squid accelerator B<NOT> to try to cache anything.  Squid
 will not bother your mod_perl servers a second time if a request is
-(a) cachable and (b) still in the cache.  Many mod_perl applications
+(a) cacheable and (b) still in the cache.  Many mod_perl applications
 will produce identical results on identical requests if not much time
 has elapsed between the requests.  So your Squid might have a hit
 ratio of 50%, which means that the mod_perl servers will have only
@@ -749,7 +749,7 @@ useful during C<PUT> and C<POST> requests. A user who attempts to send
 a request with a body larger than this limit receives an "Invalid
 Request" error message.  If you set this parameter to a zero, there
 will be no limit imposed. If you are using C<POST> to upload files,
-then set this to the largest file's size plus a few extra kbytes.
+then set this to the largest file's size plus a few extra KB.
 
   request_body_max_size 1000 KB
 
@@ -974,7 +974,7 @@ additional servers you need for serving the static objects.  This will
 allow you to calculate the additional memory requirements.  I imagine
 that this amount could be significant in some installations.
 
-So on for production servers I have decided to to stick with the
+So on for production servers I have decided to stick with the
 Squid, httpd_docs and httpd_perl scenario, where I can optimize and
 fine tune everything. But if in your case there is almost no static
 objects to serve, the httpd_docs server is definitely redundant. And
@@ -989,7 +989,7 @@ the server and not C<virtual>.  Because we do not redirect there is no
 need to bind two servers on the same port so there are neither C<Bind>
 nor C<Listen> directives in I<httpd.conf>.
 
-The modified configuration for this simlified setup (see the
+The modified configuration for this simplified setup (see the
 explanations in the previous section):
 
   httpd_accel_host put.your.hostname.here
@@ -1218,12 +1218,12 @@ depending on the OS)
 
 The problem I don't know is, does the call to close the socket wait,
 until all data is actually send successfully or not. If it doesn't
-wait, you may not be noticed of any failure, but because the proxing
+wait, you may not be noticed of any failure, but because the proxying
 Apache can write as fast to the socket transmission buffer as it can
-read, it should be possible that the proxing Apache copies all the
+read, it should be possible that the proxying Apache copies all the
 data from the receive to the transmission buffer and after that
 releasing the receive buffer, so the mod_perl Apache is free to do
-other things, while the proxing Apache still wait until the client
+other things, while the proxying Apache still wait until the client
 returns the success of data transmission. (The last, is the part I am
 not sure on)
 
@@ -1695,7 +1695,7 @@ redirect all requests to the mod_perl server, by matching the
 beginning of the relative URI (e.g. I</perl>). What should you do if
 you want everything, but files with extensions like I<.gif>, I<.cgi>
 and similar, to be proxypassed to the mod_perl server. These files are
-to to be served by the light Apache server which carries the mod_proxy
+to be served by the light Apache server which carries the mod_proxy
 module.
 
 The following example rewrites everything to the mod_perl server. It

@@ -74,7 +74,7 @@ about creating Web server modules using the Apache API, written by
 Lincoln Stein and Doug MacEachern.
 
 The book should be available from your local bookstore or from your
-favourite on-line bookseller.  O'Reilly lists this book as:
+favorite on-line bookseller.  O'Reilly lists this book as:
 
   Writing Apache Modules with Perl and C
   By Lincoln Stein & Doug MacEachern
@@ -265,6 +265,10 @@ http://world.std.com/~swmcd/steven/perl/module_mechanics.html - This
 page describes the mechanics of creating, compiling, releasing and
 maintaining Perl modules.
 
+=item * Creating (and Maintaining) Perl Modules
+
+http://www.mathforum.com/~ken/perl_modules.html
+
 =item * XS tutorials
 
 Perl manpages: I<perlguts>, I<perlxs>, and I<perlxstut> manpages.
@@ -388,6 +392,11 @@ Send email to majordomo@jann.com with body:
 =item * Apache Project's Home
 
 http://www.apache.org
+
+=item * Apache Mailing Lists
+
+You will find a comprehensive list of all Apache projects' mailing
+lists at: http://www.apache.org/foundation/mailinglists.html
 
 =item * Apache Quick Reference Card
 
@@ -563,7 +572,7 @@ Archive: http://archive.develooper.com/scalable@arctic.org/
 =item *
 
 I<Solaris 2.x - Tuning Your TCP/IP Stack and More>
-http://www.rvs.uni-hannover.de/people/voeckler/tune/EN/tune.html
+http://www.sean.de/Solaris/tune.html
 
 This page talks about TCP/IP stack and various tricks of tuning your
 system to get the most out of it as a web server. While the
@@ -571,6 +580,10 @@ information is for Solaris 2.x OS, most of it will be relevant of
 other Unix flavors. At the end an extensive list of related literature
 is presented.
 
+=item *
+
+High-Availability Linux Project
+http://www.linux-ha.org/
 
 =back
 
@@ -580,7 +593,7 @@ is presented.
 
 =over
 
-=item * Memory system management and arhitecture:
+=item * Memory system management and architecture:
 
 The Solaris memory system, sizing, tools and architecture:
 http://www.sun.com/solutions/third-party/global/SAS/pdf/vmsizing.pdf

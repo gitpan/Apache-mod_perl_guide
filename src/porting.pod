@@ -28,7 +28,7 @@ If you don't need mod_cgi compatibility, it's a good idea to start
 writing using the mod_perl API in first place. This will make your
 application a little bit more efficient and it will be easier to use
 the full mod_perl feature set, which extends the core Perl
-functionality with Apache specific functions and overriden Perl core
+functionality with Apache specific functions and overridden Perl core
 functions that were reimplemented to work better in mod_perl
 environment.
 
@@ -50,7 +50,7 @@ practices, since mod_perl doesn't tolerate sloppy programming.
 This chapter relies on a certain level of Perl knowledge. Please
 read through the L<Perl Reference|perl/> chapter and make sure you
 know the material covered there. This will allow me to concentrate on
-pure mod_perl issues and make them more prominent to the experinced
+pure mod_perl issues and make them more prominent to the experienced
 Perl programmer, which would otherwise be lost in the sea of Perl
 background notes.
 
@@ -785,6 +785,30 @@ the reloaded modules.
 This module might have a problem with reloading single modules that
 contain multiple packages that all use pseudo-hashes.
 
+
+Also if you have modules loaded from directories which are not in
+C<@INC>, C<Apache::Reload> will fail to find the files, due the fact
+that C<@INC> is reset to its original value even if it gets temporary
+modified in the script. The solution is to extend C<@INC> at the
+server startup to include directories you load the files from which
+aren't in C<@INC>.
+
+For example, if you have a script which loads I<MyTest.pm> from
+I</home/stas/myproject>:
+
+  use lib qw(/home/stas/myproject);
+  require MyTest;
+
+C<Apache::Reload> won't find this file, unless you alter C<@INC> in
+I<startup.pl> (or I<httpd.conf>):
+
+  startup.pl
+  ----------
+  use lib qw(/home/stas/myproject);
+
+and restart the server. Now the problem is solved.
+
+
 =head3 Availability
 
 This module is available from L<CPAN|download/CPAN_Downloads>. 
@@ -1234,7 +1258,7 @@ preloaded at server startup, even the first request doesn't have
 the loading overhead.
 
 We use do() to reload the code in this file and not require() because
-while do() behaves almost indentically to require(), it reloads the
+while do() behaves almost identically to require(), it reloads the
 file unconditionally. If do() cannot read the file, it returns
 C<undef> and sets C<$!> to report the error.  If do() can read the
 file but cannot compile it, it returns C<undef> and sets an error
@@ -1260,7 +1284,7 @@ reload the configuration if it was changed.  This is fail-safe,
 because if something goes wrong we just return without modifying the
 server configuration. The script should not be used to initialize the
 variables on its first invocation.  To do that, you would need to
-replace each occurence of return() and warn() with die(). If you do
+replace each occurrence of return() and warn() with die(). If you do
 that, take a look at the section "L<Redirecting Errors to the Client
 instead of error_log|snippets/Redirecting_Errors_to_the_Client>".
 
@@ -1303,9 +1327,9 @@ A sample script using the presented subroutine would be:
   } # end of reread_conf
 
 Remember that you should be using C<(stat $file)[9]> instead of C<-M
-$file> if you are modifying the C<$^M> variable. In some of my
-scripts, I reset C<$^M> to the time of the script invocation with
-C<"$^M = time()">. That way I can perform C<-M> and the similar
+$file> if you are modifying the C<$^T> variable. In some of my
+scripts, I reset C<$^T> to the time of the script invocation with
+C<"$^T = time()">. That way I can perform C<-M> and the similar
 (C<-A>, C<-C>) file status tests relative to the script invocation
 time, and not the time the process was started.
 
@@ -1376,7 +1400,7 @@ is changed we don't care, we don't depend on it any more.
 
 The dynamically updated variables are duplicated, they will be in the
 main file and in the dynamic file. We do this to simplify
-maintainance. When a new release is installed the dynamic
+maintenance. When a new release is installed the dynamic
 configuration file won't exist at all. It will be created only after
 the first update. As we just saw, the only change in the main code is
 to add a snippet to load this file if it exists and was changed.
@@ -1470,7 +1494,7 @@ META: extend on the comments:
     foreach (keys %updates) {
       print "<DT><B>$_</B> => <PRE>$updates{$_}</PRE>";
   
-      # now we have to handle each var to be changed very very carefully
+      # now we have to handle each var to be changed very carefully
       # since this file goes immediately into production!
       $malformatted{$_} = delete $updates{$_}
         unless $validation_rules{$_}->($updates{$_});
@@ -2030,7 +2054,7 @@ error:
 Perl cuts everything after the C<__END__> tag. The same applies to
 the C<__DATA__> tag.
 
-Also, rememeber that whatever applies to C<Apache::Registry> scripts,
+Also, remember that whatever applies to C<Apache::Registry> scripts,
 in most cases applies to C<Apache::PerlRun> scripts.
 
 
@@ -2064,7 +2088,7 @@ mod_perl|performance/Forking_and_Executing_Subprocess>" section
 to learn about implications of forking.
 
 Also read about L<Apache::SubProcess|modules/Apache__SubProcess> for
-overriden system() and exec() implementations that work with mod_perl.
+overridden system() and exec() implementations that work with mod_perl.
 
 
 
@@ -2089,7 +2113,7 @@ Pad all strings with S<(" " x 80)> before using, and set their length
 with: S<%.25s> for a max 25 char string. Or prefix the string with
 S<(" " x 80)> for right-justifying.
 
-
+Another alternative is to use the C<Text::Reform> module.
 
 
 
@@ -2669,7 +2693,7 @@ Let's make our smart method more elaborate with respect to the
 C<PerlSendHeader> directive, so that it always does the right
 thing. It's especially important if you write an application that you
 are going to distribute, hopefully under one of the Open Source or GPL
-licences.
+licenses.
 
 You can continue to improve this subroutine even further to handle
 additional headers, such as cookies.
@@ -2975,7 +2999,7 @@ ignore it.
 
 =head2 Other switches
 
-Finally, if you still need to to set additional perl startup flags
+Finally, if you still need to set additional perl startup flags
 such as C<-d> and C<-D>, you can use an environment variable
 C<PERL5OPT>. Switches in this variable are treated as if they were on
 every Perl command line.
@@ -3050,7 +3074,7 @@ C<%ENV> is only set up for CGI emulation. If you are using the API,
 you should use C<$r-E<gt>subprocess_env>, C<$r-E<gt>notes> or
 C<$r-E<gt>pnotes> for passing data around between handlers. C<%ENV> is
 slow because it must update the underlying C environment table.  It
-also insecure sinve its use exposes the data on systems which allow
+also insecure since its use exposes the data on systems which allow
 users to see the environment with C<ps>.
 
 In any case, C<%ENV> and the tables used by those methods are all
@@ -3455,7 +3479,7 @@ This is the original script's code we are going to work with:
   
   #################
   sub print_header{
-      # prepare a cooke
+      # prepare a cookie
     my $c = CGI::Cookie->new
       ('-name'    => 'sessionID',
        '-value'   => $sessionID,
@@ -3502,7 +3526,7 @@ This is the original script's code we are going to work with:
 
 
 The code is very simple. It creates a session if you've pressed the
-I<'Start'> button or deletes it if you've pressed the the I<'Stop'>
+I<'Start'> button or deletes it if you've pressed the I<'Stop'>
 button. The session is stored and retrieved using the cookies
 technique.
 
@@ -3677,7 +3701,7 @@ The one last thing we should do is to add C<1;> at the end of the
 module, just like with any Perl module, so C<PerlModule> will not fail
 when it tries to load C<Test::Cookie>.
 
-So to summarise, we took the original script's code and added the
+So to summarize, we took the original script's code and added the
 following eight lines:
 
   package Test::Cookie;
@@ -3788,7 +3812,7 @@ This is the new code for C<Test::Cookie2>:
   
   #################
   sub print_header{
-      # prepare a cooke
+      # prepare a cookie
     my $c = Apache::Cookie->new
       ($r,
        -name    => 'sessionID',

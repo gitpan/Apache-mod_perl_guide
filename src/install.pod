@@ -426,7 +426,7 @@ Now you can pick your favorite installation method.
 
 =head3 Environment Variables
 
-There are a few enviroment variables that influence the build/test
+There are a few environment variables that influence the build/test
 process.
 
 =head4 APACHE_USER and APACHE_GROUP
@@ -522,9 +522,8 @@ code:
 which prints '1'--meaning that C<PERL_LOG> callback hook was
 enabled. (That's because C<EVERYTHING=1> enables them all.)
 
-Another approach is to configure C<Apache::Status> as explain on page
-XXX of Chapter YYY and run http://localhost/perl-status?hooks to check
-for enabled hooks.
+Another approach is to configure C<Apache::Status> and run
+http://localhost/perl-status?hooks to check for enabled hooks.
 
 You also may try to look at the symbols inside the httpd executable
 with help of C<nm(1)> or a similar utility.  For example if you want
@@ -660,7 +659,7 @@ Both the gdbm and db libraries offer ndbm emulation, which is the
 interface that Apache actually uses, so when you build mod_perl you
 end up with whichever library was linked first by the perl compile.
 If you build apache without mod_perl you end up with whatever appears
-to be be your ndbm library which will vary between systems, and
+to be your ndbm library which will vary between systems, and
 especially Linux distributions.  You may have to work a bit to get
 both Apache and Perl to use the same library and you are likely to
 have trouble copying the dbm file from one system to another or even
@@ -742,7 +741,7 @@ library.
 
 =head2 Built Server Testing (make test)
 
-After building the server, it's a good idea to test it throughly, by
+After building the server, it's a good idea to test it thoroughly, by
 calling:
 
   % make test
@@ -1555,214 +1554,6 @@ to:
 
 
 
-=head2 mod_perl and Raven SSL
-
-
-The following are the installation notes for the static and DSO
-mod_perl. Please consult http://www.covalent.net/support if you have
-additional questions regarding Raven SSL.
-
-
-=head3 Dynamic (DSO) mod_perl and Raven SSL Installation
-
-To install Raven SSL and mod_perl dynamically:
-
-=over
-
-=item 1
-
-Un-tar and un-gunzip Raven SSL and mod_perl into their respective
-directories.
-
-=item 1
-
-  % cd raven_ssl-x.x.x
-
-Install Raven SSL and Apache via:
-
-  % ./setup --with-apache
-
-=item 1
-
-  % cd mod_perl_x.xx
-
-=item 1
-
-  % perl Makefile.PL USE_APXS=1 \
-     WITH_APXS=/usr/local/apache/bin/apxs \
-     EVERYTHING=1
-     [...]
-
-=item 1
-
-  % make ; make install
-
-=item 1
-
-Move the C<LoadModule mod_perl.c> and C<Addmodule mod_perl.c> lines in
-I<httpd.conf> above the C<E<lt>IfDefine SSLE<gt>> section.
-
-
-=back
-
-
-
-
-=head3  Static mod_perl and dynamic Raven SSL Installation
-
-To installs Raven SSL dynamically and mod_perl statically:
-
-=over
-
-=item 1
-
-Un-tar and un-gunzip Apache, Raven SSL and mod_perl into their
-respective directories
-
-=item 1
-
-  % cd raven_ssl-x.x.x
-
-Install Raven SSL via
-
-  % ./setup
-
-This is an example of setup scenario:
-
-=over
-
-=item *
-
-  Please select the directory where you want to 
-  install Raven SSL and related packages
-  Directory [/usr/local]  -> 
-
-Accept the default or supply a different directory.
-
-=item *
-
-  Installing the Apache binary is the easiest 
-  and quickest way to secure Apache with Raven SSL.
-  Do you want to install Apache? [Y/n]  -> n
-
-Answer C<n>, we want to install it from mod_perl sources.
-
-=item *
-
-  Please select the directory where you want to
-  install Raven SSL.
-  Directory [/usr/local/raven]  -> 
-
-Accept the default or supply a different directory.
-
-=item *
-
-  Apache will not be installed
-  Raven SSL will be installed in:
-  /usr/local/raven
-
-Sure, we know that :)
-
-=item *
-
-  Do you want to proceed with installation? [Y/n]  -> Y
-
-Yes, we want to proceeed.
-
-=item *
-
-Now Raven completes the installation of its files.
-
-=back
-
-
-=item 1
-
-Now it's a time to patch the Apache source with Raven.
-
-  % /usr/local/raven/bin/raven_admin_tls
-     select Option 1, 'Export Raven'
-
-Note: this option exports the required EAPI patches and the needed
-Raven SSL module files into your Apache source tree
-
-=over
-
-=item *
-
-  Choose Apache version to export to:
-  Available Apache versions :
-  (1) 1.3.12
-  Selection?  -> 1
-
-Choose the version you want to build Raven with.
-
-=item *
-
-  Export Raven SSL Module to Apache source root:
-  Apache source root directory []  -> 
-
-Specify the Apache source root directory, e.g.:
-
-  /usr/src/apache-1.x.x
-
-=item *
-
-Back to the main menu:
-
-  Choose an action :
-  (1) Export Raven SSL
-  (2) Upgrade Raven SSL
-  (3) Exit
-  Selection? [1]  -> 3
-
-Choose 3 to finish.
-
-=back
-
-
-=item 1
-
-  % cd mod_perl-x.xx
-
-=item 1
-
-  % perl Makefile.PL APACHE_PREFIX=/path/to/apache_1.x.x \
-        APACHE_SRC=/path/to/apache_x.x.x \
-        EVERYTHING=1 \
-        USE_APACI=1 \
-        PREP_HTTPD=1 \
-        DO_HTTPD=1
-
-=item 1
-
-  % make ; make install
-
-=item 1
-
-  % cd ../apache-x.x.x
-
-=item 1
-
-  % ./configure --target=httpsd \
-      --enable-module=most \
-      --enable-shared=max \
-      --enable-suexec \
-      --suexec-logfile=logs/suexec.log \
-      --activate-module=src/modules/perl/libperl.a
-
-=item 1
-
-  % make ; make install
-
-=item 1
-
-In the I<httpd.conf> file make sure that the S<AddModule mod_perl.c>
-line is above C<E<lt>IfDefine SSLE<gt>> section.
-
-
-=back
-
 
 =head2 mod_perl and mod_php
 
@@ -1775,6 +1566,7 @@ Apache server:
 
 Configure Apache.
 
+  % cd apache_x.x.xx
   % ./configure --prefix=/usr/local/etc/httpd
 
 =item 1
@@ -1803,7 +1595,7 @@ Build Apache:
   % cd ../apache_x.x.xx
   % ./configure --prefix=/usr/local/etc/httpd \
      --activate-module=src/modules/perl/libperl.a \
-     --activate-module=src/modules/php3/libphp3.a \
+     --activate-module=src/modules/php4/libphp4.a \
      --enable-module=stats \
      --enable-module=rewrite
   % make
@@ -1825,6 +1617,8 @@ Complete the Apache installation.
 
 =back
 
+Note: If you need to build mod_ssl as well, make sure that you add the
+mod_ssl first.
 
 =head1 mod_perl Installation with the CPAN.pm Interactive Shell
 
@@ -1891,7 +1685,7 @@ not to do that.
   Shall I build httpd in /usr/src/apache_x.x.x/src for you? [y] 
 
 Now we will build Apache with mod_perl enabled.  Quit the C<CPAN>
-shell, or use use another terminal.  Go to the Apache sources root
+shell, or use another terminal.  Go to the Apache sources root
 directory and run:
 
   % make install
@@ -2530,10 +2324,10 @@ C<@INC> variable in your scripts.
 
 Assuming that we use perl-5.00503, in our example the directories are:
 
-    /home/sbekman/lib/perl5/5.00503/i386-linux
-    /home/sbekman/lib/perl5/5.00503
-    /home/sbekman/lib/perl5/site_perl/5.005/i386-linux
-    /home/sbekman/lib/perl5/site_perl/5.005
+    /home/stas/lib/perl5/5.00503/i386-linux
+    /home/stas/lib/perl5/5.00503
+    /home/stas/lib/perl5/site_perl/5.005/i386-linux
+    /home/stas/lib/perl5/site_perl/5.005
 
 As mentioned before, you find the exact directories by executing
 C<perl -V> and replacing the global Perl installation's base
@@ -3184,7 +2978,8 @@ it means that you have configured this location to run under mod_cgi
 and not mod_perl.
 
 Also note that there is a C<MOD_PERL> environment variable if you run
-under a mod_perl handler, it's set to the release number you use.
+under a mod_perl handler, it's set to the I<mod_perl/x.xx> string,
+where I<x.xx> is the version number of mod_perl.
 
 Based on this difference you can write code like this:
 
@@ -3350,7 +3145,7 @@ Since mod_perl uses Perl, Apache and third party modules, and they all
 work together, it's essential to use the same compiler while building
 each of the components.
 
-You shouldn't worry about this when compliling Perl modules since Perl
+You shouldn't worry about this when compiling Perl modules since Perl
 will choose what's right automatically.  Unless you override things.
 If you do that, you are on your own...
 
@@ -3424,7 +3219,7 @@ and without mod_perl) with only one Apache installation.
 The server package can be easily extended with third-party modules
 even after installation.  This is at least a great benefit for vendor
 package maintainers who can create an Apache core package and
-additional packages containing extensions like PHP3, mod_perl,
+additional packages containing extensions like PHP4, mod_perl,
 mod_fastcgi, etc.
 
 =item *

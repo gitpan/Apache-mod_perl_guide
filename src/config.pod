@@ -38,8 +38,8 @@ that it works and maybe that you have some idea how to configure it.
 There is a warning in the I<httpd.conf> distributed with Apache about
 simply editing I<httpd.conf> and running the server, without
 understanding all the implications.  This is another warning.
-Modifying the config file and adding new directives can introduce
-security problems, and have performance implications.
+Modifying the configuration file and adding new directives can
+introduce security problems, and have performance implications.
 
 The Apache distribution comes with an extensive configuration manual,
 and in addition each section of the distributed configuration file
@@ -406,7 +406,7 @@ configuration directives.
 
 To ease maintenance and to simplify multiple server installations, the
 Apache/mod_perl configuration system allows you several alternative
-ways to keep your configration directives in separate places.  The
+ways to keep your configuration directives in separate places.  The
 C<Include> directive in I<httpd.conf> allow you to include the
 contents of other files, just as if the information were all contained
 in I<httpd.conf>.  This is a feature of Apache itself. For example if
@@ -420,7 +420,7 @@ mod_perl adds two further directives: C<E<lt>PerlE<gt>> sections allow
 you to execute Perl code from within any configuration file at server
 startup time, and as you will see later, a file containing any Perl
 program can be executed (also at server startup time) simply by
-mentioning its name in a C<PerlRequire> or C<PerlModule> directve.
+mentioning its name in a C<PerlRequire> or C<PerlModule> directive.
 
 
 =head2 Alias Configurations
@@ -432,7 +432,7 @@ to a file system directory.  The directive:
 
 will map all requests starting with I</foo> onto the files starting
 with I</home/httpd/foo/>. So when Apache gets a request
-http://www.example.com/foo/test.pl the server will remap this into the
+http://www.example.com/foo/test.pl the server will map this into the
 file I<test.pl> in the directory I</home/httpd/foo/>.
 
 In addition C<ScriptAlias> assigns all the requests that match the URI
@@ -1235,7 +1235,7 @@ directives like this:
     PerlRequire  /home/httpd/perl/lib/startup.pl
 
 I must stress that all the code that is run at server initialization
-time is run with root priveleges if you are executing it as the root
+time is run with root privileges if you are executing it as the root
 user (which you have to do unless you choose to run the server on an
 unprivileged port, above 1024).  This means that anyone who has write
 access to a script or module that is loaded by C<PerlModule> or
@@ -1467,7 +1467,7 @@ Technically, you aren't required to supply the C<use()> statement in your
 (handler?) code if it was already loaded during server startup
 (i.e. by 'C<PerlRequire startup.pl>'). When writing your code,
 however, you should not assume the module code has been preloaded. In
-the future, you or someone else will revist this code and will not
+the future, you or someone else will revisit this code and will not
 understand how it is possible to use a module's methods without first
 loading the module itself.
 
@@ -2067,8 +2067,8 @@ i.e. module that was I<Added> first will be executed last.
 The solution is not to mix mod_rewrite and mod_alias.  mod_rewrite
 does everything mod_alias does--except for C<ScriptAlias> which is not
 really relevant to mod_perl anyway. Don't rely on the module ordering,
-but use explicitely disjoint URL namespaces for C<Alias> and
-C<Rewrite>. In other words any URL regexp that can potentially match a
+but use explicitly disjoint URL namespaces for C<Alias> and
+C<Rewrite>. In other words any URL regex that can potentially match a
 C<Rewrite> rule should not be used in an C<Alias>, and vice
 versa. Given that mod_rewrite can easily do what mod_alias does, it's
 no problem.
@@ -2142,10 +2142,10 @@ bugs.
 The more chances for bugs, the more chance that some of those bugs may
 involve security.
 
-We never were completely sure why the default of the C<ServerToken>
+We never were completely sure why the default of the C<ServerTokens>
 directive in Apache is C<Full> rather than C<Minimal>. Seems like you
 would only make it C<Full> if you are debugging. Probably the reason
-for using the C<ServerToken Full> is for a show-off, so NetCraft
+for using the C<ServerTokens Full> is for a show-off, so NetCraft
 (http://netcraft.com) and other similar survey services will count
 more Apache servers, which is good for all of us, but you really want
 to reveal as little information as possible to the potential crackers.
@@ -2173,7 +2173,7 @@ to it and issuing some request. For example:
   [more lines snipped]
 
 So as you see that a lot of information is revealed and a C<Full>
-C<ServerToken> has been used.
+C<ServerTokens> has been used.
 
 
 
@@ -2227,7 +2227,7 @@ Since you have to proxy_pass the request between front and backend
 servers, you cannot know where the connection has come from. Neither
 is using the HTTP headers reliable.
 
-A possible solution for this problem is to have the the mod_perl
+A possible solution for this problem is to have the mod_perl
 server listen on two different ports (e.g. 8000 and 8001) and have the
 mod_rewrite proxy rule in the regular server redirect to port 8000 and
 the mod_rewrite proxy rule in the SSL virtual host redirect to port

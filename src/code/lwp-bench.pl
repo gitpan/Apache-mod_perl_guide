@@ -115,7 +115,7 @@ my @P = (
       "Total Requests"  => "$nof_requests_total",
       "Parallel Agents" => $nof_parallel_connections,
       "Succeeded"       => sprintf("$succeeded (%.2f%%)\n",
-				   $succeeded * 100 / $nof_requests_total),
+				   $succeeded * 100 / ($nof_requests_total * @urls) ),
       "Errors"          => $errors,
       "Total Time"      => sprintf("%.2f secs\n", $total_time),
       "Throughput"      => sprintf("%.2f Requests/sec\n", 

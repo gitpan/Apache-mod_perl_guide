@@ -338,7 +338,7 @@ C<Tie::DB_FileLock> manpage for more information.
 
 =item *
 
-C<DB_File::Lock> -- extremely lightweighted C<DB_File> wrapper that
+C<DB_File::Lock> -- extremely lightweight C<DB_File> wrapper that
 simply flocks an external lockfile before tie-ing the database and
 drops the lock after untie.  Allows one to use the same lockfile for
 multiple databases to avoid deadlock problems, if desired.  Use this

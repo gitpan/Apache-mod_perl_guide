@@ -31,7 +31,7 @@ will belong to that user unless defined differently in I<httpd.conf>.
 It's still easy to find which is the parent--usually it's the process
 with the smallest PID.
 
-You will see many C<httpd> executables running on your system, but you
+You will see several C<httpd> processes running on your system, but you
 should never need to send signals to any of them except the parent,
 whose pid is in the I<PidFile>.  There are three signals that you can
 send to the parent: C<SIGTERM>, C<SIGHUP>, and C<SIGUSR1>.
@@ -47,7 +47,7 @@ I</usr/include/linux/signal.h>, the relevant entries are:
   #define SIGUSR1   30    /* user defined signal 1 */
 
 Note that to send these signals from the command line the C<SIG> prefix must
-be omitted and under some operating systems they will need to be preceeded by
+be omitted and under some operating systems they will need to be preceded by
 a minus sign, e.g. C<kill -15> or C<kill -TERM> followed by the PID.
 
 
@@ -87,7 +87,7 @@ parent re-reads its configuration files, spawns a new set of child
 processes and continues to serve requests.  It is almost equivalent to
 stopping and then restarting the server.
 
-If the configuration files contain errors when restart is signalled,
+If the configuration files contain errors when restart is signaled,
 the parent will exit, so it is important to check the configuration
 files for errors before issuing a restart. How to perform the check
 will be covered shortly;
@@ -140,7 +140,7 @@ It is also possible that this operation may take a long time to
 finish, causing a long delay during a restart.  Sometimes this will be
 followed by a series of messages appearing in the server I<error_log>
 file, warning that certain child processes did not exit as expected.
-This happens when after a few attempts advicing the child process to
+This happens when after a few attempts advising the child process to
 quit, the child is still in the middle of perl_destruct(), and a
 lethal C<KILL> signal is sent, aborting any operation the child has
 happened to execute and I<brutally> killing it.
@@ -526,7 +526,7 @@ startup script.
 Note the line marked C<WORKAROUND>, which fixes an obscure error when
 starting mod_perl enabled Apache by setting the real UID to the
 effective UID.  Without this workaround, a mismatch between the real
-and the effective UIDs causes Perl to croak on the C<-e> switch.
+and the effective UID causes Perl to croak on the C<-e> switch.
 
 Note that you must be using a version of Perl that recognizes and
 emulates the suid bits in order for this to work.  This script will do
@@ -589,7 +589,7 @@ this purpose.
 When you run your own development box, it's okay to start the
 webserver by hand when you need to.  On a production system it is
 possible that the machine the server is running on will have to be
-rebooted.  When the reboot is completed, who is going to rememeber to
+rebooted.  When the reboot is completed, who is going to remember to
 start the server?  It's easy to forget this task, and what happens if
 you aren't around when the machine is rebooted?
 
@@ -623,8 +623,8 @@ following setup:
 
 The scripts themselves reside in the I</etc/rc.d/init.d> directory.
 There are symbolic links to these scripts in other directories. The
-names are the same as the script names but they have numbers
-prepended, which are used for executing the scripts in a particular
+names are the same as the script names but they have numerical
+prefixes, which are used for executing the scripts in a particular
 order: the lower numbers are executed earlier.
 
 When the system starts (level 3) we want the Apache to be started when
@@ -655,7 +655,7 @@ called with the C<stop> argument, like this:
 
   /etc/rc.d/init.d/httpd_perl stop
 
-Most systems have GUI utilites to automate the creation of symbolic
+Most systems have GUI utilities to automate the creation of symbolic
 links.  For example RedHat Linux includes the C<control-panel>
 utility, which amongst other things includes the C<RunLevel Manager>.
 (which can be invoked directly as either ntsysv(8) or tksysv(8)).
@@ -767,7 +767,7 @@ link points to.
 
 =head1 Monitoring the Server.  A watchdog.
 
-With mod_perl many things can happen to your server.  It is possibile
+With mod_perl many things can happen to your server.  It is possible
 that the server might die when you are not around.  As with any other
 critical service you need to run some kind of watchdog.
 
@@ -1110,7 +1110,7 @@ server we have the following code:
 
 The IP addresses are the addresses of the developer desktop machines
 (where they are running their web browsers).  So if an html file
-includes a a relative URI I</perl/test.pl> or even
+includes a relative URI I</perl/test.pl> or even
 I<http://www.example.com/perl/test.pl>, clicking on the link will be
 internally proxied to http://www.example.com:8000/perl/test.pl if the
 click has been made at the user I<stas>'s desktop machine, or to
@@ -1125,7 +1125,7 @@ C<RewriteRule>s to match C<REMOTE_USER> in the above example.
 We wish to stress again, that the above setup will work only with
 relative URIs in the HTML code. If you choose to generate full URIs
 including non-80 port the requests originated from this HTML code will
-bypass the light server listenting to the default port 80, and go
+bypass the light server listening to the default port 80, and go
 directly to the I<server:port> of the full URI.
 
 
@@ -1251,7 +1251,7 @@ covering the latter, since it will take more than one book to
 profoundly cover this issue, but the rest of the thing are quite easy
 to prevent if you follow our advices.
 
-Certaintly, your particular system might have maintainance chores that
+Certainly, your particular system might have maintenance chores that
 aren't covered here, but at least you will be alerted that these
 chores are real and should be taken care of.
 
@@ -1265,7 +1265,7 @@ big parts of the disk space over time. Second these should be
 monitored for possible sudden explosive growth rates, when something
 goes astray in your code running at the mod_perl server and the
 process starts to log thousands of error messages in second without
-stopping, untill all the disk space is used, and the server cannot
+stopping, until all the disk space is used, and the server cannot
 work anymore.
 
 =head3 Log Rotation

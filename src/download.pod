@@ -45,8 +45,8 @@ Source/Binary Distributions: http://perl.apache.org/distributions.html
 
 Every Apache project rolls a new tar.gz snapshot of the latest CVS
 version every 6 hours. You can grab the latest mod_perl CVS snapshot
-from http://perl.apache.org/from-cvs/modperl/, all the mod_perl
-related projects are available from http://perl.apache.org/from-cvs.
+from http://perl.apache.org/snapshots/modperl/, all the mod_perl
+related projects are available from http://perl.apache.org/snapshots/.
 
 
 RPM: http://perl.apache.org/rpm/

@@ -123,7 +123,7 @@ The following code must be added to the script:
   
       $message = qq{
   		  Have you tried to upload an image in the wrong way?<P>
-  		  To sucessfully upload an image you must use a browser that supports
+  		  To successfully upload an image you must use a browser that supports
   		  image upload and use the 'Browse' button to select that image.
   		  DO NOT type the path to the image into the upload field.<P>
   		  Thank you!
@@ -315,7 +315,13 @@ do is done and the connection is closed.
 
 
 
+=head1 Setting Content-type and Content-encoding headers in non-OK responses
 
+You cannot set I<Content-type> and I<Content-encoding> headers in
+non-OK responses, since Apache overrides these in I<http_protocol.c>,
+I<ap_send_error_response()>:
+
+  r->content_type = "text/html; charset=iso-8859-1";
 
 
 =head1 More on Relative Paths
@@ -492,7 +498,7 @@ Here is a fairly well-known bit of code to take cookie values and put
 them into a hash:
 
   sub get_cookies {
-      # cookies are seperated by a semicolon and a space, this will
+      # cookies are separated by a semicolon and a space, this will
       # split them and return a hash of cookies
     local(@rawCookies) = split (/; /,$ENV{'HTTP_COOKIE'});
     local(%cookies);
@@ -768,7 +774,7 @@ The most efficient approach is to talk directly to the SMTP server.
 Luckily C<Net::SMTP> modules makes this very easy.  The only problem
 is when <Net::SMTP> fails to deliver the mail, because the destination
 peer server is temporarily down.  But from the other side C<Net::SMTP>
-allows you to send email much much faster, since you don't have to
+allows you to send email much faster, since you don't have to
 invoke a dedicated process.  Here is an example of a subroutine that
 sends email.
 

@@ -146,7 +146,7 @@ I use C<alias> (in C<tcsh>) so I do not have to remember the path:
 
 =head2 Database Locking Risks
 
-Be very very careful when locking the database (C<LOCK TABLE ...>) or
+Be very careful when locking the database (C<LOCK TABLE ...>) or
 singular rows if you use C<Apache::DBI> or similar persistent
 connections.  MySQL threads keep tables locked until the thread ends
 (connection is closed) or the tables are unlocked.  If your session

@@ -15,12 +15,12 @@ provides very detailed scenarios of the schemes discussed in the
 L<Picking the Right Strategy|strategy/> chapter.
 
 The L<Server Installation|install/> chapter follows on from the L<Real
-World Scenarios Implementaion|scenario/> chapter by providing more
+World Scenarios Implementation|scenario/> chapter by providing more
 in-depth installation details.
 
 The L<Server Configuration|config/> chapter adds to the basic
 configurations presented in the L<Real World Scenarios
-Implementaion|scenario/> chapter with extended configurations and
+Implementation|scenario/> chapter with extended configurations and
 various configuration examples.
 
 The L<Frequent mod_perl problems|frequent/> chapter is a collection of
