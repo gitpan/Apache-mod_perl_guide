@@ -1042,7 +1042,7 @@ and C<make install>.
 =item 3 Additionally prepare other third-party modules
 
 Now you have a chance to prepare third-party modules.  For instance
-the PHP3 language can be added in a manner similar to the mod_perl
+the PHP language can be added in a manner similar to the mod_perl
 procedure.
 
 =item 4 Build the Apache Package
@@ -1777,7 +1777,7 @@ Build mod_php.
 
   % cd ../php-x.x.xx
   % ./configure --with-apache=../apache_x.x.xx \
-     --wtih-mysql --enable-track-vars
+     --with-mysql --enable-track-vars
   % make
   % make install
 
@@ -1990,30 +1990,10 @@ preparation of SRPMs for mod_perl? Thanks!!!)
 
 
 
-=head1 using RPM, DEB and other packages to install mod_perl
+=head1 using RPM and other packages to install mod_perl
 
-[ReaderMETA]: Currently only RPM and Debian packages.  Please submit
-info about other available packages if you use such.
-
-=head2 Static debian package
-
-David Huggins-Daines has built a static Apache/mod_perl 1.3.9/1.21
-Debian package.
-
-David has hacked the Debian package to build the Apache binary,
-with static mod_perl.  Source and binary packages are at:
-
-http://elgin.plcom.on.ca/debian/dists/unstable/main/
-
-Or put this in your I</etc/apt/sources.list> and run C<"apt-get
-install apache-perl">:
-
-  % deb http://elgin.plcom.on.ca/debian unstable main
-
-Note: this server may be up and down for a bit, it's also the
-development machine for David's project at work that uses mod_perl...
-
-These aren't official debian packages, of course.
+[ReaderMETA]: Currently only RPM package.  Please submit info about
+other available packages if you use such.
 
 
 
@@ -2083,8 +2063,8 @@ mirror site or searching http://rpmfind.net/ for a different package -
 there are plenty out there to choose from.
 
 David Harris has started an effort to build better RPM/SRPM mod_perl
-packages.  You will find them at:
-http://www.davideous.com/modperlrpm/distrib/
+packages.  You will find the link to David's site from
+http://perl.apache.org/distributions.html.
 
 Features of this RPM:
 
@@ -3148,7 +3128,7 @@ permissions on a public host):
 
   % chmod a+rx test.pl
 
-Now fetch the URL C<http://www.nowhere.com:8080/perl/test.pl> (replace
+Now fetch the URL C<http://www.example.com:8080/perl/test.pl> (replace
 8080 with the port your mod_perl enabled server is listening to).  You
 should see something like this (the output has been edited):
 
@@ -3205,16 +3185,16 @@ serve a very simple purpose, they can be helpful in other situations.
 Assuming you have the C<libwww-perl> (C<LWP>) package installed (you will
 need it installed in order to pass mod_perl's C<make test> anyway):
 
-  % lwp-request -e -d http://www.nowhere.com
+  % lwp-request -e -d http://www.example.com
 
 Will show you all the headers.  The C<-d> option disables printing the
 response content.
 
-  % lwp-request -e -d http://www.nowhere.com | egrep '^Server:'
+  % lwp-request -e -d http://www.example.com | egrep '^Server:'
 
 To see the server version only.
 
-Use C<http://www.nowhere.com:port_number> if your server is listening
+Use C<http://www.example.com:port_number> if your server is listening
 to a port other than port 80.
 
 
@@ -3222,10 +3202,9 @@ to a port other than port 80.
 
 =head2 Is it possible to run mod_perl enabled Apache as suExec?
 
-The answer is B<No>. The reason is that you can't I<"suid> a part of a
-process.  mod_perl lives inside the Apache process.  You have to fork
-somewhere to be someone else, and at that point, you aren't mod_perl
-anymore.
+The answer is B<No>. The reason is that you can't I<"suid"> a part of
+a process.  mod_perl lives inside the Apache process, so its UID and
+GID are the same as the Apache process.
 
 You have to use mod_cgi if you need this functionality.
 

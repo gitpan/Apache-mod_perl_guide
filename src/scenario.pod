@@ -593,6 +593,10 @@ Basically once you have Squid installed, you just need to modify the
 default C<squid.conf> as I will explain below, then you are ready to
 run it.
 
+The configuration that I'm going to present works with Squid server
+version 2.3.STABLE2. It's possible that some directives will change in
+future versions.
+
 First, let's take a look at what we have already running and what we
 want from squid.
 
@@ -662,7 +666,6 @@ We do not use C<icp> (C<icp> is used for cache sharing between
 neighboring machines, which is more relevant in the proxy mode).
 
   icp_port 0
-
 
 C<hierarchy_stoplist> defines a list of words which, if found in a
 URL, causes the object to be handled directly by the cache. Since we
@@ -741,11 +744,14 @@ redirection daemon script is listed below.
   redirect_children 10
   redirect_rewrites_host_header off
 
-The maximum allowed request size is in kilobytes. This one is pretty
-obvious.  If you are using C<POST> to upload files, then set this to
-the largest file's size plus a few extra kbytes.
+The maximum allowed request size is in kilobytes, which is mainly
+useful during C<PUT> and C<POST> requests. A user who attempts to send
+a request with a body larger than this limit receives an "Invalid
+Request" error message.  If you set this parameter to a zero, there
+will be no limit imposed. If you are using C<POST> to upload files,
+then set this to the largest file's size plus a few extra kbytes.
 
-  request_size 1000 KB
+  request_body_max_size 1000 KB
 
 Then we have access permissions, which we will not explain.  You might
 want to read the documentation, so as to avoid any security problems.
@@ -877,15 +883,12 @@ the way to the httpd_docs server.
 Modify I<squid.conf>:
 
   http_port 80
-  tcp_incoming_address 123.123.123.123
   tcp_outgoing_address 127.0.0.1
   httpd_accel_host 127.0.0.1
   httpd_accel_port 80
 
-Where C<123.123.123.123> should be replaced with the IP address of
-your main server.  Now restart the Squid and httpd_docs servers (it
-doesn't matter which one you start first), and voila--the port number
-has gone.
+Now restart the Squid and httpd_docs servers (it doesn't matter which
+one you start first), and voila--the port number has gone.
 
 You must also have in the file I</etc/hosts> the following entry
 (chances are that it's already there):
@@ -905,7 +908,6 @@ will not be able to bypass Squid.
 To save you some keystrokes, here is the whole modified C<squid.conf>:
 
   http_port 80
-  tcp_incoming_address 123.123.123.123
   tcp_outgoing_address 127.0.0.1
   httpd_accel_host 127.0.0.1
   httpd_accel_port 80
@@ -921,7 +923,7 @@ To save you some keystrokes, here is the whole modified C<squid.conf>:
   redirect_children 10
   redirect_rewrites_host_header off
   
-  request_size 1000 KB
+  request_body_max_size 1000 KB
   
   acl all src 0.0.0.0/0.0.0.0
   acl manager proto cache_object
@@ -1004,7 +1006,7 @@ explanations in the previous section):
   # redirect_children 10
   # redirect_rewrites_host_header off
   
-  request_size 1000 KB
+  request_body_max_size 1000 KB
   
   acl all src 0.0.0.0/0.0.0.0
   acl manager proto cache_object

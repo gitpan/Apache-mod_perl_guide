@@ -102,9 +102,9 @@ Databases|databases/Apache_DBI_Initiate_a_persist>
 
 =head1 Apache::Watchdog::RunAway - Hanging Processes Monitor and Terminator
 
-This module monitors hanging Apache/mod_perl processes.  You define the
-time in seconds after which the process is to be counted as I<hanging> or
-I<run away>.
+This module monitors hanging Apache/mod_perl processes.  You define
+the time in seconds after which the process is to be counted as
+I<hanging> or I<run away>.
 
 When the process is considered to be I<hanging> it will be killed and the
 event logged in a log file.
@@ -476,39 +476,55 @@ response in the I<access.log> or by telnet:
 And you will get the data compressed if configured correctly.
 
 
-=head1 Apache::PerlVINC - set a different @INC perl-location 
+=head1 Apache::PerlVINC - Allows Module Versioning in Location blocks and Virtual Hosts
 
-With this module you can configure C<@INC> and have modules reloaded
-for a given C<Location>.  Suppose two versions of C<Apache::Status>
-are being hacked on the same server, this fixup handler will simply
-C<delete $INC{ $filename }>, unshift the preferred C<PerlINC> path
-into C<@INC>, and reload the file with C<require()>:
+With this module you can have different C<@INC> for different virtual
+hosts, locations and equivalent configuration blocks.
+
+Suppose two versions of C<Apache::Status> are being hacked on the same
+server.  In this configuration:
 
   PerlModule Apache::PerlVINC
-
-  <Location /dougm-status>
-    SetHandler perl-script
-    PerlHandler Apache::Status
   
-    PerlVersionINC On
-    PerlINC /home/dougm/dev/modperl/lib
+  <Location /status-dev/perl>
+    SetHandler       perl-script
+    PerlHandler      Apache::Status
+  
+    PerlINC          /home/httpd/dev/lib
     PerlFixupHandler Apache::PerlVINC
-    PerlRequire Apache/Status.pm
+    PerlVersion      Apache/Status.pm
+  </Location>
+  
+  <Location /status/perl>
+    SetHandler       perl-script
+    PerlHandler      Apache::Status
+  
+    PerlINC          /home/httpd/prod/lib
+    PerlFixupHandler Apache::PerlVINC
+    PerlVersion      Apache/Status.pm
   </Location>
 
-  <Location /other-status>
-    SetHandler perl-script
-    PerlHandler Apache::Status
-  
-    PerlVersionINC On
-    PerlINC /home/other/current/modperl/lib
-    PerlFixupHandler Apache::PerlVINC
-    PerlRequire Apache/Status.pm
-  </Location>
+The C<Apache::PerlVINC> is loaded and then two different locations are
+specified for the same handler C<Apache::Status>, whose development
+version resides in I</home/httpd/dev/lib> and production version in
+I</home/httpd/prod/lib>.
 
-C<PerlVersionINC On> must come before the C<PerlINC>
-statement. C<PerlINC> won't store that path unless C<PerlVersionINC>
-is On.
+In case the I</status/perl> request is issued (the latter
+configuration section), the fixup handler will internally do:
+
+  delete $INC{Apache/Status.pm};
+  unshift @INC, /home/httpd/prod/lib;
+  require "Apache/Status.pm";
+
+which will load the production version of the module and it'll be used
+to process the request. If on the other hand if the request to the
+I</status-dev/perl> location will be issued, as configured in the
+former configuration section, a similar thing will happen, but a
+different path (I</home/httpd/dev/lib>) will be prepanded to C<@INC>:
+
+  delete $INC{Apache/Status.pm};
+  unshift @INC, /home/httpd/dev/lib;
+  require "Apache/Status.pm";
 
 It's important to be aware that a changed C<@INC> is effective only
 inside the C<E<lt>LocationE<gt>> or a similar configuration directive.
@@ -517,10 +533,33 @@ the file to be reloaded by the fixup handler, using the value of
 C<PerlINC> for C<@INC>.  That's local to the fixup handler, so you
 won't actually see C<@INC> changed in your script.
 
-To address possible issues of namespace clashes during reload, the
-handler could call C<$r-E<gt>child_terminate()> so the next server to
-load the different versions will have a fresh namespace.  This is not 
-a good idea in a high load environment, of course.
+Additionaly the modules with different versions can be unloaded at the
+end of request, using the C<PerlCleanupHandler> handler:
+
+  <Location /status/perl>
+    SetHandler         perl-script
+    PerlHandler        Apache::Status
+  
+    PerlINC            /home/httpd/prod/lib
+    PerlFixupHandler   Apache::PerlVINC
+    PerlCleanupHandler Apache::PerlVINC
+    PerlVersion        Apache/Status.pm
+  </Location>
+
+Also notice that C<PerlVersion> effect things differently depending on
+where it was placed. If it was placed inside a C<E<lt>LocationE<gt>>
+or a similar block section, the files will only be reloaded on
+requests to that location. If it was placed in a server section, all
+requests to the server or virtual hosts will have these files
+reloaded.
+
+As you can guess, this module slows the response time down because it
+reloads some modules on a per-request basis.  Hence, this module
+should only be used in a development environment, not a production
+one.
+
+
+
 
 =head1 Apache::LogSTDERR
 
@@ -533,8 +572,8 @@ to a file of your choice, the default is shown in this example:
  PerlModule Apache::LogSTDERR
  HookStderr logs/stderr_log
 
-
-
+[META: see
+http://forum.swarthmore.edu/epigone/modperl/vixquimwhen ]
 
 
 

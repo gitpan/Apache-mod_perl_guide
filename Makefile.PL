@@ -7,7 +7,7 @@ use FindBin ();
 # prerequisites
 my %require =
   (
-   "Pod::HtmlPsPdf" => "0.01",
+   "Pod::HtmlPsPdf" => "0.03",
   );
 
 #--- Installation check
@@ -71,8 +71,7 @@ sub MY::manifypods{
 
   return <<END;
 SRC_DIR    = $FindBin::Bin
-manifypods : 
-
+manifypods :
 	\$(SRC_DIR)/bin/build -m
 	\@echo 
 	\@echo "The Guide was built in \$(SRC_DIR)/rel_html"
@@ -97,7 +96,6 @@ sub MY::install{
 TARGET_DIR = $target_dir
 SRC_DIR    = $FindBin::Bin
 install : manifypods
-
 	\@cp -r \$(SRC_DIR)/rel_html/* \$(TARGET_DIR)
 	\@echo "The Guide was installed in \$(TARGET_DIR)"
 

@@ -324,9 +324,8 @@ keyword C<my>) are the only symbols which do I<not> live in a symbol
 table.  Because of this, they are not available from outside the block
 in which they are declared.  There is no typeglob associated with a
 lexical variable and a lexical variable can refer only to a scalar, an
-array or a hash.
-
-META: is the above right?
+array, a hash or a code reference. (Since perl-5.6 it can also refer
+to a file glob).
 
 If you need access to the data from outside the package then you can
 return it from a subroutine, or you can create a global variable

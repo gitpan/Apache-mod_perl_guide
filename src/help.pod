@@ -405,11 +405,21 @@ mod_throttle_access is available at http://www.fremen.org/apache/
 
 
 
-=head1 Get help with DBI
+=head1 Get help with DBI and SQL
 
 =over
 
-=item * Perl DBI examples
+=item *
+
+Introduction to Structured Query Language:
+http://w3.one.net/~jhoffman/sqltut.htm
+
+=item *
+
+SQL for Web Nerds by Philip Greenspun
+http://www.arsdigita.com/books/sql/
+
+=item * Jeffrey Baker's DBI Examples and Performance Tuning
 
 http://www.saturn5.com/~jwb/dbi-examples.html (by Jeffrey William
 Baker).
@@ -426,10 +436,6 @@ http://www.fugue.com/dbi/
 
 http://outside.organic.com/mail-archives/dbi-users/
 http://www.xray.mpe.mpg.de/mailing-lists/dbi/
-
-=item * Persistent connections with mod_perl
-
-http://perl.apache.org/src/mod_perl.html#PERSISTENT_DATABASE_CONNECTIONS
 
 =back
 
@@ -520,8 +526,17 @@ http://www.sourcegear.com/CVS/Docs/blandy
 The list's address: scalable@arctic.org.
 Subscribe by sending a message to scalable-subscribe@arctic.org.
 
-
 =item *
+
+I<Solaris 2.x - Tuning Your TCP/IP Stack and More>
+http://www.rvs.uni-hannover.de/people/voeckler/tune/EN/tune.html
+
+This page talks about TCP/IP stack and various tricks of tuning your
+system to get the most out of it as a web server. While the
+information is for Solaris 2.x OS, most of it will be relevant of
+other Unix flavors. At the end an extensive list of related literature
+is presented.
+
 
 =back
 

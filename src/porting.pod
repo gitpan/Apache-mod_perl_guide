@@ -2257,8 +2257,8 @@ use C<$query-E<gt>print> instead of plain ol' C<print()>.
 In mod_perl both C<STDIN> and C<STDOUT> are tied to the socket the
 request came from. Because the C level STDOUT is not hooked up to the
 client, you can re-open the STDOUT filehandler using tie(). For
-example if you want your code to work with mod_perl and without it,
-the following example will do:
+example if you want to dup an STDOUT filehandler and for the code to
+work with mod_perl and without it, the following example will do:
 
   use constant IS_MODPERL => $ENV{MOD_PERL};
   if (IS_MODPERL) {
@@ -2267,7 +2267,36 @@ the following example will do:
     open (OUT, ">-");
   }
 
+Note that C<OUT> was picked just as an example -- there is nothing
+special about it. If you are looking to redirect the STDOUT stream
+into a scalar, see the L<Redirecting STDOUT into a
+String|porting/Redirecting_STDOUT_into_a_Scalar> section.
+
 C<STDERR> is tied to the file defined by the C<ErrorLog> directive.
+
+
+
+=head1 Redirecting STDOUT into a Scalar
+
+Sometimes you have a situation where a black box functions prints the
+output to C<STDOUT> and you want to get this output into a
+scalar. This is just as valid under mod_perl, where you want the
+C<STDOUT> to be tied to the C<Apache> object. So that's where the
+C<IO::String> package comes to help. You can re-tie() the STDOUT (or
+any other filehandler to a string) by doing a simple select() on the
+C<IO::String> object and at the end to re-tie() the STDOUT back to its
+original stream:
+
+  my $str;
+  my $str_fh = IO::String->new($str);
+  my $old_fh = select($str_fh);
+  
+  # some function that prints to currently selected file handler.
+  print_stuff()
+  
+  # reset default fh to previous value
+  select($old_fh) if defined $old_fh;
+
 
 
 =head1 Apache::print() and CORE::print()

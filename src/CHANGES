@@ -2,6 +2,77 @@
 		### mod_perl Guide CHANGES file ###
 		###################################
 
+01.01.2001 ver 1.28
+
+* Makefile.PL: fixed to generate a correct Makefile on Solaris:
+  removed space/extra new line after some manually created targets
+  (Lupe Christoph)
+
+* databases.pod:
+
+ o "the morning bug" section was updated
+
+* scenario.pod:
+
+  o updated the sample squid configuration directives to work with
+    version 2.3.STABLE2.
+
+* strategy.pod:
+
+ o corrected the math example with 56k modem, where the result was
+   times and not seconds (Thanks to the students from my class at
+   YAPC::Europe 2000)
+
+ o corrected the math example using the MaxClient formula (for split
+   code sets)
+
+  o verified that squid's default read-ahead (send) buffer is of 16KB
+
+* dbm.pod:
+
+  o reviewed/rewritten/corrected
+
+* performance.pod:
+
+  o corrected another math example with calculating real MaxClients
+    when shared memory is taken into an account (Thanks to an
+    anonymous bearded student from from my class at YAPC::Europe 2000)
+
+  o new section: "Measuring the Memory of the Process"
+
+  o The "Forking and Executing Subprocesses from mod_perl" sections
+    has been almost completely rewritten
+
+  o The "Global vs. Fully Qualified Variables" section was rewritten
+
+* modules.pod:
+
+  o Apache::PerlVINC has changed its interface, updating to ver .03
+    (Todd Finney)
+
+* help.pod:
+
+  o "Get help with DBI and SQL" updated with new resources
+
+  o Added a link to a tuning manual of Solaris 2.x TPC/IP stack and
+    other webserver related info. Useful for all Unix flavors.
+
+* install.pod:
+
+  o removed the section with deb package links from David
+    Huggins-Daines, since the link to the package is dead.
+
+* porting.pod:
+
+  o new tip: "Redirecting STDOUT into a Scalar" (Chris Nokleberg)
+
+* Minor corrections:
+
+  o perl.pod: Jean-Louis Guenego
+  o performance.pod: (Richard Chen, Ulrich Neumerkel)
+  o install.pod: (Artur Zambrzycki)
+
+
 11.26.2000 ver 1.27
 
 * intro.pod: 

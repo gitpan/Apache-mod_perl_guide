@@ -427,617 +427,6 @@ Techniques|performance/Code_Profiling_Techniques>'.
 
 
 
-=head1 Hanging Processes: Detection and Diagnostics
-
-Sometimes a httpd process might hang in the middle of processing a
-request, either because there is a bug in your code (e.g. the code is
-stuck in a while loop), it gets blocked by some system call or because
-of a resource deadlock) or for some other reason. In order to fix the
-problem we need to learn what circumstances the process hangs in
-(detection), so we can reproduce the problem and after than to
-discover why there is problem (diagnostics).
-
-
-
-
-=head2 Hanging because of the OS Problem
-
-Sometimes you can find a process hanging because of some kind of the
-system problem. For example if the processes was doing some disk IO
-operation it might get stuck in uninterruptible sleep (C<'D'> disk
-wait in ps(1) report, C<'U'> in top(1)) which indicates that either
-something is broken in your kernel or that you're using NFS. Or and
-you cannot S<kill -9> this process.
-
-Another process that cannot be killed with S<kill -9> is a zombie
-process (C<'Z'> disk wait in ps(1) report, C<E<lt>defuncE<gt>> in
-top(1)), in which case the process is already dead and Apache didn't
-wait on it properly.
-
-In the case of I<disk wait> you can actually get the I<wait> channel
-from ps(1) and look it up in your kernel symbol table to find out what
-resource it was waiting on.  It might point the way to what component
-of the system was misbehaving if the problem occurred frequently.
-
-
-
-=head2 An Example of Code that Might Hang a Process
-
-Deadlock is the situation where, for example, two processes, say X and
-Y, need two resources, A and B to continue.  X holds onto A and Y
-holds onto B.  There is no possibility for Y to continue before X
-releases A.  But X cannot release A before it gets Y.
-
-Look at the following example.  Your process has to gain a lock on
-some resource (e.g. a file) before it continues.  So it makes an
-attempt, and if that fails it sleep()s for a second and increments a
-counter:
-
-  until(gain_lock()){
-    $tries++;
-    sleep 1;
-  }
-
-Because there are many processes competing for this resource, or
-perhaps because there is a deadlock, gain_lock() always fails.
-The process is hung.
-
-Another situation that you may very often encounter is exclusive lock
-starvation.  Generally there are two lock types in use: I<SHARED>
-locks, which allow many processes to perform I<READ> operations
-simultaneously, and I<EXCLUSIVE> locks.  The latter permits access
-only by a single process and so makes a safe I<WRITE> operation
-possible.
-
-You can lock any kind of resource, although in our examples we will
-talk about files.
-
-If there is a I<READ> lock request, it is granted as soon as the file
-becomes unlocked or immediately if it is already I<READ> locked.  The
-lock status becomes I<READ> on success.
-
-If there is a I<WRITE> lock request, it is granted as soon as the file
-becomes unlocked.  Lock status becomes I<WRITE> on success.
-
-Normally it is the I<WRITE> lock request which is the most important. If
-the file is being I<READ> locked, a process that requests to write
-will poll until there are no reading or writing process left. However, lots
-of processes can successfully read the file, since they do not block
-each other from doing so.  This means that a process that wants to
-write to the file (first obtaining an exclusive lock) never gets a
-chance to squeeze in. The following diagram represents a possible
-scenario where everybody can read but no one can write:
-
-  [-p1-]                 [--p1--]
-     [--p2--]
-   [---------p3---------]
-                 [------p4-----]
-     [--p5--]   [----p5----]
-
-Let's look at some real code and see it in action.  The following
-script imports flock() related parameters from the C<Fcntl> module,
-and opens a file that will be locked.  It then defines and sets two
-variables: C<$lock_type> and C<$lock_type_verbose>.  These are set to
-C<LOCK_EX> and C<EX> respectively if the first command line argument
-(C<$ARGV[0]) is defined and equal to I<w>.  This indicates that this
-process will try to gain a I<WRITE> (exclusive) lock.  Otherwise the
-two are set to C<LOCK_SH> and <SH> for a I<SHARED> (read) lock.
-
-Once the variables are set, we enter the infinite C<while(1)> loop
-that attempts to lock the file by the mode set in C<$lock_type>.  It
-report success and the type of lock that was gained, then it sleeps
-for a random period between 0 and 9 seconds and unlocks the file.  The
-loop then starts from the beginning.
-
-  lock.pl
-  -------------------
-  #!/usr/bin/perl -w
-  use Fcntl qw(:flock);
-  
-  $lock = "/tmp/lock";
-  
-  open LOCK, ">$lock" or die "Cannot open $lock for writing: $!";
-  my $lock_type         = LOCK_SH;
-  my $lock_type_verbose = 'SH';
-  if (defined $ARGV[0] and $ARGV[0] eq 'w'){
-    $lock_type         = LOCK_EX;
-    $lock_type_verbose = 'EX';
-  }
-  
-  while(1){
-    flock LOCK,$lock_type;
-      # start of critical section
-    print "$$: $lock_type_verbose\n";
-    sleep int(rand(10));
-      # end of critical section
-    flock LOCK, LOCK_UN;
-  }
-  close LOCK;
-
-
-It's very easy to see I<WRITE> process starvation if you spawn a few
-of the above scripts simultaneously.  Start the first few as I<READ>
-processes and then start one I<WRITE> process like this:
-
- % ./lock.pl r & ; ./lock.pl r & ; ./lock.pl r & ; ./lock.pl w &
-
-You see something like:
-
-  24233: SH
-  24232: SH
-  24232: SH
-  24233: SH
-  24232: SH
-  24233: SH
-  24231: SH
-  24231: SH
-  24231: SH
-
-and not a single C<EX> line... When you kill off the reading
-processes, then the write process will gain its lock.  Note that as
-this is a rough example, I used the sleep() function.  To simulate a real
-situation you need to use the C<Time::HiRes> module, which allows you
-to choose more precise intervals to sleep.
-
-The interval between lock and unlock is called a I<Critical Section>,
-which should be kept as short as possible (in terms of the time taken to
-execute the code, and not in terms of the number of lines of code).  As you
-just saw, a single sleep statement can make the critical section long.
-
-To summarize, if you have a script that uses both I<READ> and I<WRITE>
-locks and the critical section isn't very short, the writing process
-might be starved.  After a while a browser that initiated this request
-will timeout the connection and abort the request, but it's much more
-likely that user will press the I<Stop> or I<Reload> button before
-that happens.  Since the process in question is just waiting, there is
-no way for Apache to know that the request was aborted.  It will hang
-until the lock is gained.  Only when a write to a client's broken
-connection is attempted will Apache terminate the script.
-
-
-
-
-
-=head2 Detecting hanging processes
-
-It's not so easy to detect hanging processes.  There is no way you can
-tell how long the request is taking to process by using plain system
-utilities like ps() and top().  The reason is that each Apache process
-serves many requests without quitting.  System utilities can tell how
-long the process has been running since its creation, but this
-information is useless in our case, since Apache processes normally
-run for extended periods.
-
-However there are a few approaches that can help to detect a hanging
-process.
-
-If the process hangs and demands lots of resources it's quite easy to
-spot it by using the top() utility.  You will see the same process
-show up in the first few lines of the automatically refreshed report.
-But often the hanging process uses few resources, e.g. when waiting
-for some event to happen.
-
-Another easy case is when some process thrashes the I<error_log>,
-writing millions of error messages there.  Generally this process uses
-lots of resources and is also easily spotted by using top().
-
-There are other tools that report the status of Apache processes.
-
-=over 4
-
-=item * The mod_status module, which is usually accessed from the
-I</server_status> location.
-
-=item * The C<Apache::VMonitor> module.
-
-=back
-
-Both tools provide counters of processed requests per Apache process.
-
-You can watch the report for a few minutes, and try to spot any
-process which has the same number of processed requests while its
-status is 'W' (waiting).  This means that it has hung.
-
-But if you have fifty processes, it can be quite hard to spot such a
-process.  L<Apache::Watchdog::RunAway is a hanging processes monitor
-and terminator|modules/Apache_Watchdog_RunAway_Hang> that implements
-this feature and should be used to solve this kind of problem.
-
-If you've got a real problem, and the processes hang one after the
-other, the time will come when the number of hanging processes is
-equal to the value of C<MaxClients>.  This means that no more
-processes will be spawned.  As far as the users are concerned your
-server is down.  It is easy to detect this situation, attempt to
-resolve it and notify the administrator using a simple crontab
-watchdog that requests some very light script periodically.  (See
-L<Monitoring the Server. A
-watchdog.|control/Monitoring_the_Server_A_watchdo>)
-
-In the watchdog you set a timeout appropriate for your service, which
-may be anything from a few seconds to a few minutes.  If the server
-fails to respond before the timeout expires, the watchdog has spotted
-trouble and attempts to restart the server.  After a restart an email
-report is sent to the administrator saying that there was a problem
-and whether or not the restart was successful.
-
-If you get such reports constantly something is wrong with your web
-service and you should revise your code.  Note that it's possible that
-your server is being overloaded by more requests that it can handle,
-so the requests are being queued and not processed for a while, which
-triggers the watchdog's alarm.  If this is a case you may need to add
-more servers or more memory, or perhaps split your single machine
-across a cluster of machines.
-
-
-
-
-=head2 Determination of the reason
-
-Given the process id (PID), there are three ways to find out where the
-server is hanging.
-
-=over
-
-=item 1
-
-Deploying the Perl calls tracing mechanism. This will allow to spot
-the location of the Perl code that has triggered the problem.
-
-=item 2
-
-Using the system calls tracing utilities, like strace(1) or
-truss(1). This approach reveals low level details about a potential
-misbehavior of some part of the system.
-
-=item 3
-
-Using an interactive debugger, like gdb(1). When the process is stuck,
-and you don't know what it was doing just before it has got stuck,
-with gdb you can attach to this process and print its calls stack, to
-reveal where the last call was made from. Just like with strace or
-truss you see the system call trace and not the Perl calls.
-
-=back
-
-
-=head3 Using the Perl Trace
-
-To see where an httpd is "spinning", try adding this to your script or
-a startup file:
-
-  use Carp ();
-  $SIG{'USR2'} = sub { 
-     Carp::confess("caught SIGUSR2!");
-  };
-
-The above code asigns a signal handler for the C<USR2> signal. This
-signal has been chosen because it's least likely to be used by the
-other parts of the server.
-
-We check the registered signal handlers with help of
-L<Apache::Status|debug/Apache_Status_Embedded_Inter>.  What we see at
-http://localhost/perl-status?sig is :
-
-  USR2 = \&MyStartUp::__ANON__
-
-C<MyStartUp> is the name of the package I've used in mine
-I<startup.pl>.
-
-After applying this server configuration, let's use this simple code
-example, where sleep(10000) will emulate a hanging process:
-
-  debug/perl_trace.pl
-  -------------------
-  $|=1;
-  print "Content-type:text/plain\r\n\r\n";
-  print "[$$] Going to sleep\n";
-  hanging_sub();
-  sub hanging_sub {sleep 10000;}
-
-We execute the above script as
-I<http://localhost/perl/debug/perl_trace.pl>, we have used C<$|=1;>
-and printed the PID with C<$$> to learn what process ID we want to
-work with.
-
-No we issue the command line, using the PID we have just saw being
-printed to the browser's window:
-
-  % kill -USR2 PID
-
-And watch this showing up at the I<error_log> file:
-
-  caught SIGUSR2!
-      at /home/httpd/perl/startup/startup.pl line 32
-  MyStartUp::__ANON__('USR2') called 
-      at /home/httpd/perl/debug/perl_trace.pl line 5
-  Apache::ROOT::perl::debug::perl_trace_2epl::hanging_sub() called 
-      at /home/httpd/perl/debug/perl_trace.pl line 4
-  Apache::ROOT::perl::debug::perl_trace_2epl::handler('Apache=SCALAR(0x8309d08)') 
-    called 
-      at /usr/lib/perl5/site_perl/5.005/i386-linux/Apache/Registry.pm 
-        line 140
-  eval {...} called 
-      at /usr/lib/perl5/site_perl/5.005/i386-linux/Apache/Registry.pm
-        line 140
-  Apache::Registry::handler('Apache=SCALAR(0x8309d08)') called 
-      at PerlHandler subroutine `Apache::Registry::handler' line 0
-  eval {...} called 
-      at PerlHandler subroutine `Apache::Registry::handler' line 0
-
-We can clearly see that the process "hangs" in the code executed at
-line 5 of the I</home/httpd/perl/debug/perl_trace.pl> script, and it
-was called by the hanging_sub() routine defined at line 4.
-
-
-
-
-=head3 Using the System Calls Trace
-
-Depending on the operating system you should have one of the
-C<truss(1)> or C<strace(1)> utilities available.  In the following
-examples we will use C<strace(1)>.
-
-There are two ways to get the trace of the process with strace(1)
-(similar to gdb(1)). The first one is to tell strace(1) to start the
-process and do the tracing on it:
-
-  % strace perl -le 'print "mod_perl rules"'
-
-The second is tell strace(1) to attach to the process that's already
-running. You need to know the PID of the process.
-
-  % strace -p PID
-
-Replace PID with the process number you want to check on.
-
-There are many more useful arguments accepted by strace(1) that you
-might find useful. For example you can tell it to trace only specific
-system calls:
-
-  % strace -e trace=open,write,close,nanosleep \
-      perl -le 'print "mod_perl rules"'
-
-In this example we have asked strace(1) to show us only the I<open>,
-I<write>, I<close>, I<nanosleep> which simplifies the observing of the
-output generated by strace(1) if you know what you are looking for.
-
-Let's write a mod_perl script that hangs, and deploy C<strace(1)> to
-find the point it hangs at:
-
-  hangme.pl
-  ---------
-  $|=1;
-  my $r = shift;
-  $r->send_http_header('text/plain');
-  
-  print "PID = $$\n";
-  
-  while(1){
-    $i++;
-    sleep 1;
-  }
-
-The reason this simple code hangs is obvious.  It never breaks from
-the while loop.  As you have noticed, it prints the PID of the current
-process to the browser.  Of course in a real situation you cannot use
-the same trick.  In the previous section I have presented a few ways
-to detect the runaway processes and their PIDs.
-
-I save the above code in a file and execute it from the browser. Note
-that I've made STDOUT unbuffered with C<$|=1;> so I will immediately
-see the process ID.  Once the script is requested, the script prints
-the process PID and obviously hangs.  So we press the C<'Stop'>
-button, but the process continues to hang in this code.  Isn't apache
-supposed to detect the broken connection and abort the request?
-I<Yes> and I<No>, you will understand soon what's really happening.
-
-First let's attach to the process and see what it's doing.  I use the
-PID the script printed to the browser, which is 10045 in this case:
-
-  % strace -p 10045
-  
-  [...truncated identical output...]
-  SYS_175(0, 0xbffff41c, 0xbffff39c, 0x8, 0) = 0
-  SYS_174(0x11, 0, 0xbffff1a0, 0x8, 0x11) = 0
-  SYS_175(0x2, 0xbffff39c, 0, 0x8, 0x2)   = 0
-  nanosleep(0xbffff308, 0xbffff308, 0x401a61b4, 0xbffff308, 0xbffff41c) = 0
-  time([940973834])                       = 940973834
-  time([940973834])                       = 940973834
-  [...truncated the identical output...]
-
-It isn't what we expected to see, is it?  These are some system calls
-we don't see in our little example.  What we actually see is how Perl
-translates our code into system calls.  Since we know that our code
-hangs in this snippet:
-
-  while(1){
-    $i++;
-    sleep 1;
-  }
-
-We I<"easily"> figure out that the first three system calls implement
-the C<$i++>, while the other other three are responsible for the
-C<sleep 1> call.
-
-Generally the situation is the reverse of our example.  You detect the
-hanging process, you attach to it and watch the trace of calls it does
-(or the last few commands if the process is hanging waiting for
-something, e.g. when blocking on a file lock request).  From watching
-the trace you figure out what it's actually doing, and probably find
-the corresponding lines in your Perl code.  For example let's see how
-one process I<"hangs"> while requesting an exclusive lock on a file
-exclusively locked by another process:
-
-  excl_lock.pl
-  ---------
-  use Fcntl qw(:flock);
-  use Symbol;
-  
-  if ( fork() ) {
-    my $fh = gensym;
-    open $fh, ">/tmp/lock" or die "cannot open /tmp/lock $!";
-    print "$$: I'm going to obtain the lock\n";
-    flock $fh, LOCK_EX;
-    print "$$: I've got the lock\n";
-    sleep 20;
-    close $fh;
-  
-  } else {
-    my $fh = gensym;
-    open $fh, ">/tmp/lock" or die "cannot open /tmp/lock $!";
-    print "$$: I'm going to obtain the lock\n";
-    flock $fh, LOCK_EX;
-    print "$$: I've got the lock\n";
-    sleep 20;
-    close $fh;
-  }
-
-The code is simple.  The process executing the code forks a second
-process, and both do the same thing: generate a unique symbol to be
-used as a file handler, open the lock file for writing using the
-generated symbol, lock the file in exclusive mode, sleep for 20
-seconds (pretending to do some lengthy operation) and close the lock
-file, which also unlocks the file.
-
-The C<gensym> function is imported from the C<Symbol> module.  The
-C<Fcntl> module provides us with a symbolic constant C<LOCK_EX>.  This
-is imported via the C<:flock> tag, which imports this and other
-flock() constants.
-
-The code used by both processes is identical, therefore we cannot
-predict which one will get its hands on the lock file and succeed in
-locking it first, so we add print() statements to find the PID of the
-process blocking (waiting to get the lock) on a lock request.
-
-When the above code executed from the command line, we see that one of
-the processes gets the lock:
-
-  % ./excl_lock.pl
-  
-  3038: I'm going to obtain the lock
-  3038: I've got the lock
-  3037: I'm going to obtain the lock
-
-Here we see that process 3037 is blocking, so we attach to it:
-
-  % strace -p 3037
-  
-  about to attach c10
-  flock(3, LOCK_EX
-
-It's clear from the above trace, that the process waits for an exclusive
-lock. (Note, that the missing closing parentnheses is not a typo!)
-
-As you become familiar with watching the traces of different
-processes, you will understand what is happening more easily.
-
-=head3 Using the Interactive Debugger
-
-Another approach to see a trace of the running code is to use a
-debugger such as C<gdb> (the GNU debugger).  It's supposed to work on
-any platform which supports the GNU development tools.  Its purpose is
-to allow you to see what is going on I<inside> a program while it
-executes, or what it was doing at the moment it crashed.  
-
-To trace the execution of a process, C<gdb> needs to know the process
-id (PID) and the path to the binary that the process is executing.
-For Perl code it's I</usr/bin/perl> (or whatever is the path to your
-Perl), for httpd processes it will be the path to your httpd
-executable.
-
-Here are a few examples using gdb.
-
-Let's go back to our last locking example, execute it as before and
-attach to the process that didn't get the lock:
-
-  % gdb /usr/bin/perl 3037
-
-After starting the debugger we execute the C<where> command to see the
-trace:
-
-  (gdb) where
-  #0  0x40131781 in __flock ()
-  #1  0x80a5421 in Perl_pp_flock ()
-  #2  0x80b148d in Perl_runops_standard ()
-  #3  0x80592b8 in perl_run ()
-  #4  0x805782f in main ()
-  #5  0x400a6cb3 in __libc_start_main (main=0x80577c0 <main>, argc=2, 
-      argv=0xbffff7f4, init=0x8056af4 <_init>, fini=0x80b14fc <_fini>, 
-      rtld_fini=0x4000a350 <_dl_fini>, stack_end=0xbffff7ec)
-      at ../sysdeps/generic/libc-start.c:78
-
-That's not what we expected to see and now it's a different trace.
-C<#0> tells us the most recent call that was executed, which is a C
-language flock() implementation.  But the previous call (C<#1>) isn't
-print(), as we would expect, but a higher level of Perl's internal
-flock().  If we follow the trace of calls what we actually see is an
-Opcodes tree, which can be better presented as:
-
-  __libc_start_main
-    main ()
-      perl_run () 
-        Perl_runops_standard ()
-          Perl_pp_flock ()
-            __flock ()
-
-So I would say that it's less useful than C<strace>, since if there
-are several flock()s it's almost impossible to know which of them was
-called.  This problem is solved by C<strace>, which shows the sequence
-of the system calls executed.  Using this sequence we can locate the
-corresponding lines in the code.
-
-(META: the above is wrong - you can ask to display the previous
-command executed by the program (not gdb)! What is it?)
-
-When you attach to a running process with debugger, the program stops
-executing and control of the program is passed to the debugger.  You
-can continue the normal program run with the C<continue> command or
-execute it step by step with the C<next> and C<step> commands which
-you type at the C<gdb> prompt.  (C<next> steps over any function calls
-in the line, while C<step> steps into them).
-
-C/C++ debuggers are a very large topic and beyond the scope of this
-document, but the gdb man page is quite good and you can try C<info
-gdb> as well.  You might also want to check the C<ddd> (Data Display
-Debbuger) which provides a visual interface to C<gdb> and other
-debuggers.  It even knows how to debug Perl programs!
-
-For completeness, let's see the gdb trace of the httpd process that's
-still hanging in the C<while(1)> loop of the first example in this
-section:
-
-  % gdb /usr/local/apache/bin/httpd 1005
-  
-  (gdb) where
-  #0  0x4014a861 in __libc_nanosleep ()
-  #1  0x4014a7ed in __sleep (seconds=1) at ../sysdeps/unix/sysv/linux/sleep.c:78
-  #2  0x8122c01 in Perl_pp_sleep ()
-  #3  0x812b25d in Perl_runops_standard ()
-  #4  0x80d3721 in perl_call_sv ()
-  #5  0x807a46b in perl_call_handler ()
-  #6  0x8079e35 in perl_run_stacked_handlers ()
-  #7  0x8078d6d in perl_handler ()
-  #8  0x8091e43 in ap_invoke_handler ()
-  #9  0x80a5109 in ap_some_auth_required ()
-  #10 0x80a516c in ap_process_request ()
-  #11 0x809cb2e in ap_child_terminate ()
-  #12 0x809cd6c in ap_child_terminate ()
-  #13 0x809ce19 in ap_child_terminate ()
-  #14 0x809d446 in ap_child_terminate ()
-  #15 0x809dbc3 in main ()
-  #16 0x400d3cb3 in __libc_start_main (main=0x809d88c <main>, argc=1, 
-      argv=0xbffff7e4, init=0x80606f8 <_init>, fini=0x812b33c <_fini>, 
-      rtld_fini=0x4000a350 <_dl_fini>, stack_end=0xbffff7dc)
-      at ../sysdeps/generic/libc-start.c:78
-
-As before we can see a complete trace of the last executed call.
-
-As you have noticed, I still haven't explained why the process hanging
-in the C<while(1)> loop isn't aborted by Apache.  The next section
-covers this.
-
-META: add the note about using the 'curinfo' gdb macro to perform an
-easy detecting of the hanging location.
 
 
 =head1 Handling the 'User pressed Stop button' case
@@ -1056,14 +445,11 @@ and the C<SIGPIPE> signal (Broken pipe) would be sent to the
 process. The program could then halt its execution and perform all the
 cleanup stuff it has to do.
 
-Apache >= 1.3.6 does not catch SIGPIPE anymore, and mod_perl can do
-the job much better.
-
 Prior to Apache version 1.3.6, C<SIGPIPE> was handled by Apache.
 Currently Apache is not handling SIGPIPE anymore and mod_perl takes
 care of it.
 
-Under mod_perl C<$r-E<gt>print> (or just print()) returns a I<true>
+Under mod_perl, C<$r-E<gt>print> (or just print()) returns a I<true>
 value on success, a I<false> value on failure. The latter usually
 happens when the connection is broken.
 
@@ -1285,6 +671,7 @@ as a filehandlers. Because the processes don't exit after processing a
 request, files won't be closed unless you explicitly close() them or
 reopen with the open() call, which first closes a file.  Let's see
 what problems we might encounter, and possible solutions for them.
+
 
 =head3 Critical Section
 
@@ -2087,12 +1474,12 @@ techniques to solve them.
 While developing code we often make syntax mistakes, like forgetting
 to put a comma in a list, or a semicolon at the end of a statement.
 
-(Even after a block, where a semicolon is not required, it may be
-better to put one in: there is a chance that you will add more code
-later, and when you do you might forget to add the now required
-semicolon.  Similarly, more items might be added later to a list;
-unlike many other languages, Perl has no problem when you end a list
-with a redundant comma.)
+Even at the end of a {} block, where a semicolon is not required at
+the end of the last statement, it may be better to put one in: there
+is a chance that you will add more code later, and when you do you
+might forget to add the now required semicolon.  Similarly, more items
+might be added later to a list; unlike many other languages, Perl has
+no problem when you end a list with a redundant comma.
 
 One approach to locating syntactically incorrect code is to execute
 the script from the shell with the I<-c> flag.  This tells Perl to
@@ -2161,10 +1548,10 @@ You cannot debug this module unless you configure the server to run
 it, by calling its handler from somewhere.  So for example you could
 put in I<httpd.conf>:
 
-<Location /ex>
-  SetHandler perl-script
-  PerlHandler Apache::Example
-</Location>
+  <Location /ex>
+    SetHandler perl-script
+    PerlHandler Apache::Example
+  </Location>
 
 Then after restarting the server you could start a browser, request
 the location http://localhost/ex and examine the output.  Tedious, no?
@@ -2383,7 +1770,7 @@ It is supposed to be the number of the current month (C<10>), but actually
 it is not.  We have spotted a bug, since the only code that sets the
 C<$month> variable consists of a call to localtime().  So did we find
 a bug in Perl?  let's look at the manpage of the localtime() function:
- 
+
   % perldoc -f localtime
   
   Converts a time as returned by the time function to a 9-element
@@ -2416,14 +1803,6 @@ after we call localtime():
     my ($day,$month,$year) = (localtime)[3..5];
     $month++;
 
-Now let's see some code including conditional and loop statements.
-
-  for my $i (1..31)
-  if( $day > 20) {
-  }
-
-
-META: continue (unfinished)!!!
 
 
 =head2 Using print() and Data::Dumper for Debugging
@@ -2504,7 +1883,11 @@ the code:
   for (0..6) {
     next if --$day;
     $year--,$month=12 unless --$month;
-    $day = $month != 1 ? $month_len[$month-1] : $year % 4 ? 28 : 29;
+    $day = $month != 1 
+        ? $month_len[$month-1] 
+        : (($year % 4 or $year % 100 == 0) and $year % 400 )
+             ? 28
+             : 29;
   }
 
 Don't do that at home :) 
@@ -2566,7 +1949,8 @@ rewrite of our I<`one week ago'> code:
     }
   
     if($month == 1){
-      $day = $year % 4 ? 28 : 29;
+      $day = (($year % 4 or $year % 100 == 0) and $year % 400 ) 
+           ? 28 : 29;
     } else {
       $day = $month_len[$month-1];
     }
@@ -3552,6 +2936,619 @@ C<dump()> calls C<__kill()>:
 
 
 
+=head1 Hanging Processes: Detection and Diagnostics
+
+Sometimes a httpd process might hang in the middle of processing a
+request, either because there is a bug in your code (e.g. the code is
+stuck in a while loop), it gets blocked by some system call or because
+of a resource deadlock) or for some other reason. In order to fix the
+problem we need to learn what circumstances the process hangs in
+(detection), so we can reproduce the problem and after than to
+discover why there is problem (diagnostics).
+
+
+
+
+=head2 Hanging because of the OS Problem
+
+Sometimes you can find a process hanging because of some kind of the
+system problem. For example if the processes was doing some disk IO
+operation it might get stuck in uninterruptible sleep (C<'D'> disk
+wait in ps(1) report, C<'U'> in top(1)) which indicates that either
+something is broken in your kernel or that you're using NFS. Or and
+you cannot S<kill -9> this process.
+
+Another process that cannot be killed with S<kill -9> is a zombie
+process (C<'Z'> disk wait in ps(1) report, C<E<lt>defuncE<gt>> in
+top(1)), in which case the process is already dead and Apache didn't
+wait on it properly.
+
+In the case of I<disk wait> you can actually get the I<wait> channel
+from ps(1) and look it up in your kernel symbol table to find out what
+resource it was waiting on.  It might point the way to what component
+of the system was misbehaving if the problem occurred frequently.
+
+
+
+=head2 An Example of Code that Might Hang a Process
+
+Deadlock is the situation where, for example, two processes, say X and
+Y, need two resources, A and B to continue.  X holds onto A and Y
+holds onto B.  There is no possibility for Y to continue before X
+releases A.  But X cannot release A before it gets Y.
+
+Look at the following example.  Your process has to gain a lock on
+some resource (e.g. a file) before it continues.  So it makes an
+attempt, and if that fails it sleep()s for a second and increments a
+counter:
+
+  until(gain_lock()){
+    $tries++;
+    sleep 1;
+  }
+
+Because there are many processes competing for this resource, or
+perhaps because there is a deadlock, gain_lock() always fails.
+The process is hung.
+
+Another situation that you may very often encounter is exclusive lock
+starvation.  Generally there are two lock types in use: I<SHARED>
+locks, which allow many processes to perform I<READ> operations
+simultaneously, and I<EXCLUSIVE> locks.  The latter permits access
+only by a single process and so makes a safe I<WRITE> operation
+possible.
+
+You can lock any kind of resource, although in our examples we will
+talk about files.
+
+If there is a I<READ> lock request, it is granted as soon as the file
+becomes unlocked or immediately if it is already I<READ> locked.  The
+lock status becomes I<READ> on success.
+
+If there is a I<WRITE> lock request, it is granted as soon as the file
+becomes unlocked.  Lock status becomes I<WRITE> on success.
+
+Normally it is the I<WRITE> lock request which is the most important. If
+the file is being I<READ> locked, a process that requests to write
+will poll until there are no reading or writing process left. However, lots
+of processes can successfully read the file, since they do not block
+each other from doing so.  This means that a process that wants to
+write to the file (first obtaining an exclusive lock) never gets a
+chance to squeeze in. The following diagram represents a possible
+scenario where everybody can read but no one can write:
+
+  [-p1-]                 [--p1--]
+     [--p2--]
+   [---------p3---------]
+                 [------p4-----]
+     [--p5--]   [----p5----]
+
+Let's look at some real code and see it in action.  The following
+script imports flock() related parameters from the C<Fcntl> module,
+and opens a file that will be locked.  It then defines and sets two
+variables: C<$lock_type> and C<$lock_type_verbose>.  These are set to
+C<LOCK_EX> and C<EX> respectively if the first command line argument
+(C<$ARGV[0]) is defined and equal to I<w>.  This indicates that this
+process will try to gain a I<WRITE> (exclusive) lock.  Otherwise the
+two are set to C<LOCK_SH> and <SH> for a I<SHARED> (read) lock.
+
+Once the variables are set, we enter the infinite C<while(1)> loop
+that attempts to lock the file by the mode set in C<$lock_type>.  It
+report success and the type of lock that was gained, then it sleeps
+for a random period between 0 and 9 seconds and unlocks the file.  The
+loop then starts from the beginning.
+
+  lock.pl
+  -------------------
+  #!/usr/bin/perl -w
+  use Fcntl qw(:flock);
+  
+  $lock = "/tmp/lock";
+  
+  open LOCK, ">$lock" or die "Cannot open $lock for writing: $!";
+  my $lock_type         = LOCK_SH;
+  my $lock_type_verbose = 'SH';
+  if (defined $ARGV[0] and $ARGV[0] eq 'w'){
+    $lock_type         = LOCK_EX;
+    $lock_type_verbose = 'EX';
+  }
+  
+  while(1){
+    flock LOCK,$lock_type;
+      # start of critical section
+    print "$$: $lock_type_verbose\n";
+    sleep int(rand(10));
+      # end of critical section
+    flock LOCK, LOCK_UN;
+  }
+  close LOCK;
+
+
+It's very easy to see I<WRITE> process starvation if you spawn a few
+of the above scripts simultaneously.  Start the first few as I<READ>
+processes and then start one I<WRITE> process like this:
+
+ % ./lock.pl r & ; ./lock.pl r & ; ./lock.pl r & ; ./lock.pl w &
+
+You see something like:
+
+  24233: SH
+  24232: SH
+  24232: SH
+  24233: SH
+  24232: SH
+  24233: SH
+  24231: SH
+  24231: SH
+  24231: SH
+
+and not a single C<EX> line... When you kill off the reading
+processes, then the write process will gain its lock.  Note that as
+this is a rough example, I used the sleep() function.  To simulate a real
+situation you need to use the C<Time::HiRes> module, which allows you
+to choose more precise intervals to sleep.
+
+The interval between lock and unlock is called a I<Critical Section>,
+which should be kept as short as possible (in terms of the time taken to
+execute the code, and not in terms of the number of lines of code).  As you
+just saw, a single sleep statement can make the critical section long.
+
+To summarize, if you have a script that uses both I<READ> and I<WRITE>
+locks and the critical section isn't very short, the writing process
+might be starved.  After a while a browser that initiated this request
+will timeout the connection and abort the request, but it's much more
+likely that user will press the I<Stop> or I<Reload> button before
+that happens.  Since the process in question is just waiting, there is
+no way for Apache to know that the request was aborted.  It will hang
+until the lock is gained.  Only when a write to a client's broken
+connection is attempted will Apache terminate the script.
+
+
+
+
+
+=head2 Detecting hanging processes
+
+It's not so easy to detect hanging processes.  There is no way you can
+tell how long the request is taking to process by using plain system
+utilities like ps() and top().  The reason is that each Apache process
+serves many requests without quitting.  System utilities can tell how
+long the process has been running since its creation, but this
+information is useless in our case, since Apache processes normally
+run for extended periods.
+
+However there are a few approaches that can help to detect a hanging
+process.
+
+If the process hangs and demands lots of resources it's quite easy to
+spot it by using the top() utility.  You will see the same process
+show up in the first few lines of the automatically refreshed report.
+But often the hanging process uses few resources, e.g. when waiting
+for some event to happen.
+
+Another easy case is when some process thrashes the I<error_log>,
+writing millions of error messages there.  Generally this process uses
+lots of resources and is also easily spotted by using top().
+
+There are other tools that report the status of Apache processes.
+
+=over 4
+
+=item * The mod_status module, which is usually accessed from the
+I</server_status> location.
+
+=item * The C<Apache::VMonitor> module.
+
+=back
+
+Both tools provide counters of processed requests per Apache process.
+
+You can watch the report for a few minutes, and try to spot any
+process which has the same number of processed requests while its
+status is 'W' (waiting).  This means that it has hung.
+
+But if you have fifty processes, it can be quite hard to spot such a
+process.  L<Apache::Watchdog::RunAway is a hanging processes monitor
+and terminator|modules/Apache_Watchdog_RunAway_Hang> that implements
+this feature and should be used to solve this kind of problem.
+
+If you've got a real problem, and the processes hang one after the
+other, the time will come when the number of hanging processes is
+equal to the value of C<MaxClients>.  This means that no more
+processes will be spawned.  As far as the users are concerned your
+server is down.  It is easy to detect this situation, attempt to
+resolve it and notify the administrator using a simple crontab
+watchdog that requests some very light script periodically.  (See
+L<Monitoring the Server. A
+watchdog.|control/Monitoring_the_Server_A_watchdo>)
+
+In the watchdog you set a timeout appropriate for your service, which
+may be anything from a few seconds to a few minutes.  If the server
+fails to respond before the timeout expires, the watchdog has spotted
+trouble and attempts to restart the server.  After a restart an email
+report is sent to the administrator saying that there was a problem
+and whether or not the restart was successful.
+
+If you get such reports constantly something is wrong with your web
+service and you should revise your code.  Note that it's possible that
+your server is being overloaded by more requests that it can handle,
+so the requests are being queued and not processed for a while, which
+triggers the watchdog's alarm.  If this is a case you may need to add
+more servers or more memory, or perhaps split your single machine
+across a cluster of machines.
+
+
+
+
+=head2 Determination of the reason
+
+Given the process id (PID), there are three ways to find out where the
+server is hanging.
+
+=over
+
+=item 1
+
+Deploying the Perl calls tracing mechanism. This will allow to spot
+the location of the Perl code that has triggered the problem.
+
+=item 2
+
+Using the system calls tracing utilities, like strace(1) or
+truss(1). This approach reveals low level details about a potential
+misbehavior of some part of the system.
+
+=item 3
+
+Using an interactive debugger, like gdb(1). When the process is stuck,
+and you don't know what it was doing just before it has got stuck,
+with gdb you can attach to this process and print its calls stack, to
+reveal where the last call was made from. Just like with strace or
+truss you see the system call trace and not the Perl calls.
+
+=back
+
+
+=head3 Using the Perl Trace
+
+To see where an httpd is "spinning", try adding this to your script or
+a startup file:
+
+  use Carp ();
+  $SIG{'USR2'} = sub { 
+     Carp::confess("caught SIGUSR2!");
+  };
+
+The above code asigns a signal handler for the C<USR2> signal. This
+signal has been chosen because it's least likely to be used by the
+other parts of the server.
+
+We check the registered signal handlers with help of
+L<Apache::Status|debug/Apache_Status_Embedded_Inter>.  What we see at
+http://localhost/perl-status?sig is :
+
+  USR2 = \&MyStartUp::__ANON__
+
+C<MyStartUp> is the name of the package I've used in mine
+I<startup.pl>.
+
+After applying this server configuration, let's use this simple code
+example, where sleep(10000) will emulate a hanging process:
+
+  debug/perl_trace.pl
+  -------------------
+  $|=1;
+  print "Content-type:text/plain\r\n\r\n";
+  print "[$$] Going to sleep\n";
+  hanging_sub();
+  sub hanging_sub {sleep 10000;}
+
+We execute the above script as
+I<http://localhost/perl/debug/perl_trace.pl>, we have used C<$|=1;>
+and printed the PID with C<$$> to learn what process ID we want to
+work with.
+
+No we issue the command line, using the PID we have just saw being
+printed to the browser's window:
+
+  % kill -USR2 PID
+
+And watch this showing up at the I<error_log> file:
+
+  caught SIGUSR2!
+      at /home/httpd/perl/startup/startup.pl line 32
+  MyStartUp::__ANON__('USR2') called 
+      at /home/httpd/perl/debug/perl_trace.pl line 5
+  Apache::ROOT::perl::debug::perl_trace_2epl::hanging_sub() called 
+      at /home/httpd/perl/debug/perl_trace.pl line 4
+  Apache::ROOT::perl::debug::perl_trace_2epl::handler('Apache=SCALAR(0x8309d08)') 
+    called 
+      at /usr/lib/perl5/site_perl/5.005/i386-linux/Apache/Registry.pm 
+        line 140
+  eval {...} called 
+      at /usr/lib/perl5/site_perl/5.005/i386-linux/Apache/Registry.pm
+        line 140
+  Apache::Registry::handler('Apache=SCALAR(0x8309d08)') called 
+      at PerlHandler subroutine `Apache::Registry::handler' line 0
+  eval {...} called 
+      at PerlHandler subroutine `Apache::Registry::handler' line 0
+
+We can clearly see that the process "hangs" in the code executed at
+line 5 of the I</home/httpd/perl/debug/perl_trace.pl> script, and it
+was called by the hanging_sub() routine defined at line 4.
+
+
+
+
+=head3 Using the System Calls Trace
+
+Depending on the operating system you should have one of the
+C<truss(1)> or C<strace(1)> utilities available.  In the following
+examples we will use C<strace(1)>.
+
+There are two ways to get the trace of the process with strace(1)
+(similar to gdb(1)). The first one is to tell strace(1) to start the
+process and do the tracing on it:
+
+  % strace perl -le 'print "mod_perl rules"'
+
+The second is tell strace(1) to attach to the process that's already
+running. You need to know the PID of the process.
+
+  % strace -p PID
+
+Replace PID with the process number you want to check on.
+
+There are many more useful arguments accepted by strace(1) that you
+might find useful. For example you can tell it to trace only specific
+system calls:
+
+  % strace -e trace=open,write,close,nanosleep \
+      perl -le 'print "mod_perl rules"'
+
+In this example we have asked strace(1) to show us only the I<open>,
+I<write>, I<close>, I<nanosleep> which simplifies the observing of the
+output generated by strace(1) if you know what you are looking for.
+
+Let's write a mod_perl script that hangs, and deploy C<strace(1)> to
+find the point it hangs at:
+
+  hangme.pl
+  ---------
+  $|=1;
+  my $r = shift;
+  $r->send_http_header('text/plain');
+  
+  print "PID = $$\n";
+  
+  while(1){
+    $i++;
+    sleep 1;
+  }
+
+The reason this simple code hangs is obvious.  It never breaks from
+the while loop.  As you have noticed, it prints the PID of the current
+process to the browser.  Of course in a real situation you cannot use
+the same trick.  In the previous section I have presented a few ways
+to detect the runaway processes and their PIDs.
+
+I save the above code in a file and execute it from the browser. Note
+that I've made STDOUT unbuffered with C<$|=1;> so I will immediately
+see the process ID.  Once the script is requested, the script prints
+the process PID and obviously hangs.  So we press the C<'Stop'>
+button, but the process continues to hang in this code.  Isn't apache
+supposed to detect the broken connection and abort the request?
+I<Yes> and I<No>, you will understand soon what's really happening.
+
+First let's attach to the process and see what it's doing.  I use the
+PID the script printed to the browser, which is 10045 in this case:
+
+  % strace -p 10045
+  
+  [...truncated identical output...]
+  SYS_175(0, 0xbffff41c, 0xbffff39c, 0x8, 0) = 0
+  SYS_174(0x11, 0, 0xbffff1a0, 0x8, 0x11) = 0
+  SYS_175(0x2, 0xbffff39c, 0, 0x8, 0x2)   = 0
+  nanosleep(0xbffff308, 0xbffff308, 0x401a61b4, 0xbffff308, 0xbffff41c) = 0
+  time([940973834])                       = 940973834
+  time([940973834])                       = 940973834
+  [...truncated the identical output...]
+
+It isn't what we expected to see, is it?  These are some system calls
+we don't see in our little example.  What we actually see is how Perl
+translates our code into system calls.  Since we know that our code
+hangs in this snippet:
+
+  while(1){
+    $i++;
+    sleep 1;
+  }
+
+We I<"easily"> figure out that the first three system calls implement
+the C<$i++>, while the other other three are responsible for the
+C<sleep 1> call.
+
+Generally the situation is the reverse of our example.  You detect the
+hanging process, you attach to it and watch the trace of calls it does
+(or the last few commands if the process is hanging waiting for
+something, e.g. when blocking on a file lock request).  From watching
+the trace you figure out what it's actually doing, and probably find
+the corresponding lines in your Perl code.  For example let's see how
+one process I<"hangs"> while requesting an exclusive lock on a file
+exclusively locked by another process:
+
+  excl_lock.pl
+  ---------
+  use Fcntl qw(:flock);
+  use Symbol;
+  
+  if ( fork() ) {
+    my $fh = gensym;
+    open $fh, ">/tmp/lock" or die "cannot open /tmp/lock $!";
+    print "$$: I'm going to obtain the lock\n";
+    flock $fh, LOCK_EX;
+    print "$$: I've got the lock\n";
+    sleep 20;
+    close $fh;
+  
+  } else {
+    my $fh = gensym;
+    open $fh, ">/tmp/lock" or die "cannot open /tmp/lock $!";
+    print "$$: I'm going to obtain the lock\n";
+    flock $fh, LOCK_EX;
+    print "$$: I've got the lock\n";
+    sleep 20;
+    close $fh;
+  }
+
+The code is simple.  The process executing the code forks a second
+process, and both do the same thing: generate a unique symbol to be
+used as a file handler, open the lock file for writing using the
+generated symbol, lock the file in exclusive mode, sleep for 20
+seconds (pretending to do some lengthy operation) and close the lock
+file, which also unlocks the file.
+
+The C<gensym> function is imported from the C<Symbol> module.  The
+C<Fcntl> module provides us with a symbolic constant C<LOCK_EX>.  This
+is imported via the C<:flock> tag, which imports this and other
+flock() constants.
+
+The code used by both processes is identical, therefore we cannot
+predict which one will get its hands on the lock file and succeed in
+locking it first, so we add print() statements to find the PID of the
+process blocking (waiting to get the lock) on a lock request.
+
+When the above code executed from the command line, we see that one of
+the processes gets the lock:
+
+  % ./excl_lock.pl
+  
+  3038: I'm going to obtain the lock
+  3038: I've got the lock
+  3037: I'm going to obtain the lock
+
+Here we see that process 3037 is blocking, so we attach to it:
+
+  % strace -p 3037
+  
+  about to attach c10
+  flock(3, LOCK_EX
+
+It's clear from the above trace, that the process waits for an exclusive
+lock. (Note, that the missing closing parentnheses is not a typo!)
+
+As you become familiar with watching the traces of different
+processes, you will understand what is happening more easily.
+
+=head3 Using the Interactive Debugger
+
+Another approach to see a trace of the running code is to use a
+debugger such as C<gdb> (the GNU debugger).  It's supposed to work on
+any platform which supports the GNU development tools.  Its purpose is
+to allow you to see what is going on I<inside> a program while it
+executes, or what it was doing at the moment it crashed.  
+
+To trace the execution of a process, C<gdb> needs to know the process
+id (PID) and the path to the binary that the process is executing.
+For Perl code it's I</usr/bin/perl> (or whatever is the path to your
+Perl), for httpd processes it will be the path to your httpd
+executable.
+
+Here are a few examples using gdb.
+
+Let's go back to our last locking example, execute it as before and
+attach to the process that didn't get the lock:
+
+  % gdb /usr/bin/perl 3037
+
+After starting the debugger we execute the C<where> command to see the
+trace:
+
+  (gdb) where
+  #0  0x40131781 in __flock ()
+  #1  0x80a5421 in Perl_pp_flock ()
+  #2  0x80b148d in Perl_runops_standard ()
+  #3  0x80592b8 in perl_run ()
+  #4  0x805782f in main ()
+  #5  0x400a6cb3 in __libc_start_main (main=0x80577c0 <main>, argc=2, 
+      argv=0xbffff7f4, init=0x8056af4 <_init>, fini=0x80b14fc <_fini>, 
+      rtld_fini=0x4000a350 <_dl_fini>, stack_end=0xbffff7ec)
+      at ../sysdeps/generic/libc-start.c:78
+
+That's not what we expected to see and now it's a different trace.
+C<#0> tells us the most recent call that was executed, which is a C
+language flock() implementation.  But the previous call (C<#1>) isn't
+print(), as we would expect, but a higher level of Perl's internal
+flock().  If we follow the trace of calls what we actually see is an
+Opcodes tree, which can be better presented as:
+
+  __libc_start_main
+    main ()
+      perl_run () 
+        Perl_runops_standard ()
+          Perl_pp_flock ()
+            __flock ()
+
+So I would say that it's less useful than C<strace>, since if there
+are several flock()s it's almost impossible to know which of them was
+called.  This problem is solved by C<strace>, which shows the sequence
+of the system calls executed.  Using this sequence we can locate the
+corresponding lines in the code.
+
+(META: the above is wrong - you can ask to display the previous
+command executed by the program (not gdb)! What is it?)
+
+When you attach to a running process with debugger, the program stops
+executing and control of the program is passed to the debugger.  You
+can continue the normal program run with the C<continue> command or
+execute it step by step with the C<next> and C<step> commands which
+you type at the C<gdb> prompt.  (C<next> steps over any function calls
+in the line, while C<step> steps into them).
+
+C/C++ debuggers are a very large topic and beyond the scope of this
+document, but the gdb man page is quite good and you can try C<info
+gdb> as well.  You might also want to check the C<ddd> (Data Display
+Debbuger) which provides a visual interface to C<gdb> and other
+debuggers.  It even knows how to debug Perl programs!
+
+For completeness, let's see the gdb trace of the httpd process that's
+still hanging in the C<while(1)> loop of the first example in this
+section:
+
+  % gdb /usr/local/apache/bin/httpd 1005
+  
+  (gdb) where
+  #0  0x4014a861 in __libc_nanosleep ()
+  #1  0x4014a7ed in __sleep (seconds=1) at ../sysdeps/unix/sysv/linux/sleep.c:78
+  #2  0x8122c01 in Perl_pp_sleep ()
+  #3  0x812b25d in Perl_runops_standard ()
+  #4  0x80d3721 in perl_call_sv ()
+  #5  0x807a46b in perl_call_handler ()
+  #6  0x8079e35 in perl_run_stacked_handlers ()
+  #7  0x8078d6d in perl_handler ()
+  #8  0x8091e43 in ap_invoke_handler ()
+  #9  0x80a5109 in ap_some_auth_required ()
+  #10 0x80a516c in ap_process_request ()
+  #11 0x809cb2e in ap_child_terminate ()
+  #12 0x809cd6c in ap_child_terminate ()
+  #13 0x809ce19 in ap_child_terminate ()
+  #14 0x809d446 in ap_child_terminate ()
+  #15 0x809dbc3 in main ()
+  #16 0x400d3cb3 in __libc_start_main (main=0x809d88c <main>, argc=1, 
+      argv=0xbffff7e4, init=0x80606f8 <_init>, fini=0x812b33c <_fini>, 
+      rtld_fini=0x4000a350 <_dl_fini>, stack_end=0xbffff7dc)
+      at ../sysdeps/generic/libc-start.c:78
+
+As before we can see a complete trace of the last executed call.
+
+As you have noticed, I still haven't explained why the process hanging
+in the C<while(1)> loop isn't aborted by Apache.  The next section
+covers this.
+
+META: add the note about using the 'curinfo' gdb macro to perform an
+easy detecting of the hanging location.
+
+
 
 =head1 Debugging Hanging processes (continued)
 
@@ -3743,8 +3740,6 @@ Of course you can use the command line environment setting:
   % setenv MOD_PERL_TRACE all
   % httpd -X
 
-
-META: add output examples
 
 
 

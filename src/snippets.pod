@@ -1105,7 +1105,7 @@ Example:
 
 =head1 An example of using Apache::Session::DBI with cookies
 
-META: should be annotated at some point. (an example posted to the
+META: should be annotated at some point. (an example was posted to the
 mod_perl list)
 
   use strict;
@@ -1280,7 +1280,6 @@ C<ServerErrorLogFix>).  But we'll leave that as an exercise for the
 reader, and hope that it won't be needed in the next mod_perl release.
 After all, it's a little awkward to need a C<LogHandler> to clean up
 after ourselves....
-
 
 
 

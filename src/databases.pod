@@ -56,7 +56,7 @@ There is no need to delete the disconnect() statements from your
 code. They won't do anything because the C<Apache::DBI> module
 overloads the disconnect() method with an empty one.
 
-When should this module be used and when shouldn't it be used?
+=head2 When should this module be used and when shouldn't it be used?
 
 You will want to use this module if you are opening several database
 connections to the server. C<Apache::DBI> will make them persistent
@@ -163,27 +163,31 @@ prevention.
 =head3 The Morning Bug
 
 The SQL server keeps a connection to the client open for a limited
-period of time. Many developers were bitten by so called B<Morning
-bug>, when every morning the first users to use the site received a
-C<No Data Returned> message, but after that everything worked
-fine. The error is caused by C<Apache::DBI> returning a handle of the
+period of time. In the early days of C<Apache::DBI> developers were
+bitten by so called I<Morning bug>, when every morning the first users
+to use the site received a C<No Data Returned> message, but after that
+everything worked fine.
+
+The error was caused by C<Apache::DBI> returning a handle of the
 invalid connection (the server closed it because of a timeout), and
-the script was dying on that error. The infamous C<ping()> method was
-introduced to solve this problem, but still people were being bitten
-by this problem. Another solution was found - to increase the timeout
-parameter when starting the SQL server. Currently I startup C<MySQL>
-server with a script C<safe_mysql>, so I have modified it to use this
+the script was dying on that error. The C<ping()> method was
+introduced to solve this problem, but it didn't worked properly till
+C<Apache::DBI> version 0.82 was released. In that version and
+afterwards ping() was called inside the C<eval> block, which resolved
+the problem.
+
+It's possible that some C<DBD::> drivers don't have the ping() method
+implemented. The C<Apache::DBI> manpage explains how to write one.
+
+Another solution was found - to increase the timeout parameter when
+starting the database server. Currently we startup C<MySQL> server
+with a script C<safe_mysql>, so we have modified it to use this
 option:
 
   nohup $ledir/mysqld [snipped other options] -O wait_timeout=172800
 
-
-(172800 seconds is equal to 48 hours. This change solves the problem.)
-
-Note that as from version C<0.82>, C<Apache::DBI> implements ping()
-inside the C<eval> block.  This means that if the handle has timed out
-it should be reconnected automatically, and avoid the morning bug.
-
+172800 seconds is equal to 48 hours. This change solves the problem,
+but the ping() method works properly in C<DBD::mysql> as well.
 
 =head3 Opening connections with different parameters
 
@@ -214,7 +218,13 @@ ignored.
 
 Make sure you have it installed.
 
-Make sure you configured mod_perl with EVERYTHING=1.
+Make sure you configured mod_perl with either:
+
+  PERL_CHILD_INIT=1 PERL_STACKED_HANDLERS=1
+
+or 
+
+  EVERYTHING=1
 
 Use the example script eg/startup.pl (in the mod_perl
 distribution). Remove the comment from the line.
@@ -268,7 +278,7 @@ method:
 
   DBI->trace($trace_level)
   DBI->trace($trace_level, $trace_filename)
-  
+
 DBI trace information can be enabled for all handles using this DBI
 class method. To enable trace information for a specific handle use
 the similar C<$h-E<gt>trace> method.

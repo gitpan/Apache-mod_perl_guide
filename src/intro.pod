@@ -765,7 +765,7 @@ Credits of course go to ( alphabetically sorted ):
 
 =item * Sean Dague
 
-=item * Shane
+=item * Shane Nay
 
 =item * Stephane Benoit
 

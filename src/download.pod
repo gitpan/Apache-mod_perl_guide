@@ -81,19 +81,19 @@ http://www.cpan.org/authors/id/ABH/mod_proxy_add_forward.c, complete
 with instructions on how to compile it and whatnot.
 
 
-=head1 httperf - webserver Benchmarking tool
+=head1 httperf -- webserver Benchmarking tool
 
 http://www.hpl.hp.com/personal/David_Mosberger/httperf.html
 
-=head1 http_load - another webserver Benchmarking tool
+=head1 http_load -- another webserver Benchmarking tool
 
 http://www.acme.com/software/http_load/
 
-=head1 ab - ApacheBench
+=head1 ab -- ApacheBench
 
 ApacheBench comes with the Apache distribution.
 
-=head1 Daquiri - yet another webserver Benchmarking tool
+=head1 Daquiri -- yet another webserver Benchmarking tool
 
 should be available from the mod_backhand CVS tree:
 http://www.backhand.org/mod_backhand/

@@ -1,6 +1,7 @@
 =head1 mod_perl and dbm files
 
 
+
 =head1 Where and Why to use dbm files
 
 Some of the earliest databases implemented on Unix were dbm files, and
@@ -18,34 +19,61 @@ can be very slow on insert, update and delete operations, when the
 number of records starts to grow into the thousands.  Sort algorithms
 on flat files can be very time-consuming.
 
-The maximum practical size of a dbm database depends on many factors -
-your data, your hardware and the desired response times of course
-included - but as a rough guide consider 5,000 to 10,000 records to be
-reasonable.
+The maximum practical size of a dbm database depends on many
+factors--your data, your hardware and the desired response times of
+course included--but as a rough guide consider 5,000 to 10,000 records
+to be reasonable.
 
-Several different indexing algorithms can be used with dbm:
+We will talk mostly about the Berkley DB version 1.x, as it provides
+the best functionality while having a good speed and almost no
+limitations. Other implementations might be faster in some cases, but
+they are either limited in the length of the maximum value or the
+total number of records.
+
+There is a number of Perl interfaces to the major dbm implementations,
+to list a few: C<DBM>, C<NDBM>, C<ODBM>, C<GDBM>, and C<SDBM>.  The
+original Perl module for Berkeley DB was DB_File, which was written to
+interface to Berkeley DB version 1.85. The newer Perl module for
+Berkeley DB is C<BerkeleyDB>, which was written to interface to
+version 2.0 and subsequent releases. Because Berkeley DB version 2.X
+has a compatibility API for version 1.85, you can (and should!) build
+C<DB_File> using version 2.X of Berkeley DB, although C<DB_File> will
+still only support the 1.85 functionality.
+
+Several different indexing algorithms (known also as access methods)
+can be used with dbm implementations:
 
 =over
 
 =item *
 
-The C<HASH> algorithm gives an C<0(1)> complexity of search and
+The C<HASH> access method gives an C<0(1)> complexity of search and
 update, fast insert and delete, but a slow sort (which you have to
-implement yourself).
+implement yourself). (Used by almost all dbm implementations)
 
 =item *
 
-The C<BTREE> algorithm allows arbitrary key/value pairs to be stored
-in a sorted, balanced binary tree.  This allows us to get a sorted
-sequence of data pairs in C<0(1)>, but at the expense of much slower
-insert, update, delete operations than is the case with C<HASH>.
+The C<BTREE> access method allows arbitrary key/value pairs to be
+stored in a sorted, balanced binary tree.  This allows us to get a
+sorted sequence of data pairs in C<0(1)>, but at the expense of much
+slower insert, update, delete operations than is the case with
+C<HASH>.  (Available mostly in Berkeley DB)
 
 =item *
 
-The C<RECNO> algorithm is more complicated, and enables both
+The C<RECNO> access method is more complicated, and enables both
 fixed-length and variable-length flat text files to be manipulated
 using the same key/value pair interface as in C<HASH> and C<BTREE>.
 In this case the key will consist of a record (line) number.
+(Available mostly in Berkeley DB)
+
+=item *
+
+The C<QUEUE> access method stores fixed-length records with logical
+record numbers as keys. It is designed for fast inserts at the tail
+and has a special cursor consume operation that deletes and returns a
+record from the head of the queue. The C<QUEUE> access method uses
+record level locking.  (Available only in Berkeley DB version 3.x)
 
 =back
 
@@ -59,8 +87,9 @@ arrays and hashes.
 
 It is important to note that you cannot simply switch a dbm file from
 one storage algorithm to another.  The only way to change the
-algorithm is to dump the data to a flat file and then restore it using
-the new storage method.  You can use a script like this:
+algorithm is to copy all the records one by one into a new dbm file,
+which was initialized according to a desired access method.  You can
+use a script like this:
 
   #!/usr/bin/perl -w
   
@@ -89,14 +118,11 @@ the new storage method.  You can use a script like this:
     rename "$filename", "$filename.btree" 
       or die "can't rename $filename $filename.btree:$!\n";
   
-    my %btree;
-    my %hash;
-  
       # tie both dbs (db_hash is a fresh one!)
-    tie %btree , 'DB_File',"$filename.btree", O_RDWR|O_CREAT, 
-        0660, $DB_BTREE or die "Can't tie $filename.btree";
-    tie %hash ,  'DB_File',"$filename" , O_RDWR|O_CREAT, 
-        0660, $DB_HASH  or die "Can't tie $filename";
+    tie my %btree , 'DB_File',"$filename.btree", O_RDWR|O_CREAT, 
+        0660, $DB_BTREE or die "Can't tie $filename.btree: $!";
+    tie my %hash ,  'DB_File',"$filename" , O_RDWR|O_CREAT, 
+        0660, $DB_HASH  or die "Can't tie $filename: $!";
   
       # copy DB
     %hash = %btree;
@@ -113,16 +139,16 @@ utilities as well.
 
 Where does mod_perl fit into the picture?
 
-If you are using a read only dbm file you can have it work faster if
-you keep it open (tied) all the time, so that when your CGI script
-wants to access the database it is already tied and ready to be used.
-This will work with dynamic (read/write) databases as well, but you
+If you need to access a dbm file in your mod_perl code in the read
+only mode the operation would be much faster if you keep the dbm file
+open (tied) all the time and therefore ready to be used. This will
+work with dynamic (read/write) databases accesses as well, but you
 need to use locking and data flushing to avoid data corruption.
 
-Although mod_perl and dbm can give huge performance gains to CGI
-scripts which manipulate flat files, you should be very careful.  In
+Although mod_perl and dbm can give huge performance gains compared to
+the use of flat file databases you should be very careful.  In
 addition to the need for locking, you need to consider the
-consequences of C<die()> and unexpected process deaths.
+consequences of C<die()> and unexpected process death.
 
 If your locking mechanism cannot handle dropped locks, a stale lock
 can deactivate your whole site.  You can enter a deadlock situation if
@@ -133,19 +159,26 @@ because it is locked by the other process.  If your processes all ask
 for their DB files in the same order, this situation cannot occur.
 
 If you modify the DB you should be make very sure that you flush the
-data and synchronize it, especially when the process serving your CGI
-unexpectedly dies.  In general your application should be tested very
-thoroughly before you put it into production to handle important data.
+data and synchronize it, especially when the process serving your
+handler unexpectedly dies.  In general your application should be
+tested very thoroughly before you put it into production to handle
+important data.
 
-=head1 Locking dbm handlers
+=head1 Locking dbm Handlers and Write Lock Starvation Hazards
 
-Let's make the lock status a global variable, so it will persist from
-request to request.  Before we request a lock - I<READ> (shared) or
-I<WRITE> (exclusive) - we should first obtain the current lock status.
+One has to deploy dbm file locking if there is chance that some
+process will want to write to it. Note that once you need to do
+locking you do it even when all you want is to read from the
+file. Since if you don't, it's possible that someone writes to the
+file at this very moment and you may read partly updated data.
+
+Therefore we should distinguish between I<READ> and I<WRITE>
+locks. Before doing an operation on the dbm file, we first issue
+either a I<READ> or a I<WRITE> lock request, according to our needs.
 
 If we are making a I<READ> lock request, it is granted as soon as the
-file becomes unlocked or if it is already I<READ> locked.  The lock
-status becomes I<READ> on success.
+I<WRITE> lock on the file is removed if any or if it is already
+I<READ> locked.  The lock status becomes I<READ> on success.
 
 If we make a I<WRITE> lock request, it is granted as soon as the file
 becomes unlocked.  The lock status becomes I<WRITE> on success.
@@ -156,24 +189,23 @@ If the DB is I<READ> locked, a process that makes a I<WRITE> request
 will poll until there are no reading or writing processes left.  Lots
 of processes can successfully read the file, since they do not block
 each other.  This means that a process that wants to write to the file
-(so first it needs to obtain an exclusive lock) may never get a chance
-to squeeze in. The following diagram represents a possible scenario
-where everybody can read but no one can write:
+may never get a chance to squeeze in, since it needs to obtain an
+exclusive lock.
+
+The following diagram represents a possible scenario where everybody
+can read but no one can write (pX's represent different processes
+running for different times and all acquiring the read lock on the dbm
+file):
 
   [-p1-]                 [--p1--]
-     [--p2--]
-   [---------p3---------]
+     [--p2--]                [--p2--]
+   [---------p3---------] [--------p3----....
                  [------p4-----]
-     [--p5--]   [----p5----]
 
 The result is a starving process, which will timeout the request, and
-it will fail to update the DB.  This is a good reason not to cache the
-dbm handle with dynamic dbm files.  It will work perfectly with static
-DBM files without any need to lock files at all.
-
-Ken Williams solved the above problem with his
-L<C<Tie::DB_Lock>|dbm/Tie__DB_Lock> module, which I will discuss in
-one of the following sections.
+it will fail to update the DB.  Ken Williams solved the above problem
+with his L<C<Tie::DB_Lock>|dbm/Tie__DB_Lock> module, which is
+discussed in one of the following sections.
 
 There are several locking wrappers for C<DB_File> in CPAN right now.
 Each one implements locking differently and has different goals in
@@ -184,10 +216,10 @@ pick the right one for your application.
 =head1 Flawed Locking Methods Which Must Not Be Used
 
 I<Caution>: The suggested locking methods in the Camel book and
-C<DB_File> man page (at least before version 1.72) are flawed.  If you
-use them in an environment where more than one process can modify the
-dbm file, it can get corrupted!!!  The following is an explanation of
-why this happens.
+C<DB_File> man page (before version 1.72, fixed in 1.73) are flawed.
+If you use them in an environment where more than one process can
+modify the dbm file, it can get corrupted!!!  The following is an
+explanation of why this happens.
 
 You may not use a tied file's filehandle for locking, since you get
 the filehandle after the file has been already tied.  It's too late to
@@ -207,20 +239,26 @@ the first 4k.  But once you suspect this problem you can easily
 reproduce it by making your program modify the records in the first 4k
 of the DB.
 
+You better resort to using the standard modules for locking instead of
+inventing your own.
 
-=head1 Lock Wrappers Overview
+=head1 Locking Wrappers Overview
 
-There are five locking wrappers known to me:
+Here are some of the correctly working dbm locking wrappers on (three
+of them are available from CPAN):
 
 =over
 
 =item *
 
-C<Tie::DB_Lock> -- C<DB_File> wrapper which creates copies of the
-database file for read access, so that you have kind of a
-multiversioning concurrent read system. However, updates are still
-serial.  Use this for databases where reads may be lengthy and
-consistency problems may occur.  L<More information|dbm/Tie__DB_Lock>.
+C<Tie::DB_Lock> -- C<DB_File> wrapper which creates copies of the dbm
+file for read access, so that you have kind of a multiversioning
+concurrent read system. However, updates are still serial. After each
+update the read-only copies of the dbm file are recreated. Use this
+wrapper in situations where reads may be very lengthy and therefore
+write starvation problem may occur. On the other hand if you have big
+dbm files, it may create a big load on the system if the updates are
+quite frequent.  L<More information|dbm/Tie__DB_Lock>.
 
 =item *
 
@@ -228,16 +266,15 @@ C<Tie::DB_LockFile> -- C<DB_File> wrapper that has the ability to lock
 and unlock the database while it is being used.  Avoids the
 tie-before-flock problem by simply re-tie-ing the database when you
 get or drop a lock.  Because of the flexibility in dropping and
-re-acquiring the lock in the middle of a session, this can be massaged
-into a system that will work with long updates and/or reads.  There
-are the hints in the POD documentation.  Refer to the
+re-acquiring the lock in the middle of a session, this can be used in
+a system that will work with long updates and/or reads.  Refer to the
 C<Tie::DB_LockFile> manpage for more information.
 
 =item *
 
-C<DB_File::Lock> -- extremely lightweight C<DB_File> wrapper that
-simply flocks a lockfile before tie-ing the database and drops the
-lock after the untie.  Allows one to use the same lockfile for
+C<DB_File::Lock> -- extremely lightweighted C<DB_File> wrapper that
+simply flocks an external lockfile before tie-ing the database and
+drops the lock after untie.  Allows one to use the same lockfile for
 multiple databases to avoid deadlock problems, if desired.  Use this
 for databases where updates and reads are quick and simple flock
 locking semantics are enough.  Refer to C<DB_File::Lock> manpage for
@@ -257,7 +294,7 @@ lock on tie:
 
   tie my %t, 'DB_File', $TOK_FILE, O_RDWR | O_EXLOCK, 0664;
 
-and only release the lock by un-tie-ing the file.  Check if the
+and only release the lock by un-tie()-ing the file.  Check if the
 C<O_EXLOCK> flag is available on your operating system before you try
 to use this method!
 
@@ -296,9 +333,9 @@ does not disturb readers when putting a new read-only copy into place.
 locking by using an external lockfile.
 
 This allows you to gain the lock before the file is tied.  Note that
-it's not yet on CPAN and so is listed here in its entirety.  Note also
-that this code still needs some testing, so I<be careful> if you use
-it on a production machine.
+it's not yet on CPAN and so is linked from here in its entirety.  Note
+also that this code still needs some testing, so I<be careful> if you
+use it on a production machine.
 
 You use it like this:
 
