@@ -1,4 +1,4 @@
-title: Choosing an Operating System and Hardware
+=head1 Choosing an Operating System and Hardware
 
 =head1 Is it important?
 
@@ -10,7 +10,7 @@ your server's performance is poor because you did not choose a
 suitable platform in the first place.
 
 While the tips below could apply to many web servers, they are aimed
-primarily at administrators of mod_perl-enabled webservers.
+primarily at administrators of mod_perl enabled Apache server.
 
 Because hardware platforms and operating systems are developing
 rapidly (even while you are reading this Guide), this discussion must
@@ -42,8 +42,10 @@ You are open 24 hours a day.  You cannot afford to be off-line, for
 your customers will go shop at another service like yours (unless you
 have a monopoly :).  If the OS of your choice crashes every day, first
 do a little investigation.  There might be a simple reason which you
-can find and fix.  Common problems for which you cannot blame the OS
-are a runaway server that eats up all the memory and disk space.
+can find and fix.  There are OSs which won't work unless you reboot
+them twice a day.  You don't want to use the OS of this kind, no
+matter how good the OS' vendor sales department.  Do not follow flushy
+advertisments, follow developers advices instead.
 
 Generally, people who have used the OS for some time can tell you a
 lot about its stability.  Ask them.  Try to find people who are doing
@@ -98,21 +100,27 @@ because someone helped them in first place.  I was there, I was
 touched by that spirit and I am keen to keep that spirit alive.
 
 But, let's get back to our world.  We are living in material world,
-and our bosses pay us to keep the systems running.  So if we feel that
-we cannot provide the support ourselves and we do not trust the
-available free resources, we must pay for an OS backed by a company,
-and blame them for any problem.  Our boss wants to be able to sue
+and our bosses pay us to keep the systems running.  So if you feel
+that you cannot provide the support yourself and you do not trust the
+available free resources, you must pay for an OS backed by a company,
+and blame them for any problem.  Your boss wants to be able to sue
 someone if the project has a problem caused by the external product
-that is being used in the project.  If we buy a product and the
-company selling it claims support, we have someone to sue.  If we go
-with Open Source and it fails we do not have someone to sue, so we
-will probably just get fired.
+that is being used in the project.  If you buy a product and the
+company selling it claims support, you have someone to sue or at least
+to put the blame on.
+
+If we go with Open Source and it fails we do not have someone to
+sue... wrong--in the last years many companies have realized how good
+the Open Source products are and started to provide an official
+support for these products.  So your boss cannot just dismiss your
+suggestion of using an Open Source Operating System.  You can get a
+paid support just like with any other commercial OS vendor.
 
 Also remember that the less money you spend on OS and Software, the
 more you will be able to spend on faster and stronger hardware.
 
 
-=head2 Discontinued products
+=head2 Discontinued Products
 
 The OSs in this hazard group tend to be developed by a single company
 or organization.
@@ -126,9 +134,9 @@ is great and you sing with happiness on your way to work.  Then, one
 day, the company which supplies your beloved OS goes bankrupt (not
 unlikely nowadays), or they produce a newer incompatible version and
 they will not support the old one (happens all the time).  You are
-stuck with their early masterpiece, no support and no source!  What
-are you going to do?  Invest more money into porting the software to
-another OS...
+stuck with their early masterpiece, no support and no source code!
+What are you going to do?  Invest more money into porting the software
+to another OS...
 
 Everyone can be hit by this mini-disaster so it is better to check the
 background of the company when making your choice.  Even so you never
@@ -175,6 +183,13 @@ reap all the benefits of the new product's features.  Perhaps you get
 almost the same functionality for much less money if you were to buy
 an older model of the same product.
 
+
+
+
+
+
+
+
 =head1 Choosing Hardware
 
 Sometimes the most expensive machine is not the one which provides the
@@ -212,12 +227,18 @@ Linux Project|download/High_Availability_Linux_Project> for more info.)
 
 =item *
 
-NIC - Network Interface Card.
+NIC - Network Interface Card. A hardware component that allows to
+connect your machine to the network. It performs packets sending and
+receiving, newer cards can encrypt and decrypt packets and perform
+digital signing and verifying of the such. These are coming in
+different speeds categories varying from 10Mbps to 10Gbps and
+faster. The most used type of the NIC card is the one that implements
+the Ethernet networking protocol.
 
 =item *
 
 RAM - Random Access Memory. It's the memory that you have in your
-computer. (16Mb, 64Mb, 256Mb, etc.)
+computer. (Comes in units of 8Mb, 16Mb, 64Mb, 256Mb, etc.)
 
 =item *
 
@@ -237,7 +258,7 @@ documents Disk-HOWTO, Module-HOWTO and Parallel-Processing-HOWTO.
 
 =back
 
-=head2 Expected site traffic
+=head2 Machine Strength Demands According to Expected Site Traffic
 
 If you are building a fan site and you want to amaze your friends with
 a mod_perl guest book, any old 486 machine could do it.  If you are in
@@ -256,35 +277,32 @@ On the other hand if you prepare for a lot of traffic and buy a
 monster to do the work for you, what happens if your service doesn't
 prove to be as successful as you thought it would be?  Then you've
 spent too much money, and meanwhile faster processors and other
-hardware components have been released, so you lose again.
+hardware components have been released, so you lose.
 
 Wisdom and prophecy, that's all it takes :)
 
-=head2 Cash
 
-Everybody knows that Internet is a cash hole.  What you throw in
-hardly ever comes back.  This is not always true, but there is a lot
-of wisdom in these words.  Although you know that you are going to
-have to invest money to build a decent service, you will always want
-it to be cheaper!  Remember that a four year old processor is still
-very powerful.
+=head3 Single Strong Machine vs Many Weaker Machines
 
-If you really need a lot of power do not want to have a single
-powerful machine, then (unless you have money to throw away) think
-about clustering and load balancing.  For a given amount of money you
-can probably buy 10 old but very cheap machines and have a 8 times
-more power, or one single new machine.  Why is that?  Because
-generally the performance improvement on a new machine is marginal
-while, the price is much higher.  Ten machines will do faster disk I/O
-than one single machine, even if the new disk is quite a bit faster.
-Yes, you have more administration overhead, but there is a chance you
-will have it anyway, for in a short time the new machine you have just
-bought might not stand the load.  Then you will have to purchase more
-equipment and think about how to implement load balancing and file
-system distribution anyway.
+Let's start with a claim that a four years old processor is still very
+powerful and can be put to a good use. Now let's say that for a given
+amount of money you can probably buy either one new very strong
+machine or about ten older but very cheap machines. I claim that with
+ten old machines connected into a cluster and by deploying load
+balancing you will be able to serve about five times more requests
+than with one single new machine.
 
-Why I am so convinced?  Look at the busiest services on the Internet:
-search engines, email servers and the like -- most of them use a
+Why is that?  Because generally the performance improvement on a new
+machine is marginal while the price is much higher.  Ten machines will
+do faster disk I/O than one single machine, even if the new disk is
+quite a bit faster.  Yes, you have more administration overhead, but
+there is a chance you will have it anyway, for in a short time the new
+machine you have just bought might not stand the load.  Then you will
+have to purchase more equipment and think about how to implement load
+balancing and web server file system distribution anyway.
+
+Why I'm so convinced?  Look at the busiest services on the Internet:
+search engines, web-email servers and the like -- most of them use a
 clustering approach.  You may not always notice it, because they hide
 the real implementation behind proxy servers.
 
@@ -337,22 +355,23 @@ list:
   difficult thing to simulate in benchmark testing, though.
 
 
-=head2 I/O performance
+=head2 I/O Performance
 
 If your service is I/O bound (does a lot of read/write operations to
-disk -- remember that relational databases are sitting on disk as
-well), you need a very fast disk.  So you should not spend the money
-on Video card and monitor!  A cheap card and a 14" monochrome monitor
-are perfectly adequate for a Web server, you will probably access it
-by telnet or ssh-ed most of the time.  But look for disks with the
-best price/performance ratio.  Of course, ask around and avoid disks
-that have a reputation for headcrashes and other disasters.
+disk) you need a very fast disk, especially if the you need a
+relational database, which are the main I/O stream creaters.  So you
+should not spend the money on Video card and monitor!  A cheap card
+and a 14" monochrome monitor are perfectly adequate for a Web server,
+you will probably access it by C<telnet> or C<ssh> most of the time.
+Look for disks with the best price/performance ratio.  Of course, ask
+around and avoid disks that have a reputation for headcrashes and
+other disasters.
 
 You must think about RAID or similar systems if you have an enormous
 data set to serve (what is an enormous data set nowadays?  Gigabytes,
-terabytes?) or you expect a lot of traffic.
+terabytes?) or you expect a really big web traffic.
 
-Ok, we have a fast disk, what's next?  You need a fast disk
+Ok, you have a fast disk, what's next?  You need a fast disk
 controller.  There may be one embedded on your computer's motherboard.
 If the controller is not fast enough you should buy a faster one.
 Don't forget that it may be necessary to disable the original
@@ -361,12 +380,9 @@ controller.
 =head2 Memory
 
 Memory should be well tested.  Many memory test programs are
-practically useless.  Running a busy Linux system for a few weeks
-without ever shutting it down is a pretty good memory test.  I have
-seen RAM which gave no trouble on DOS and Windows systems cause all
-kinds of crashes under Linux.  Once you have tested your RAM, don't
-mess about with it unless you have to.  If you increase the amount of
-RAM on a well-tested box, use well-tested RAM.
+practically useless.  Running a busy system for a few weeks without
+ever shutting it down is a pretty good memory test.  If you increase
+the amount of RAM on a well-tested box, use well-tested RAM.
 
 How much RAM do you need?  Nowadays, the chances are that you will
 hear: "Memory is cheap, the more you buy the better".  But how much is
@@ -391,7 +407,7 @@ If you know the maximum size your servers can grow to, you know how
 much memory you need.  If your OS supports L<memory
 sharing|hardware/Sharing_Memory>, you can make best use of this
 feature by preloading the modules and scripts at server startup, and
-so you will probably need less memory than you have calculated.
+so you will need less memory than you have calculated.
 
 Do not forget that other essential system processes need memory as
 well, so you should plan not only for the Web server, but also take
@@ -439,7 +455,7 @@ the NIC is slow, the whole service is slow.  This is a most important
 component, since webservers are much more often network-bound than
 they are disk-bound!
 
-=head2 Tuning
+=head3 Solving Hardware Requirement Conflicts
 
 It may happen that the combination of software components which you
 find yourself using gives rise to conflicting requirements for the
@@ -447,10 +463,14 @@ optimization of tuning parameters.  If you can separate the components
 onto different machines you may find that this approach (a kind of
 clustering) solves the problem, at much less cost than buying faster
 hardware, because you can tune the machines individually to suit the
-jobs they have to do.  For example, one machine might need a lot of
-RAM but perhaps it does not need to be particularly fast.  Another
-machine might need very fast RAM but little of it.  Of course there's
-no reason why you should be that lucky...
+tasks they should perform.
+
+For example if you need to run a relational database engine and
+mod_perl server, it can be wise to put the two on different machines,
+since while RDBMS need a very fast disk, mod_perl processes need lots
+of memory. So by placing the two on different machines it's easy to
+optimize each machine at separate and satisfy the each software
+components requirements in the best way.
 
 =head2 Conclusion
 

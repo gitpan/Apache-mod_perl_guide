@@ -1,4 +1,4 @@
-title: Introduction. Incentives. Credits.
+=head1 Introduction. Incentives. Credits.
 
 =head1 What is mod_perl
 
@@ -217,7 +217,6 @@ Macromedia
 4,273,000 unique visitors/month Aug-1999
 
 http://www.macromedia.com
-http://www.mediametrix.com/TopRankings/TopRankings.html
 
 Apache/1.3.4 (Unix) mod_perl/1.18 on Solaris
 
@@ -225,7 +224,7 @@ Apache/1.3.4 (Unix) mod_perl/1.18 on Solaris
 
 ValueClick: Results-based advertising network
 
-60 million page views/day Oct-1999
+80 million page views/day May 2000 using about 45 machines
 
 http://valueclick.com
 
@@ -407,13 +406,14 @@ B<Frank Cringle>. Parts of his mod_perl FAQ have been used in this guide.
 
 =item *
 
-B<Vivek Khera>. For his mod_perl performance tuning guide.
+B<Vivek Khera>. For his mod_perl performance tuning guide. And lots of
+useful comments on the list that made into the guide.
 
 =item *
 
-B<Steve Reppucci>, who did a thorough review of the stuff I wrote. 
-He fixed lots of spelling and grammar errors, and made the guide readable to
-English speakers :)
+B<Steve Reppucci>, who did a thorough review of the stuff I wrote.  He
+fixed lots of spelling and grammar errors, and made the guide readable
+to English speakers :)
 
 =item *
 
@@ -438,8 +438,9 @@ chapter.
 
 =item *
 
-B<Geoffrey S Young> and B<David Harris> for contributing big
-sections about mod_perl and RPM packages.
+B<Geoffrey S Young> and B<David Harris> for contributing big sections
+about mod_perl and RPM packages, and providing helpful comments and
+corrections.
 
 =item *
 
@@ -454,12 +455,14 @@ make it more user friendly.
 
 =item *
 
-B<Mark Summerfield> for reviewing and fixing a big part of the guide,
-to improve readability and suggesting useful extensions.
+B<Mark Summerfield> for reviewing and fixing all the guide's chapters,
+improving guide's readability and suggesting useful extensions.
 
 =item *
 
-B<Jeffrey W. Baker> for his "guide to mod_perl database performance".
+B<Jeffrey W. Baker> for his "guide to mod_perl database performance"
+and many useful comments on the list that has been reused in the
+guide's material.
 
 =item *
 
@@ -746,7 +749,6 @@ Credits of course go to ( alphabetically sorted ):
 =item * Did I miss your name? Tell me!
 
 =back
-
 
 I want to thank all the people who donated their time and efforts to
 make this amazing idea of mod_perl a reality. This includes Doug

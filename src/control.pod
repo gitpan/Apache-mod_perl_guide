@@ -1,17 +1,17 @@
-title: Controlling and Monitoring the Server
+=head1 Controlling and Monitoring the Server
 
-=head1 Restarting techniques
+=head1 Restarting Techniques
 
-All of these techniques require that you know the server PID (Process
-ID).  The easiest way to find the PID is to look it up in the
-C<httpd.pid> file.  It's easy to discover where to look, by
-looking in the I<httpd.conf> file.  Open the file and locate the entry
+All of these techniques require that you know the server process id
+(PID).  The easiest way to find the PID is to look it up in the
+I<httpd.pid> file.  It's easy to discover where to look, by looking in
+the I<httpd.conf> file.  Open the file and locate the entry
 C<PidFile>.  Here is the line from one of my own I<httpd.conf> files:
 
   PidFile /usr/local/var/httpd_perl/run/httpd.pid
 
 As you see, with my configuration the file is
-C</usr/local/var/httpd_perl/run/httpd.pid>.
+I</usr/local/var/httpd_perl/run/httpd.pid>.
 
 Another way is to use the C<ps> and C<grep> utilities. Assuming that
 the binary is called I<httpd_perl>, we would do:
@@ -28,7 +28,8 @@ run your server as root, you will easily locate it since it belongs to
 root. If you run the server as some other user (when you L<don't have
 root access|install/Installation_Without_Superuser_P>, the processes
 will belong to that user unless defined differently in I<httpd.conf>.
-It's still easy to find which is the parent--it's the smallest one.
+It's still easy to find which is the parent--usually it's the process
+with the smallest PID.
 
 You will see many C<httpd> executables running on your system, but you
 should never need to send signals to any of them except the parent,
@@ -37,8 +38,8 @@ send to the parent: C<SIGTERM>, C<SIGHUP>, and C<SIGUSR1>.
 
 Some folks prefer to specify signals using numerical values, rather
 than using symbols.  If you are looking for these, check out your
-C<kill(1)> man page.  My page points to C</usr/include/sys/signal.h>,
-the relevant entries are:
+C<kill(1)> man page.  My page points to
+I</usr/include/linux/signal.h>, the relevant entries are:
 
   #define SIGHUP     1    /* hangup, generated when terminal disconnects */ 
   #define SIGKILL    9    /* last resort */
@@ -53,7 +54,7 @@ a minus sign, e.g. C<kill -15> or C<kill -TERM> followed by the PID.
 =head1 Server Stopping and Restarting 
 
 We will concentrate here on the implications of sending C<TERM>,
-C<HUP>, and C<USR1> signals (as an arguments to kill(1)) to a mod_perl
+C<HUP>, and C<USR1> signals (as arguments to kill(1)) to a mod_perl
 enabled server.  See http://www.apache.org/docs/stopping.html for
 documentation on the implications of sending these signals to a plain
 Apache server.
@@ -71,31 +72,31 @@ sends the C<SIGTERM> signal, and as a last resort it sends the
 C<SIGKILL> signal.  For each failed attempt to kill a child it makes
 an entry in the I<error_log>.
 
-Finally the parent itself exits and any open log files are closed.
-This is when all the accumulated C<END> blocks, apart from the ones in
-C<Apache::Registry> and C<Apache::PerlRun> scripts, will be
-executed. C<END> blocks are executed after each request is served for
-C<Apache::Registry> and C<Apache::PerlRun> scripts.
+When all the child processes were terminated, the parent itself exits
+and any open log files are closed.  This is when all the accumulated
+C<END> blocks, apart from the ones located in scripts running under
+C<Apache::Registry> or C<Apache::PerlRun> handlers.  In the latter
+case, C<END> blocks are executed after each request is served.
 
+=item HUP Signal: Restart Now
 
-=item HUP Signal: restart now
-
-Sending the B<HUP> signal to the parent causes it to kill off its
-children as if you had sent B<TERM> (any requests in progress are
+Sending the C<HUP> signal to the parent causes it to kill off its
+children as if you had sent C<TERM> (any requests in progress are
 terminated) but the parent doesn't exit.
 
-The parent will reread its configuration files, close and re-open any
-log files, flush all the compiled and preloaded modules, and rerun any
-startup files.  Then it spawns a new set of children and continues
-serving hits.  It's equivalent to stopping then restarting the server.
+Instead the parent will reread its configuration files, close and
+re-open its log files, flush all the compiled and preloaded modules,
+and rerun startup files.  Then it spawns a new set of children and
+continues serving requests.  It's equivalent to stopping and then
+restarting the server.
 
-Note: If your configuration files have errors when you issue a restart
-then the parent will not restart but instead it will exit with an
-error and your sever will be stopped.  See below for how to avoid
-this.
+Notice that if your configuration files have errors when you issue a
+restart, then the parent will exit.  Therefore you should check the
+configuration files for errors, before issuing the restart.  We will
+present a technique for performing this check in a moment.
 
 
-=item USR1 Signal: graceful restart
+=item USR1 Signal: Gracefully Restart Now
 
 The C<USR1> signal causes the parent process to advise the children to
 exit after serving their current requests, or to exit immediately if
@@ -123,21 +124,48 @@ this directive in I<httpd.conf>:
 Make sure you read L<Evil things might happen when using
 PerlFreshRestart|troubleshooting/Evil_things_might_happen_when_us>.
 
+
+=head1 Speeding up the Apache Termination and Restart
+
 We've already mentioned that restart or termination can sometimes take
-quite a long time, (e.g. tens of seconds), for a mod_perl server.  You
-have an option to set the L<PERL_DESTRUCT_LEVEL Environment
-Variable|debug/PERL_DESTRUCT_LEVEL_Environment_> during the C<perl
-Makefile.PL> stage.  You can also simply set it to I<-1> directly.
-This can speed things up, and can lead to more robust operation in the
-face of problems such as running out of memory.
+quite a long time, (e.g. tens of seconds), for a mod_perl server.  The
+reason for that is a call to the perl_destruct() Perl API function
+during the child exit phase.  This will cause proper execution of
+C<END> blocks found during server startup and will invoke the
+C<DESTROY> method on global objects which are still alive.
+
+It is also possible that this operation may take a long time to
+finish, causing a long delay during a restart.  Sometimes this will be
+followed by a series of messages appearing in the server I<error_log>
+file, warning that certain child processes did not exit as expected.
+This happens when after a few attempts advicing the child process to
+quit, the child is still in the middle of perl_destruct(), and a
+lethal C<KILL> signal is sent, aborting any operation the child has
+happened to execute and I<brutally> killing it.
+
+If your code does not contain any C<END> blocks or C<DESTROY> methods
+which need to be run during child server shutdown, or may have these,
+but it's insignificant to execute them, this destruction can be
+avoided by setting the C<PERL_DESTRUCT_LEVEL> environment variable to
+C<-1>. For example add this setting to the I<httpd.conf> file:
+
+ PerlSetEnv PERL_DESTRUCT_LEVEL -1
+
+What constitutes a significant cleanup?  Any change of state outside
+of the current process that would not be handled by the operating
+system itself.  So committing database transactions and removing the
+lock on some resource are significant operations, but closing an
+ordinary file isn't.
 
 
-=head1 Using apachectl to control the server
 
-The Apache distribution comes with a script to control the server.  It's
-called I<apachectl> and it is installed into the same location as the
-httpd executable.  We will assume for the sake of our examples that it's in
-C</usr/local/sbin/httpd_perl/apachectl>:
+
+=head1 Using apachectl to Control the Server
+
+The Apache distribution comes with a script to control the server.
+It's called I<apachectl> and it is installed into the same location as
+the httpd executable.  We will assume for the sake of our examples
+that it's in C</usr/local/sbin/httpd_perl/apachectl>:
 
 To start httpd_perl:
 
@@ -152,9 +180,10 @@ already running just start it):
 
   % /usr/local/sbin/httpd_perl/apachectl restart
 
-Do a graceful restart by sending a C<SIGUSR1>, or start if not running:
+Do a graceful restart by sending a C<SIGUSR1>, or start if not
+running:
 
-  % /usr/local/sbin/httpd_perl/apachectl graceful    
+  % /usr/local/sbin/httpd_perl/apachectl graceful
 
 To do a configuration test:
 
@@ -167,34 +196,9 @@ There are other options for C<apachectl>, use the C<help> option to
 see them all.
 
 It's important to remember that C<apachectl> uses the PID file, which
-is specified by the C<PIDFILE> directive in C<httpd.conf>.  If you
-delete the PID file by hand, B<apachectl> will fail to run.
-
-Also note that I<apachectl> is suitable for use from within a Unix
-system's startup files so that the Web server is automatically
-restarted at system reboot.
-
-Either copy the I<apachectl> file to the appropriate location
-(C</etc/rc.d/rc3.d/S99apache> works on my RedHat Linux system) or
-create a symlink with that name pointing to the canonical location.
-(If you do this, make certain that the script is writable only by
-root!  The startup scripts have root privileges during initialisation,
-and you don't want to open up any security holes.)
-
-You might also adopt the server executables naming convention in the
-control script and have:
-
-  /usr/local/sbin/httpd_perl/httpd_perl_ctl
-  /usr/local/sbin/httpd_docs/httpd_docs_ctl
-
-And to have in the I<rc.d> directory:
-
-  /etc/rc.d/rc3.d/S92httpd_perl_ctl
-  /etc/rc.d/rc3.d/S93httpd_docs_ctl
-
-
-
-
+is specified by the C<PIDFILE> directive in I<httpd.conf>.  If you
+delete the PID file by hand while the server is running, C<apachectl>
+will be unable to stop or restart the server.
 
 
 
@@ -213,9 +217,9 @@ files!
 
 Personally I do all updates on the live server with the following
 sequence.  Assume that the server root directory is
-C</home/httpd/perl/rel>.  When I'm about to update the files I create
-a new directory C</home/httpd/perl/beta>, copy the old files from
-C</home/httpd/perl/rel> and update it with the new files.  Then I do
+I</home/httpd/perl/rel>.  When I'm about to update the files I create
+a new directory I</home/httpd/perl/beta>, copy the old files from
+I</home/httpd/perl/rel> and update it with the new files.  Then I do
 some last sanity checks (check file permissions are [read+executable],
 and run C<perl -c> on the new modules to make sure there no errors in
 them).  When I think I'm ready I do:
@@ -247,7 +251,7 @@ Taking the line apart piece by piece:
 
   mv rel old &&
 
-back up the working directory to C<old>
+back up the working directory to I<old>
 
   mv beta rel &&
 
@@ -267,7 +271,7 @@ C<restart> the server
 
   err
 
-view of the tail of the C<error_log> file in order to see that
+view of the tail of the I<error_log> file in order to see that
 everything is OK
 
 C<apachectl> generates the status messages a little too early
@@ -424,20 +428,111 @@ approach would work just as well.
 
 =head1 SUID Start-up Scripts
 
-For those who want to use SUID startup scripts, here is an example.
-This script is I<SUID root>, and should be executable only by members
-of some special group at your site.  Note the line marked
-C<WORKAROUND>, which fixes an obscure error when starting
-apache/mod_perl by setting the real to the effective UID.  Without
-this workaround, a mismatch between the real and the effective UIDs
-causes Perl to croak on the -e switch.
+If you want to allow a few people in your team to start and stop the
+server you will have to give them the root password, which is not a
+good thing to do. The less people know the password, the less problems
+are likely to be encountered.  But there is an easy solution for this
+problem available on UNIX platforms.  It's called a setuid executable.
+
+=head2 Introduction to SUID Executables
+
+The setuid executable has a setuid permissions bit set. This sets the
+process's effective user ID to that of the file upon execution. You
+perform this setting with the following command:
+
+  % chmod u+s filename
+
+You probably have used setuid executables before without even knowing
+about it. For example when you change your password you execute the
+C<passwd> utility, which among other things modifies the
+I</etc/passwd> file. In order to change this file you need root
+permissions, the C<passwd> utility has the setuid bit set, therefore
+when you execute this utility, its effective ID is the same of the
+root user ID.
+
+You should avoid using setuid executables as a general practice. The
+less setuid executables you have the less likely that someone will
+find a way to break into your system, by exploiting some bug you
+didn't know about.
+
+When the executable is setuid to root, you have to make sure that it
+doesn't have the group and world read and write permissions. If we
+take a look at the C<passwd> utility we will see:
+
+  % ls -l /usr/bin/passwd
+  -r-s--x--x 1 root root 12244 Feb 8 00:20 /usr/bin/passwd
+
+You achieve this with the following command:
+
+  % chmod 4511 filename
+
+The first digit (4) stands for setuid bit, the second digit (5) is a
+compound of read (4) and executable (1) permissions for the user, and
+the third and the fourth digits are setting the executable permissions
+for the group and the world.
+
+=head2 Apache Startup SUID Script's Security
+
+In our case, we want to allow setuid access only to a specific group
+of users, who all belong to the same group. For the sake of our
+example we will use the group named I<apache>. It's important that
+users who aren't root or who don't belong to the I<apache> group will
+not be able to execute this script. Therefore we perform the following
+commands:
+
+  % chgrp apache apachectl
+  % chmod  4510  apachectl
+
+The execution order is important. If you swap the command execution
+order you will lose the setuid bit.
+
+Now if we look at the file we see:
+
+  % ls -l apachectl
+  -r-s--x--- 1 root apache 32 May 13 21:52 apachectl
+
+Now we are all set... Almost...
+
+When you start Apache, Apache and Perl modules are being loaded, code
+can be executed. Since all this happens with root effective ID, any
+code executed as if the root user was doing that. You should be very
+careful because while you didn't gave anyone the root password, all
+the users in the I<apache> group have an indirect root access. Which
+means that if Apache loads some module or executes some code that is
+writable by some of these users, users can plant code that will allow
+them to gain a shell access to root account and become a real root.
+
+Of course if you don't trust your team you shouldn't use this solution
+in first place. You can try to check that all the files Apache loads
+aren't writable by anyone but root, but there are too many of them,
+especially in the mod_perl case, where many Perl modules are loaded at
+the server startup.
+
+By the way, don't let all this setuid stuff to confuse you -- when the
+parent process is loaded, the childred processes are spawned as
+non-root processes. This section has presented a way to allow non-root
+users to start the server as root user, the rest is exactly the same
+as if you were executing the script as root in first place.
+
+
+=head2 Sample Apache Startup SUID Script
+
+Now if you are still with us, here is an example of the setuid Apache
+startup script.
+
+Note the line marked C<WORKAROUND>, which fixes an obscure error when
+starting mod_perl enabled Apache by setting the real UID to the
+effective UID.  Without this workaround, a mismatch between the real
+and the effective UIDs causes Perl to croak on the C<-e> switch.
 
 Note that you must be using a version of Perl that recognizes and
 emulates the suid bits in order for this to work.  This script will do
-different things depending on whether it is named C<start_http>,
-C<stop_http> or C<restart_http>.  You can use symbolic links for this
-purpose.
+different things depending on whether it is named C<start_httpd>,
+C<stop_httpd> or C<restart_httpd>.  You can use symbolic links for
+this purpose.
 
+  suid_apache_ctl
+  ---------------
   #!/usr/bin/perl -T
    
   # These constants will need to be adjusted.
@@ -456,7 +551,7 @@ purpose.
   # Do different things depending on our name
   ($name) = $0 =~ m|([^/]+)$|;
   
-  if ($name eq 'start_http') {
+  if ($name eq 'start_httpd') {
       system $HTTPD and die "Unable to start HTTP";
       print "HTTP started.\n";
       exit 0;
@@ -467,19 +562,23 @@ purpose.
   $pid =~ /(\d+)/ or die "PID $pid not numeric";
   $pid = $1;
   
-  if ($name eq 'stop_http') {
+  if ($name eq 'stop_httpd') {
       kill 'TERM',$pid or die "Unable to signal HTTP";
       print "HTTP stopped.\n";
       exit 0;
   }
   
-  if ($name eq 'restart_http') {
+  if ($name eq 'restart_httpd') {
       kill 'HUP',$pid or die "Unable to signal HTTP";
       print "HTTP restarted.\n";
       exit 0;
   }
   
-  die "Script must be named start_http, stop_http, or restart_http.\n";
+  die "Script must be named start_httpd, stop_httpd, or restart_httpd.\n";
+
+
+
+
 
 
 =head1 Preparing for Machine Reboot
@@ -493,20 +592,21 @@ you aren't around when the machine is rebooted?
 
 After the server installation is complete, it's important not to
 forget that you need to put a script to perform the server startup and
-shutdown into the standard system location, for example C</etc/rc.d>
-under RedHat Linux, or C</etc/init.d/apache> under Debian Slink Linux.
+shutdown into the standard system location, for example I</etc/rc.d>
+under RedHat Linux, or I</etc/init.d/apache> under Debian Slink Linux.
 
 This is the directory which contains scripts to start and stop all the
 other daemons.  The directory and file names vary from one Operating
-System to another, and even between different distributions of the
-same OS.
+System (OS) to another, and even between different distributions of
+the same OS.
 
 Generally the simplest solution is to copy the C<apachectl> script to
-your startup directory.  You will find C<apachectl> in the same
-directory as the httpd executable after Apache installation.  If you
-have more than one Apache server you will need a script for each one,
-and of course you will have to rename them so that they can co-exist
-in the same directories.
+your startup directory or create a symbolic link from the startup
+directory to the C<apachectl> script.  You will find C<apachectl> in
+the same directory as the httpd executable after Apache installation.
+If you have more than one Apache server you will need a separate
+script for each one, and of course you will have to rename them so
+that they can co-exist in the same directories.
 
 For example on a RedHat Linux machine with two servers, I have the
 following setup:
@@ -518,11 +618,11 @@ following setup:
   /etc/rc.d/rc6.d/K86httpd_docs -> ../init.d/httpd_docs
   /etc/rc.d/rc6.d/K87httpd_perl -> ../init.d/httpd_perl
 
-The scripts themselves reside in the I<init.d> directory.  There are
-symbolic links to these scripts in other directories. The names are
-the same as the script names but they have numbers prepended, which
-are used for executing the scripts in a particular order: the lower
-numbers are executed earlier.
+The scripts themselves reside in the I</etc/rc.d/init.d> directory.
+There are symbolic links to these scripts in other directories. The
+names are the same as the script names but they have numbers
+prepended, which are used for executing the scripts in a particular
+order: the lower numbers are executed earlier.
 
 Under RedHat Linux, when a machine is booted and its runlevel set to 3
 (multiuser+network), Linux goes into C</etc/rc.d/rc3.d/> and executes
@@ -537,12 +637,18 @@ called with the C<stop> argument, like this:
 
   /etc/rc.d/init.d/httpd_perl stop
 
-Most systems have GUI utilites to automate the creation of
-symbolic links.  For example RedHat Linux includes the
-C<control-panel> utility, which amongst other things includes the
-C<RunLevel Manager>.  This will help you to create the proper symbolic
-links.  Of course before you use it, you should put C<apachectl> or
-similar scripts into the I<init.d> or equivalent directory.
+Most systems have GUI utilites to automate the creation of symbolic
+links.  For example RedHat Linux includes the C<control-panel>
+utility, which amongst other things includes the C<RunLevel Manager>.
+This will help you to create the proper symbolic links.  Of course
+before you use it, you should put C<apachectl> or similar scripts into
+the I<init.d> or equivalent directory. Or you can have a symbolic link
+to some other location instead.
+
+
+
+
+
 
 =head1 Monitoring the Server.  A watchdog.
 
@@ -550,7 +656,7 @@ With mod_perl many things can happen to your server.  It is possibile
 that the server might die when you are not around.  As with any other
 critical service you need to run some kind of watchdog.
 
-One simple solution is to use a slightly modified B<apachectl> script,
+One simple solution is to use a slightly modified C<apachectl> script,
 which I've named I<apache.watchdog>.  Call it from the crontab every
 30 minutes -- or even every minute -- to make sure the server is up
 all the time.
@@ -568,8 +674,7 @@ The script:
   # down it sends an email alert to admin 
   
   # admin's email
-  EMAIL=webmaster@somewhere.far
-  #EMAIL=root@localhost
+  EMAIL=webmaster@example.com
     
   # the path to your PID file
   PIDFILE=/usr/local/var/httpd_perl/run/httpd.pid
@@ -609,19 +714,19 @@ C<LWP> perl package to test the server by trying to fetch some
 document (script) served by the server.  Why is it more practical?
 Because while the server can be up as a process, it can be stuck and
 not working.  Failing to get the document will trigger restart, and
-"probably" the problem will go away.  Just replace C<start> with
-C<restart> in the C<$restart_command> below.
+"probably" the problem will go away. 
 
-Again we put this script into the crontab to call it every 30 minutes.
-Personally I call it every minute, to fetch some very light script.
-Why so often?  If your server starts to spin and trash your disk space
-with multiple error messages filling the error log, in five minutes
-you might run out of free disk space which might bring your system to
-its knees.  Chances are that no other child will be able to serve
-requests, since the system will be too busy writing to the
-C<error_log> file.  Think big -- if you are running a heavy service
-(which is very fast since you are running under mod_perl) adding one
-more request every minute will not be felt by the server at all.
+Like before we set a cronjob to call this script every few minutes to
+fetch some very light script.  The best thing of course is to call it
+every minute.  Why so often?  If your server starts to spin and trash
+your disk space with multiple error messages filling the I<error_log>,
+in five minutes you might run out of free disk space which might bring
+your system to its knees.  Chances are that no other child will be
+able to serve requests, since the system will be too busy writing to
+the I<error_log> file.  Think big -- if you are running a heavy
+service (which is very fast since you are running under mod_perl)
+adding one more request every minute will not be felt by the server at
+all.
 
 So we end up with a crontab entry like this:
 
@@ -629,7 +734,11 @@ So we end up with a crontab entry like this:
 
 And the watchdog itself:
 
-  #!/usr/local/bin/perl -w
+  #!/usr/bin/perl -wT
+  
+  # untaint
+  $ENV{'PATH'} = '/bin:/usr/bin';
+  delete @ENV{'IFS', 'CDPATH', 'ENV', 'BASH_ENV'};
   
   use strict;
   use diagnostics;
@@ -639,21 +748,21 @@ And the watchdog itself:
   my $VERSION = '0.01';
   use vars qw($ua $proxy);
   $proxy = '';    
-
+  
   require LWP::UserAgent;
   use HTTP::Status;
   
   ###### Config ########
-  my $test_script_url = 'http://www.stas.com:81/perl/test.pl';
+  my $test_script_url = 'http://www.example.com:81/perl/test.pl';
   my $monitor_email   = 'root@localhost';
   my $restart_command = '/usr/local/sbin/httpd_perl/apachectl restart';
   my $mail_program    = '/usr/lib/sendmail -t -n';
   ######################
   
   $ua  = new LWP::UserAgent;
-  $ua->agent("$0/Stas " . $ua->agent);
-  # Uncomment the proxy if you don't use it!
-  #  $proxy="http://www-proxy.com";
+  $ua->agent("$0/watchdog " . $ua->agent);
+  # Uncomment the proxy if you access a machine from behind a firewall
+  # $proxy = "http://www-proxy.com";
   $ua->proxy('http', $proxy) if $proxy;
   
   # If it returns '1' it means we are alive
@@ -662,7 +771,6 @@ And the watchdog itself:
   # Houston, we have a problem.
   # The server seems to be down, try to restart it. 
   my $status = system $restart_command;
-  #  print "Status $status\n";
   
   my $message = ($status == 0) 
               ? "Server was down and successfully restarted!" 
@@ -713,6 +821,10 @@ And the watchdog itself:
     close MAIL;
   } 
 
+
+
+
+
 =head1 Running a Server in Single Process Mode
 
 Often while developing new code, you will want to run the server in
@@ -725,7 +837,7 @@ easily.
 
   % /usr/local/sbin/httpd_perl/httpd_perl -X
 
-When you use the -X switch the server will run in the foreground of
+When you use the C<-X> switch the server will run in the foreground of
 the shell, so you can kill it with I<Ctrl-C>.
 
 Note that in C<-X> (single-process) mode the server will run very
@@ -737,17 +849,23 @@ If you use Netscape while your server is running in single-process
 mode, HTTP's C<KeepAlive> feature gets in the way.  Netscape tries to
 open multiple connections and keep them open.  Because there is only
 one server process listening, each connection has to time out before
-the next succeeds.  Turn off C<KeepAlive> in C<httpd.conf> to avoid
+the next succeeds.  Turn off C<KeepAlive> in I<httpd.conf> to avoid
 this effect while developing.  If you use the image size parameters,
 Netscape will be able to render the page without the images so you can
 press the browser's I<STOP> button after a few seconds.
 
 In addition you should know that when running with C<-X> you will not
 see the control messages that the parent server normally writes to the
-error_log (I<"server started", "server stopped"> etc).  Since C<httpd
--X> causes the server to handle all requests itself, without forking
-any children, there is no controlling parent to write the status
-messages.
+I<error_log> (I<"server started">, I<"server stopped"> etc).  Since
+S<httpd -X> causes the server to handle all requests itself, without
+forking any children, there is no controlling parent to write the
+status messages.
+
+
+
+
+
+
 
 =head1 Starting a Personal Server for Each Developer
 
@@ -760,7 +878,6 @@ run it in single server mode, to restart it etc., as well as having
 control over the location of the log files, configuration settings
 like C<MaxClients>, and so on.
 
-
 You I<can> work around this problem by preparing a few I<httpd.conf>
 files and forcing each developer to use
 
@@ -769,16 +886,16 @@ files and forcing each developer to use
 but I approach it in a different way.  I use the C<-Dparameter>
 startup option of the server.  I call my version of the server
 
-  % http_perl -Dsbekman
+  % http_perl -Dstas
 
 In I<httpd.conf> I write:
 
-  # Personal development Server for sbekman
-  # sbekman uses the server running on port 8000
-  <IfDefine sbekman>
+  # Personal development Server for stas
+  # stas uses the server running on port 8000
+  <IfDefine stas>
   Port 8000
-  PidFile /usr/local/var/httpd_perl/run/httpd.pid.sbekman
-  ErrorLog /usr/local/var/httpd_perl/logs/error_log.sbekman
+  PidFile /usr/local/var/httpd_perl/run/httpd.pid.stas
+  ErrorLog /usr/local/var/httpd_perl/logs/error_log.stas
   Timeout 300
   KeepAlive On
   MinSpareServers 2
@@ -805,115 +922,157 @@ In I<httpd.conf> I write:
 
 With this technique we have achieved full control over start/stop,
 number of children, a separate error log file, and port selection for
-each server.  This saves me from getting called every few minutes -
-"Stas, I'm going to restart the server".
+each server.  This saves Stas from getting called every few minutes by
+Eric: "Stas, I'm going to restart the server".
 
 In the above technique, you need to discover the PID of your parent
 C<httpd_perl> process, which is written in
-C</usr/local/var/httpd_perl/run/httpd.pid.userfoo>.  To make things
-even easier we change the I<apachectl> script to do the work for us.
-We make a copy for each developer called B<apachectl.username> and we
-change two lines in each script:
+C</usr/local/var/httpd_perl/run/httpd.pid.stas> (and the same for the
+user eric).  To make things even easier we change the I<apachectl>
+script to do the work for us.  We make a copy for each developer
+called B<apachectl.username> and we change two lines in each script:
 
-  PIDFILE=/usr/local/var/httpd_perl/run/httpd.pid.sbekman
-  HTTPD='/usr/local/sbin/httpd_perl/httpd_perl -Dsbekman'
+  PIDFILE=/usr/local/var/httpd_perl/run/httpd.pid.username
+  HTTPD='/usr/local/sbin/httpd_perl/httpd_perl -Dusername'
 
-You might think you can use only one control file and know who is
-calling from the uid, but since you have to be root to start the
-server it is not so simple.
+So for the user I<stas> we prepare a startup script called
+B<apachectl.stas> and we change these two lines in the standard
+apachectl script as it comes unmodified from Apache distribution.
+
+  PIDFILE=/usr/local/var/httpd_perl/run/httpd.pid.stas
+  HTTPD='/usr/local/sbin/httpd_perl/httpd_perl -Dstas'
+
+So now when user I<stas> wants to stop the server he will execute:
+
+  apachectl.stas stop
+
+And to start:
+
+  apachectl.stas start
+
+Certainly the rest of the C<apachectl> arguments apply as before.
+
+You might think about having only one C<apachectl> and know who is
+calling by checking the UID, but since you have to be root to start
+the server it is not possible, unless you make the setuid bit on this
+script, as we've explained in the beginning of this chapter. If you do
+so, you can have a single C<apachectl> script for all developers,
+after you modify it to automatically find out the UID of the user, who
+executes the script and set the right paths.
 
 The last thing is to provide developers with an option to run in
 single process mode by:
 
-  /usr/local/sbin/httpd_perl/httpd_perl -Dsbekman -X
+  /usr/local/sbin/httpd_perl/httpd_perl -Dstas -X
 
 In addition to making life easier, we decided to use relative links
 everywhere in the static documents, including the calls to CGIs.  You
-may ask how using relative links will get to the right server.  It's
-very simple, we use C<mod_rewrite>.
+may ask how using relative links will get to the right server port.
+It's very simple, we use C<mod_rewrite>.
 
 To use mod_rewrite you have to configure your I<httpd_docs> server
 with C<--enable-module=rewrite> and recompile, or use DSO and load the
-module in I<httpd.conf>.  In the I<access.conf> of our C<httpd_docs>
+module in I<httpd.conf>.  In the I<httpd.conf> of our C<httpd_docs>
 server we have the following code:
 
-  # sbekman's server
-  # port = 8000
-  RewriteCond  %{REQUEST_URI} ^/(perl|cgi-perl)	 
-  RewriteCond  %{REMOTE_ADDR} 123.34.45.56
-  RewriteRule ^(.*)           http://nowhere.com:8000/$1 [R,L]
+  RewriteEngine on
   
-  # userfoo's server
+  # stas's server
+  # port = 8000
+  RewriteCond  %{REQUEST_URI} ^/(perl|cgi-perl)
+  RewriteCond  %{REMOTE_ADDR} 123.34.45.56
+  RewriteRule ^(.*)           http://example.com:8000/$1 [P,L]
+  
+  # eric's server
   # port = 8001
-  RewriteCond  %{REQUEST_URI} ^/(perl|cgi-perl)	 
+  RewriteCond  %{REQUEST_URI} ^/(perl|cgi-perl)
   RewriteCond  %{REMOTE_ADDR} 123.34.45.57
-  RewriteRule ^(.*)           http://nowhere.com:8001/$1 [R,L]
+  RewriteRule ^(.*)           http://example.com:8001/$1 [P,L]
   
   # all the rest
-  RewriteCond  %{REQUEST_URI} ^/(perl|cgi-perl)	 
-  RewriteRule ^(.*)           http://nowhere.com:81/$1 [R]
-  
+  RewriteCond  %{REQUEST_URI} ^/(perl|cgi-perl)
+  RewriteRule ^(.*)           http://example.com:81/$1 [P]
 
-the IP addresses are the addresses of the developer client machines
-(where they are running their web browsers).  I tried to use
-C<REMOTE_USER> since we have all the users authenticated but it did
-not work for me.
+The IP addresses are the addresses of the developer desktop machines
+(where they are running their web browsers).  So if an html file
+includes a a relative URI I</perl/test.pl> or even
+http://www.example.com/perl/test.pl, clicking on the link will be
+internally proxied to http://www.example.com:8000/perl/test.pl if the
+click has been made at the user stas's desktop machine, or to
+http://www.example.com:8001/perl/test.pl for a request generated from
+the user eric's machine, per our above URI rewrite example.
 
-So if I have a relative URL written in some I<file.html> like
-I</perl/test.pl> or even http://www.nowhere.com/perl/test.pl (the user
-at the machine of I<sbekman>) it will be redirected by httpd_docs to
-http://www.nowhere.com:8000/perl/test.pl.
+Another possibility is to use C<REMOTE_USER> variable if all the
+developers are forced to authenticate themselves before they can
+access the server. If you do, you will have to change the
+C<RewriteRule>s to match C<REMOTE_USER> in the above example.
 
-There is another problem: the CGI script may generate some HTML code
-which the client may then use to request further action from the
-server.  If the script generates a URL with a hard coded PORT, the
-above scheme will not work. There two solutions:
+We wish to stress again, that the above setup will work only with
+relative URIs in the HTML code. If you choose to generate full URIs
+including non-80 port the requests originated from this HTML code will
+bypass the light server listenting to the default port 80, and go
+directly to the server:port of the full URI.
 
-First, generate relative URLs so it will reuse the technique above,
-with redirect (which is transparent to the user).  But this will not
-work if you have something to C<POST>, because the redirect loses all
-the data!
 
-Second, use a general configuration module which generates a correct
-full URL according to C<REMOTE_USER>, so if C<$ENV{REMOTE_USER} eq
-'sbekman'>, I return C<http://www.nowhere.com:8000/perl/> as
-C<cgi_base_url>.  Again this will work if the user is authenticated.
 
-All this is good for development.  It is better to use the full URLs
-in production, since if you have a static form and the C<Action> is
-relative but the static document is located on another server,
-pressing the form's submit will cause a redirect to the mod_perl
-server and all the form's data will be lost during the redirect.
 
-=head1 Wrapper to Emulate the Server Environment
+=head1 Wrapper to Emulate the Server Perl Environment
+
 
 Often you will start off debugging your script by running it from your
-favorite shell.  Sometimes you encounter a very weird situation when
-the script runs from the shell but dies when called as a CGI script.  The
-real problem often lies in the difference between the environment that
-is used by your server and the one used by your shell.  For example
-you may have a different Perl path, a C<PERL5LIB> environment variable
-which includes paths that are not in the C<@INC> array of the copy of
-Perl which is linked into the mod_perl server and configured during
-startup.
+favorite shell program.  Sometimes you encounter a very weird
+situation when the script runs from the shell but dies when processed
+as a CGI script by a web-server.  The real problem often lies in the
+difference between the environment variables that is used by your
+web-server and the ones used by your shell program.
+
+For example you may have a set of non-standard Perl directories, used
+for local Perl modules. You have to tell the Perl interpreter where
+these directories are. If you don't want to modify C<@INC> in all
+scripts and modules, you can use a C<PERL5LIB> environment variable,
+to tell Perl where the directories are. But then you might forget to
+alter the mod_perl startup script to correct C<@INC> there as
+well. And if you forget this, you can be quite puzzled why the scripts
+are running from the shell program, but not from the web. 
+
+Of course the I<error_log> will help as well to find out what the
+problem is, but there can be other obscure cases, where you do
+something different at the shell program and your scripts refuse to
+run under the web-server.
+
+Another example is when you have more than one version of Perl
+installed. You might call the first version of the Perl executable in
+the first script's line (the shebang line), but to have the web-server
+compiled with another Perl version. Since mod_perl ignores the path to
+the Perl executable at the first line of the script, you can get quite
+confused the code won't do the same when processed as request,
+compared to be executed from the command line. it will take a while
+before you realize that you test the scripts from the shell program
+using the I<wrong> Perl version.
 
 The best debugging approach is to write a wrapper that emulates the
 exact environment of the server, first deleting environment variables
 like C<PERL5LIB> and then calling the same perl binary that it is
 being used by the server.  Next, set the environment identical to the
 server's by copying the Perl run directives from the server startup
-and configuration files.  This will also allow you to remove
-completely the first line of the script, since mod_perl skips it and
-the wrapper knows how to call the script.
+and configuration files or even require()'ing the startup file, if it
+doesn't include C<Apache::> modules stuff, unavailable under shell.
+This will also allow you to remove completely the first line of the
+script, since mod_perl doesn't need it anyway and the wrapper knows
+how to call the script.
 
-Below is an example of such a script. Note that we force the use of
-C<-Tw> when we call the real script.  I have also added the ability to
-pass parameters, which will not happen when you call the CGI script
-from the Web.
+Here is an example of such a script.  Note that we force the use of
+C<-Tw> when we call the real script. Since when debugging we want to
+make sure that the code is working when the taint mode is on, and we
+want to see all the warnings, to help Perl help us have a better code.
 
-  #!/usr/local/bin/perl -w    
+We have also added the ability to pass parameters, which will not
+happen when you will issue a request to script, but it can be helpful
+at times.
+
+  #!/usr/bin/perl -w
    
-  # This is a wrapper example 
+  # This is a wrapper example
    
   # It simulates the web server environment by setting @INC and other
   # stuff, so what will run under this wrapper will run under Web and
@@ -922,21 +1081,15 @@ from the Web.
   #
   # Usage: wrap.pl some_cgi.pl
   #
-  
   BEGIN {
-    use vars qw($basedir);
-    $basedir = "/usr/local";
-  
-    # we want to make a complete emulation, 
-    # so we must remove the user's environment
-    @INC = ();
-  
-    # local perl libs
-    push @INC,
-      qw($basedir/lib/perl5/5.00502/aix
-  	 $basedir/lib/perl5/5.00502
-	 $basedir/lib/perl5/site_perl/5.005/aix
-	 $basedir/lib/perl5/site_perl/5.005
+    # we want to make a complete emulation, so we must reset all the
+    # paths and add the standard Perl libs
+    @INC =
+      qw(/usr/lib/perl5/5.00503/i386-linux
+	 /usr/lib/perl5/5.00503
+	 /usr/lib/perl5/site_perl/5.005/i386-linux
+	 /usr/lib/perl5/site_perl/5.005
+	 .
 	);
   }
   
@@ -963,27 +1116,62 @@ from the Web.
   
     # run the cgi from the script's directory
     # Note that we set Warning and Taint modes ON!!!
-  system qq{$basedir/bin/perl -I$PERL5LIB -Tw $cgi $params};
+  system qq{/usr/bin/perl -I$PERL5LIB -Tw $cgi $params};
 
 
-=head1 Log Rotation
 
-A little bit off topic, but useful to know and use with mod_perl where
-your error_log can grow at 10-100Mb per day if your scripts spit out
-lots of warnings...
+=head1 Server Maintenance Chores
 
-To rotate the logs do this:
+It's not enough to have your server and service up and running.  You
+have to maintain the server even when everything seems to be
+fine. This includes security auditing, keeping an eye on the size of
+remaining unused disk space, available RAM, the load of the system,
+etc.
 
-  mv access_log access_log.renamed
-  kill -HUP `cat httpd.pid`
-  sleep 10; # allow some children to complete requests and logging
-  # now it's safe to use access_log.renamed
-  .....
+If you forget about these chores one day (sooner or later) your system
+will crash either because it has run out of free disk space, all the
+available CPU has been used and system has started heavily to swap or
+someone has broken in. Unfortunately the scope of this guide is not
+covering the latter, since it will take more than one book to
+profoundly cover this issue, but the rest of the thing are quite easy
+to prevent if you follow our advices.
 
-The effect of B<SIGUSR1> and B<SIGHUP> is detailed in:
-http://www.apache.org/docs/stopping.html .
+Certaintly, your particular system might have maintainance chores that
+aren't covered here, but at least you will be alerted that these
+chores are real and should be taken care of.
 
-I use this script:
+
+
+=head2 Handling Log Files
+
+There are two issues to solve with log files. First they should be
+rotated and compressed on the constant basis, since they tend to use
+big parts of the disk space over time. Second these should be
+monitored for possible sudden explosive growth rates, when something
+goes astray in your code running at the mod_perl server and the
+process starts to log thousands of error messages in second without
+stopping, untill all the disk space is used, and the server cannot
+work anymore.
+
+=head3 Log Rotation
+
+The first issue is solved by having a process run by crontab at
+certain times (usually off hours, if this term is still valid in the
+Internet era) and rotate the logs. The log rotation includes the
+current log file renaming, server restart (which creates a fresh new
+log file), and renamed file compression and/or moving it on a
+different disk.
+
+For example if we want to rotate the I<access_log> file we could do:
+
+  % mv access_log access_log.renamed
+  % apachectl restart
+  % sleep 5; # allow all children to complete requests and logging
+             # now it's safe to use access_log.renamed
+  % mv access_log.renamed /some/directory/on/another/disk
+
+This is the script that we run from the crontab to rotate the log
+files:
 
   #!/usr/local/bin/perl -Tw
   
@@ -1002,7 +1190,7 @@ I use this script:
   
   my ($sec,$min,$hour,$mday,$mon,$year) = localtime(time);
   my $time = sprintf "%0.4d.%0.2d.%0.2d-%0.2d.%0.2d.%0.2d", $year+1900,++$mon,$mday,$hour,$min,$sec;
-  $^I = ".".$time;
+  $^I = ".$time";
   
   # rename log files
   chdir $logs_dir;
@@ -1014,6 +1202,9 @@ I use this script:
   # now restart the server so the logs will be restarted
   system $restart_command;
   
+  # allow all children to complete requests and logging
+  sleep 5;
+
   # compress log files
   foreach (@logfiles) {
       system "$gzip_exec $_.$time";
@@ -1024,100 +1215,158 @@ the time.  We copy the names of the logfiles into C<@ARGV>, and open
 each in turn and immediately close them without doing any changes; but
 because the in-place edit flag is set they are effectively renamed.
 
-Randal L. Schwartz contributed this:
+As you see the rotated files will include the date and the time in
+their filenames.
 
-=begin html <BLOCKQUOTE>
+Here is a more generic set of scripts for log rotation.  Cron job
+fires off setuid script called log-roller that looks like this:
 
-=end html
-
-Cron fires off setuid script called log-roller that looks like this:
-
-    #!/usr/bin/perl -Tw
-    use strict;
-    use File::Basename;
-    
-    $ENV{PATH} = "/usr/ucb:/bin:/usr/bin";
-    
-    my $ROOT = "/WWW/apache"; # names are relative to this
-    my $CONF = "$ROOT/conf/httpd.conf"; # master conf
-    my $MIDNIGHT = "MIDNIGHT";  # name of program in each logdir
-    
-    my ($user_id, $group_id, $pidfile); # will be set during parse of conf
-    die "not running as root" if $>;
-    
-    chdir $ROOT or die "Cannot chdir $ROOT: $!";
-    
-    my %midnights;
-    open CONF, "<$CONF" or die "Cannot open $CONF: $!";
-    while (<CONF>) {
-      if (/^User (\w+)/i) {
-        $user_id = getpwnam($1);
-        next;
-      }
-      if (/^Group (\w+)/i) {
-        $group_id = getgrnam($1);
-        next;
-      }
-      if (/^PidFile (.*)/i) {
-        $pidfile = $1;
-        next;
-      }
-     next unless /^ErrorLog (.*)/i;
-      my $midnight = (dirname $1)."/$MIDNIGHT";
-      next unless -x $midnight;
-      $midnights{$midnight}++;
+  #!/usr/bin/perl -Tw
+  use strict;
+  use File::Basename;
+  
+  $ENV{PATH} = "/usr/ucb:/bin:/usr/bin";
+  
+  my $ROOT = "/WWW/apache"; # names are relative to this
+  my $CONF = "$ROOT/conf/httpd.conf"; # master conf
+  my $MIDNIGHT = "MIDNIGHT";  # name of program in each logdir
+  
+  my ($user_id, $group_id, $pidfile); # will be set during parse of conf
+  die "not running as root" if $>;
+  
+  chdir $ROOT or die "Cannot chdir $ROOT: $!";
+  
+  my %midnights;
+  open CONF, "<$CONF" or die "Cannot open $CONF: $!";
+  while (<CONF>) {
+    if (/^User (\w+)/i) {
+      $user_id = getpwnam($1);
+      next;
     }
-    close CONF;
-    
-    die "missing User definition" unless defined $user_id;
-    die "missing Group definition" unless defined $group_id;
-    die "missing PidFile definition" unless defined $pidfile;
-    
-    open PID, $pidfile or die "Cannot open $pidfile: $!";
-    <PID> =~ /(\d+)/;
-    my $httpd_pid = $1;
-    close PID;
-    die "missing pid definition" unless defined $httpd_pid and $httpd_pid;
-    kill 0, $httpd_pid or die "cannot find pid $httpd_pid: $!";
-    
-    
-    for (sort keys %midnights) {
-      defined(my $pid = fork) or die "cannot fork: $!";
-      if ($pid) {
-        ## parent:
-        waitpid $pid, 0;
-      } else {
-        my $dir = dirname $_;
-        ($(,$)) = ($group_id,$group_id);
-        ($<,$>) = ($user_id,$user_id);
-        chdir $dir or die "cannot chdir $dir: $!";
-        exec "./$MIDNIGHT";
-        die "cannot exec $MIDNIGHT: $!";
-      }
+    if (/^Group (\w+)/i) {
+      $group_id = getgrnam($1);
+      next;
     }
-    
-    kill 1, $httpd_pid or die "Cannot sighup $httpd_pid: $!";
-
-And then individual MIDNIGHT scripts can look like this:
-
-    #!/usr/bin/perl -Tw
-    use strict;
-    
-    die "bad guy" unless getpwuid($<) =~ /^(root|nobody)$/;
-    my @LOGFILES = qw(access_log error_log);
-    umask 0;
-    $^I = ".".time;
-    @ARGV = @LOGFILES;
-    while (<>) {
-      close ARGV;
+    if (/^PidFile (.*)/i) {
+      $pidfile = $1;
+      next;
     }
+   next unless /^ErrorLog (.*)/i;
+    my $midnight = (dirname $1)."/$MIDNIGHT";
+    next unless -x $midnight;
+    $midnights{$midnight}++;
+  }
+  close CONF;
+  
+  die "missing User definition" unless defined $user_id;
+  die "missing Group definition" unless defined $group_id;
+  die "missing PidFile definition" unless defined $pidfile;
+  
+  open PID, $pidfile or die "Cannot open $pidfile: $!";
+  <PID> =~ /(\d+)/;
+  my $httpd_pid = $1;
+  close PID;
+  die "missing pid definition" unless defined $httpd_pid and $httpd_pid;
+  kill 0, $httpd_pid or die "cannot find pid $httpd_pid: $!";
+  
+  
+  for (sort keys %midnights) {
+    defined(my $pid = fork) or die "cannot fork: $!";
+    if ($pid) {
+      ## parent:
+      waitpid $pid, 0;
+    } else {
+      my $dir = dirname $_;
+      ($(,$)) = ($group_id,$group_id);
+      ($<,$>) = ($user_id,$user_id);
+      chdir $dir or die "cannot chdir $dir: $!";
+      exec "./$MIDNIGHT";
+      die "cannot exec $MIDNIGHT: $!";
+    }
+  }
+  
+  kill 1, $httpd_pid or die "Cannot SIGHUP $httpd_pid: $!";
 
-Can you spot the security holes?  Our trusted user base can't or
-won't. :) But these shouldn't be used in hostile situations.
+And then individual C<MIDNIGHT> scripts can look like this:
 
-=begin html </BLOCKQUOTE>
+  #!/usr/bin/perl -Tw
+  use strict;
+  
+  die "bad guy" unless getpwuid($<) =~ /^(root|nobody)$/;
+  my @LOGFILES = qw(access_log error_log);
+  umask 0;
+  $^I = ".".time;
+  @ARGV = @LOGFILES;
+  while (<>) {
+    close ARGV;
+  }
 
-=end html
+Can you spot the security holes? Take your time...  This code
+shouldn't be used in hostile situations.
+
+
+
+=head3 Non-Scheduled Emergency Log Rotation
+
+As we have mentioned before, there are times when the web server goes
+wild and starts to log lots of messages to the I<error_log> file
+non-stop.  If no one monitors this, it possible that in a few minutes
+all the free disk spaces will be filled and no process will be able to
+work normally. When this happens, the I/O the faulty server causes is
+so heavy that its sibling processes cannot serve requests.
+
+Generally this not the case, but a few people have reported to
+encounter this problem.  If you are one of these people, you should
+run the monitoring program that checks the log file size and if it
+notices that the file has grown too large, it should attempt to
+restart the server and probably trim the log file.
+
+When we have used a quite old mod_perl version, sometimes we have had
+bursts of an error I<Callback called exit> showing up in our
+I<error_log>.  The file could grow to 300 Mbytes in a few minutes.
+
+We will show you is an example of the script that should be executed
+from the crontab, to handle the situations like this.  The cron job
+should run every few minutes or even every minute, since if you
+experience this problem you know that log files fills up very fast.
+The example script will rotate when the I<error_log> will grow over
+100K. Note that this script is usefull when you have the normal
+scheduled log rotation facility working, remember that this one is an
+emergency solver and not to be used for routine log rotation.
+
+  emergency_rotate.sh
+  -------------------
+  #!/bin/sh
+  S=`ls -s /usr/local/apache/logs/error_log | awk '{print $1}'`
+  if [ "$S" -gt 100000 ] ; then
+    mv /usr/local/apache/logs/error_log /usr/local/apache/logs/error_log.old
+    /etc/rc.d/init.d/httpd restart
+    date | /bin/mail -s "error_log $S kB on inx" admin@example.com
+  fi
+
+Of course you could write a more advanced script, using the timestamps
+and other whistles. This example comes to illustrate how to solve the
+problem in question.
+
+Another solution is to use an out of box tools that are written for
+this purpose. The C<daemontools> package
+(ftp://koobera.math.uic.edu/www/daemontools.html) includes a utility
+called C<multilog>.  This utility saves stdin stream to one or more
+log files. It optionally timestamps each line and, for each log,
+includes or excludes lines matching specified patterns. It
+automatically rotates logs to limit the amount of disk space used. If
+the disk fills up, it pauses and tries again, without losing any data.
+
+The obvious caveat is that it doesn't restart the server, so while it
+tries to solve the log file handling problem it doesn't handle the
+originator of the problem. But since the I/O of the log writing
+process Apache process will be quite heavy, the rest of the servers
+will work very slowly if at all, and a normal watchdog should detect
+this abnormal situation and restart the Apache server.
+
+
+
+
 
 
 =head1 Preventing mod_perl Processes From Going Wild
@@ -1140,40 +1389,6 @@ catch such errors.  Define an autoload subroutine:
 
 This will produce a nice error in error_log, giving the line number of
 the call and the name of the undefined subroutine.
-
-=head2 All Disk Space Consumed 
-
-Sometimes an error happens and causes the server to write millions of
-lines into your I<error_log> file and in a few minutes this will bring your
-server to its knees due to lack of disk space.  For example sometimes I get
-bursts of an error C<Callback called exit> showing up in my I<error_log>.  The
-file grows to 300 Mbytes in a few minutes.  You should run a cron job to make
-sure this does not happen, and if it does to take care of it.  Andreas J.
-Koenig runs this shell script every minute:
-
-  S=`ls -s /usr/local/apache/logs/error_log | awk '{print $1}'`
-  if [ "$S" -gt 100000 ] ; then
-    mv  /usr/local/apache/logs/error_log /usr/local/apache/logs/error_log.old
-    /etc/rc.d/init.d/httpd restart
-    date | /bin/mail -s "error_log $S kB on inx" myemail@domain.com
-  fi
-
-On my server I run a watchdog every five minutes which restarts the
-server if it gets stuck. It always works since when some mod_perl child
-process goes wild, the I/O it causes is so heavy that its sibling
-processes cannot serve requests.  See L<Monitoring the
-Server|control/Monitoring_the_Server_A_watchdo> for more hints.
-
-Also check out the daemontools from
-ftp://koobera.math.uic.edu/www/daemontools.html :
-
-  ,-----
-  | cyclog writes a log to disk.  It automatically synchronizes the log
-  | every 100KB (by default) to guarantee data integrity after a crash.
-  | It automatically rotates the log to keep it below 1MB (by default).
-  | If the disk fills up, cyclog pauses and then tries again, without
-  | losing any data.
-  `-----
 
 
 =cut

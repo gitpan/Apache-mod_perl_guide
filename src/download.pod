@@ -1,4 +1,4 @@
-title: Appendix A: Downloading software and documentation
+=head1 Appendix A: Downloading software and documentation
 
 =head1 Coverage
 
@@ -15,10 +15,19 @@ http://www.perl.com/pace/pub/perldocs/latest.html .  You can get Perl
 documentation from the same location (although copious documentation
 is included in the downloaded Perl distribution).
 
+=head1 CPAN Downloads
+
 You can download most of the Perl modules from CPAN.  There are many
 mirrors of this site.  The main site's URL is http://cpan.org/.  
+
 You may want to search the Perl modules database by using
 http://search.cpan.org/.
+
+Either use the search form, or type in the name of the package the
+module is distributed in. For example if you are looking for
+C<Apache::DumpHeaders>, you can type:
+http://search.cpan.org/search?dist=Apache-DumpHeaders .
+
 
 =head1 Apache
 
@@ -115,7 +124,7 @@ http://www.stanford.edu/~schemers/docs/lbnamed/lbnamed.html
 
 =head2 Network Address Translation and Networks: Virtual Servers (Load Balancing)
 
-http://www.csn.tu-chemnitz.de/~mha/linux-ip-nat/diplom/node4.html# SECTION00043100000000000000
+http://www.csn.tu-chemnitz.de/~mha/linux-ip-nat/diplom/node4.html#SECTION00043100000000000000
 
 =head2 Linux Virtual Server Project
 
@@ -139,9 +148,10 @@ http://coombs.anu.edu.au/~avalon/ipf3.4beta3.tgz
 
 =head1 Apache::Request
 
-Get it from CPAN at $CPAN/authors/id/DOUGM/libapreq-x.xx.tar.gz or
-from http://perl.apache.org/dist/libapreq-x.xx.tar.gz .  Replace x.xx
-with the current version.
+The package name is I<libapreq>.
+
+Get it from your favorite CPAN mirror at $CPAN/authors/id/DOUGM/ or
+from http://perl.apache.org/dist/.
 
 =head1 DataBases
 

@@ -1,4 +1,4 @@
-title: Apache::* modules
+=head1 Apache::* modules
 
 =head1 Apache::Session - Maintain session state across HTTP requests
 
@@ -125,12 +125,69 @@ configuration details.
 
 
 
-=head1 Apache::VMonitor - Visual System and Apache Server Monitor
+=head1 Apache::VMonitor -- Visual System and Apache Server Monitor
 
-(META: Move it here)
+C<Apache::VMonitor> is the next generation of
+L<mod_status|debug/mod_status>. It provides all the information
+mod_status provides and much more.
 
-L<Apache::VMonitor -- Visual System and Apache Server
-Monitor|debug/Apache_VMonitor_Visual_Syste>
+This module emulates the reporting functions of the top(), mount(),
+df() and ifconfig() utilities.  There is a special mode for mod_perl
+processes.  It has visual alert capabilities and a configurable
+I<automatic refresh> mode.  It provides a Web interface, which can be
+used to show or hide all the sections dynamically.
+
+The are two main modes:
+
+=over
+
+=item *
+
+Multi processes mode -- All system processes and information is shown.
+
+=item *
+
+Single process mode -- In-depth information about a single process is shown.
+
+=back
+
+The main advantage of this module is that it reduces the need to
+telnet to the machine in order to monitor it.  Indeed it provides information
+about mod_perl processes that cannot be acquired from telneting to the
+machine.
+ 
+=head3 Configuration
+
+  # Configuration in httpd.conf
+  <Location /sys-monitor>
+    SetHandler perl-script
+    PerlHandler Apache::VMonitor
+  </Location>
+
+  # startup file or <Perl> section:
+  use Apache::VMonitor();
+  $Apache::VMonitor::Config{BLINKING} = 0; # Blinking is evil
+  $Apache::VMonitor::Config{REFRESH}  = 0;
+  $Apache::VMonitor::Config{VERBOSE}  = 0;
+  $Apache::VMonitor::Config{SYSTEM}   = 1;
+  $Apache::VMonitor::Config{APACHE}   = 1;
+  $Apache::VMonitor::Config{PROCS}    = 1;
+  $Apache::VMonitor::Config{MOUNT}    = 1;
+  $Apache::VMonitor::Config{FS_USAGE} = 1;
+  $Apache::VMonitor::Config{NETLOAD}  = 1;
+                                
+  @Apache::VMonitor::NETDEVS    = qw(lo eth0);
+  $Apache::VMonitor::PROC_REGEX = join "\|", qw(httpd mysql squid);
+
+
+More information available in the module's extensive manpage.
+
+It requires C<Apache::Scoreboard> and C<GTop> to work.  C<GTop> in
+turn requires the C<libgtop> library but is not available for all
+platforms.  Visit http://www.home-of-linux.org/gnome/libgtop/ to check whether
+your platform/flavor is supported.
+
+
 
 
 
@@ -327,55 +384,6 @@ info.
 
 
 
-=head1 Apache::GzipChain - compress HTML (or anything) in the OutputChain
-
-Have you ever served a huge HTML file (e.g. a file bloated with
-JavaScript code) and wondered how could you send it compressed, thus
-dramatically cutting down the download times?  After all java applets
-can be compressed into a jar and benefit from a faster download
-times.  Why can't we do the same with a plain ASCII (HTML, JS etc.)?
-ASCII text can often be compressed by a factor of 10. 
-
-C<Apache::GzipChain> comes to help you with this task.  If a client
-(browser) understands C<gzip> encoding, this module compresses the
-output and sends it downstream.  The client decompresses the data upon
-receipt and renders the HTML as if it were fetching plain HTML.
-
-For example to compress all html files on the fly, do this:
-
-  <Files *.html>
-    SetHandler perl-script
-    PerlHandler Apache::OutputChain Apache::GzipChain Apache::PassFile
-  </Files>
-
-Remember that it will work only if the browser claims to accept
-compressed input, by setting the C<Accept-Encoding> header.  
-C<Apache::GzipChain> keeps a list of user-agents, thus it also 
-looks at the C<User-Agent> header to check for browsers known to 
-accept compressed output.
-
-For example if you want to return compressed files which will in 
-addition pass through the Embperl module, you would write:
-
-  <Location /test>
-    SetHandler perl-script
-    PerlHandler Apache::OutputChain Apache::GzipChain Apache::EmbperlChain Apache::PassFile
-  </Location>
-
-Hint: Watch the C<access_log> file to see how many bytes were actually
-sent, and compare that with the bytes sent using a regular configuration.
-
-(See also C<perldoc Apache::GzipChain>).
-
-Notice that the rightmost PerlHandler must be a content producer.  Here
-we are using C<Apache::PassFile> but you can use any module which creates
-output.
-
-
-
-
-
-
 =head1 Apache::OutputChain -- Chain Stacked Perl Handlers
 
 Apache::OutputChain was written as a way of exploring the possibilities 
@@ -422,9 +430,110 @@ compress the output on the fly.)
 
 
 
+=head1 Apache::GzipChain - compress HTML (or anything) in the OutputChain
+
+Have you ever served a huge HTML file (e.g. a file bloated with
+JavaScript code) and wondered how could you send it compressed, thus
+dramatically cutting down the download times?  After all java applets
+can be compressed into a jar and benefit from a faster download
+times.  Why can't we do the same with a plain ASCII (HTML, JS etc.)?
+ASCII text can often be compressed by a factor of 10. 
+
+C<Apache::GzipChain> comes to help you with this task.  If a client
+(browser) understands C<gzip> encoding, this module compresses the
+output and sends it downstream.  The client decompresses the data upon
+receipt and renders the HTML as if it were fetching plain HTML.
+
+For example to compress all html files on the fly, do this:
+
+  <Files *.html>
+    SetHandler perl-script
+    PerlHandler Apache::OutputChain Apache::GzipChain Apache::PassFile
+  </Files>
+
+Remember that it will work only if the browser claims to accept
+compressed input, by setting the C<Accept-Encoding> header.  
+C<Apache::GzipChain> keeps a list of user-agents, thus it also 
+looks at the C<User-Agent> header to check for browsers known to 
+accept compressed output.
+
+For example if you want to return compressed files which will in 
+addition pass through the Embperl module, you would write:
+
+  <Location /test>
+    SetHandler perl-script
+    PerlHandler Apache::OutputChain Apache::GzipChain Apache::EmbperlChain Apache::PassFile
+  </Location>
+
+Hint: Watch the C<access_log> file to see how many bytes were actually
+sent, and compare that with the bytes sent using a regular configuration.
+
+(See also C<perldoc Apache::GzipChain>).
+
+Notice that the rightmost PerlHandler must be a content producer.  Here
+we are using C<Apache::PassFile> but you can use any module which creates
+output.
 
 
 
+=head1 Apache::Filter - Alter the output of previous handlers
+
+META: to be written (actually summarized the info from Apache::Filter
+manpage)
+
+=head1 Apache::Gzip - Auto-compress web files with Gzip
+
+Similar to L<Apache::GzipChain|modules/Apache_GzipChain_compress_HTM>
+but works with C<Apache::Filter>.
+
+This configuration:
+
+  PerlModule Apache::Filter
+  <Files ~ "*\.html">
+    SetHandler perl-script
+    PerlSetVar Filter On
+    PerlHandler Apache::Gzip
+  </Files>
+
+will send all the I<*.html> files compressed if the client accepts the
+compressed input.
+
+And this one:
+
+  PerlModule Apache::Filter
+  Alias /home/http/perl /perl
+  <Location /perl>
+    SetHandler perl-script
+    PerlSetVar Filter On
+    PerlHandler Apache::RegistryFilter Apache::Gzip
+  </Location>
+
+Will compess the output of the C<Apache::Registry> scripts. Yes, you
+should write C<Apache::RegistryFilter> and not C<Apache::Registry>.
+
+You can put as many filters as you want:
+
+  PerlModule Apache::Filter
+  <Files ~ "*\.blah">
+    SetHandler perl-script
+    PerlSetVar Filter On
+    PerlHandler Filter1 Filter2 Apache::Gzip
+  </Files>
+
+You can test that it works by either looking at the size of the
+respond at I<access.log> or by telnet:
+
+  telnet localhost 8000
+  Trying 127.0.0.1
+  Connected to 127.0.0.1
+  Escape character is '^]'.
+  GET /perl/test.pl HTTP 1.1
+  Accept-Encoding: gzip
+  User-Agent: Mozilla
+
+And you will get the data compressed if configured correctly.
+
+META: what the full mime type for gzip?
 
 
 
@@ -472,13 +581,6 @@ a good idea in a high load environment, of course.
 
 If you can't find it on CPAN, get it at:
 http://perl.apache.org/~dougm/Apache-PerlVINC-0.01.tar.gz
-
-
-
-
-
-
-
 
 
 =head1 Apache::LogSTDERR

@@ -1,4 +1,4 @@
-title: Code Snippets
+=head1 Code Snippets
 
 
 
@@ -955,7 +955,8 @@ Notice the technique to set the I<args>.  By the time the
 apache-request object has been created, args are handled in a separate
 slot, so you cannot just push them into the original URI.
 
-
+Also notice that the handler returns C<DECLINED> so the default Apache
+transhandler will take care of URI to filename remapping.
 
 
 
@@ -1202,12 +1203,12 @@ config variable?).
 In the meantime, there's
 L<Apache::RedirectLogFix|modules/Apache__RedirectLogFix>.
 
-Put this in your I<httpd.conf> 
+Put this in your I<httpd.conf>
 
   PerlLogHandler Apache::RedirectLogFix
 
-and take a look at the source code below.  Note that it
-requires us to return the HTTP status code 200.
+and take a look at the source code below.  Note that it requires us to
+return the HTTP status code 200.
 
   package Apache::RedirectLogFix;
   
@@ -1231,12 +1232,40 @@ requires us to return the HTTP status code 200.
 Now, if we wanted to do the same sort of thing for an error 500
 handler, we could write another C<PerlLogHandler> (call it
 C<ServerErrorLogFix>).  But we'll leave that as an exercise for the
-reader, and hope that it won't be needed in the next mod_perl
-release.  After all, it's a little awkward to need a C<LogHandler> to
-clean up after ourselves....
+reader, and hope that it won't be needed in the next mod_perl release.
+After all, it's a little awkward to need a C<LogHandler> to clean up
+after ourselves....
 
 
 
+
+=head1 Setting Environment Variables For Scripts Called From CGI.
+
+Perl uses C<sh()> for its C<system()> and C<open()> calls.  So if you
+want to set a temporary variable when you call a script from your CGI
+you do something like this:
+
+ open UTIL, "USER=stas ; script.pl | " or die "...: $!\n";
+
+or
+
+  system "USER=stas ; script.pl";
+
+This is useful, for example, if you need to invoke a script that uses
+CGI.pm from within a mod_perl script.  We are tricking the Perl script
+into thinking it's a simple CGI, which is not running under mod_perl.
+
+  open(PUBLISH, "GATEWAY_INTERFACE=CGI/1.1 ; script.cgi
+       \"param1=value1&param2=value2\" |") or die "...: $!\n";
+
+Make sure that the parameters you pass are shell safe -- all "unsafe"
+characters like single-quote and back-tick should be properly escaped.
+
+Unfortunately mod_perl uses fork() to run the script, so you have
+probably thrown out the window most of the performance gained from
+using mod_perl.  To avoid the fork, change script.cgi to a module
+containing a subroutine which you can then call directly from your
+mod_perl script.
 
 
 

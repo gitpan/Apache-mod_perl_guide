@@ -32,11 +32,19 @@ sub MY::manifypods{
 SRC_DIR    = $FindBin::Bin
 manifypods : 
 
-	\$(SRC_DIR)/bin/build.pl -m
-	\@cp -r \$(SRC_DIR)/rel/* \$(TARGET_DIR)
+	\$(SRC_DIR)/bin/pod2hpp -m
 	\@echo "The Guide was built in \$(SRC_DIR)/rel"
 
 END
+
+## --- My split section:
+
+#SRC_DIR    = $FindBin::Bin
+#split : manifypods
+#	\$(SRC_DIR)/bin/pod2hpp -sf
+#	\@echo "The Split Guide was built in \$(SRC_DIR)/split"
+
+
 
 } # end of sub MY::manifypods
 
@@ -54,6 +62,7 @@ install : manifypods
 END
 
 } # end of sub MY::install
+
 
 
 # delete all non manifypods targets from pure_all

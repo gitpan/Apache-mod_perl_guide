@@ -1,0 +1,328 @@
+#!/usr/bin/perl -w
+
+##########################################
+#                                        #
+##           for documentation          ##
+###               execute:             ###
+####          % perldoc pod2hpp       ####
+###          to get the built-in       ###
+##              docs rendered           ##
+#                                        #
+##########################################
+
+use strict;
+$|=1;
+
+# I was told that it doesn't run under perl5.004 mainly because of
+# s/XXX/YYY/ for @foo 5.005-isms. It's about a time you should upgrade
+# to 5.005 :) 5.6 is out!!!
+# require 5.005; 
+
+# allow to execute this script from any path and not only from the current
+# directory
+use FindBin qw($Bin);
+use lib $Bin;
+use Cwd ();
+my $orig_dir = Cwd::cwd;
+chdir $Bin;
+
+use Getopt::Std;
+
+use Pod::HtmlPsPdf::RunTime ();
+use Pod::HtmlPsPdf::Book ();
+
+use Pod::HtmlPsPdf::Config ();
+my $config = Pod::HtmlPsPdf::Config->new();
+
+######################################
+### Init Command Line Arguments
+######################################
+
+# set defaults if no options given
+my $verbose        = 0;  # verbose?
+my $podify_items   = 0;  # podify pseudo-pod (s/^* /=item */)
+my $split_html     = 0;  # create the splitted html version
+my $make_tgz       = 0;  # create the rel and bin+src archives?
+my $generate_ps    = 0;  # generate PS file
+my $generate_pdf   = 0;  # generate PDF file
+my $rebuild_all    = 0;  # ignore the timestamp of ../src/.last_modified
+my $print_anchors  = 0;  # print the available anchors
+my $validate_links = 0;  # validate %links_to_check against %valid_anchors
+my $makefile_mode  = 0;	 # executed from Makefile (forces rebuild, no
+                         # PS/PDF file, no tgz archive created!)
+
+######################################
+### Process Command Line Arguments
+######################################
+
+my %opts;
+getopts('hvtpdfalmis', \%opts);
+
+usage() if $opts{h};
+
+if (keys %opts) {   # options given
+  $verbose        = $opts{v} || 0;
+  $podify_items   = $opts{i} || 0;
+  $split_html     = $opts{s} || 0;
+  $make_tgz       = $opts{t} || 0;
+  $generate_ps    = $opts{p} || 0;
+  $generate_pdf   = $opts{d} || 0;
+  $rebuild_all    = $opts{f} || 0; # force
+  $print_anchors  = $opts{a} || 0;
+  $validate_links = $opts{l} || 0;
+  $makefile_mode  = $opts{m} || 0;
+}
+
+if ($makefile_mode) {
+  $verbose        = 1;
+  $make_tgz       = 0;
+  $generate_ps    = 0;
+  $generate_pdf   = 0;
+  $rebuild_all    = 1;
+  $print_anchors  = 0;
+  $validate_links = 0;
+}
+
+  # we need a PS version in order to create a pdf
+$generate_ps = 1 if $generate_pdf;
+
+  # verify the ability to create PS version
+$generate_ps  = Pod::HtmlPsPdf::RunTime::can_create_ps if $generate_ps;
+
+  # verify the ability to create PDF version
+$generate_pdf = Pod::HtmlPsPdf::RunTime::can_create_pdf if $generate_pdf;
+
+  # we cannot create PDF if we cannot generate PS
+$generate_pdf = 0 unless $generate_ps;
+
+  # if there is no toc_file we cannot produce correct internal links,
+  # therefore we force this option.
+my $toc_file = $config->get_param('toc_file');
+$rebuild_all = 1,
+  print "!!! No $toc_file was found, forcing complete rebuild\n"
+    unless -e $toc_file or $rebuild_all;
+
+my %options =
+  (
+   verbose        => $verbose,
+   podify_items   => $podify_items,
+   split_html     => $split_html,
+   make_tgz       => $make_tgz,
+   generate_ps    => $generate_ps,
+   generate_pdf   => $generate_pdf,
+   rebuild_all    => $rebuild_all,
+   print_anchors  => $print_anchors,
+   validate_links => $validate_links,
+   makefile_mode  => $makefile_mode,
+  );
+
+# make the runtime options available to other packages
+Pod::HtmlPsPdf::RunTime::set_runtime_options(\%options);
+
+######################################
+### Create the Book
+######################################
+
+  # create the book object
+my $book = Pod::HtmlPsPdf::Book->new();
+
+  # process the source files and convert them into html files write
+  # two copies of the files -- one as normal html using the html
+  # teplates, and the other again in html but using the PS templates,
+  # since generally these don't need TOC and all the other stuff,
+  # html2ps generates this for us automatically.
+$book->create_html_version();
+
+  # Validate pod's L<> links
+$book->validate_links if $validate_links;
+
+  # when there are broken links reported by validate_links() we need
+  # to know the correct links as rendered by pod2html converter. This
+  # will print all the available achors.
+$book->print_anchors if $print_anchors;
+
+  # generate the PS version of the book
+$book->create_ps_version if $generate_ps;
+
+  # generate the PDF version of the book
+$book->create_pdf_version if $generate_pdf;
+
+  # generate the Split HTML version of the book
+$book->create_split_html_version if $split_html;
+
+  # build the dist
+$book->make_tar_gz() if $make_tgz;
+
+  # do the cleanup chores
+$book->cleanup();
+
+  # go back to where you have from
+chdir $orig_dir;
+
+######################################
+### Subs
+######################################
+
+##########
+sub usage{
+
+  print <<USAGE;
+    ./pod2hpp [options]
+
+  -h    this help
+  -v    verbose
+  -i    podify pseudo-pod items (s/^* /=item */)
+  -s    create the splitted html version
+  -t    create tar.gz
+  -p    generate PS file
+  -d    generate PDF file
+  -f    force a complete rebuild
+  -a    print available hypertext anchors
+  -l    do hypertext links validation
+  -m    executed from Makefile (forces rebuild,
+				no PS/PDF file,
+				no tgz archive!)
+
+USAGE
+
+  exit;
+
+} # end of sub usage
+
+
+
+__END__
+
+=head1 NAME
+
+Pod::HtmlPsPdf -- builds HTML, PS and PDF from multiple POD files
+
+=head1 SYNOPSYS
+
+ ./bin/pod2hpp -<options>
+
+Options:
+
+  -h    this help
+  -v    verbose
+  -i    podify pseudo-pod items (s/^* /=item */)
+  -s    create the splitted html version
+  -t    create tar.gz
+  -p    generate PS file
+  -d    generate PDF file
+  -f    force a complete rebuild
+  -a    print available hypertext anchors
+  -l    do hypertext links validation
+  -m    executed from Makefile (forces rebuild,
+				no PS/PDF file,
+				no tgz archive!)
+
+=head1 DESCRIPTION
+
+This code knows to do following with a collection of your POD files.
+
+=over
+
+=item 1
+
+Generate HTMLs
+
+=item 2
+
+Generate a split version HTML, creating html file for each pod
+section, and having everything interlinked of course. This version is
+used best for the search.
+
+=item 3
+
+Generate a single book-like version in PostScript format
+
+=item 4
+
+Generate a single book-like version in PDF format
+
+=item 5
+
+Complete the POD on the fly from the files in POD format. This is used
+to ease the generating of the presentations slides, so one can use
+C<*> instead of a long =over/=item/.../=item/=back strings. The rest
+is done as before. Take a look at the special version of the html2ps
+format to generate nice slides in I<bin/html2ps/html2ps-slides.conf>.
+
+=back
+
+You can customise the look and feel of the PS and therefore the PDF by
+tweaking the template files in I<./tmpl> directory.
+
+You can change look and feel of the PS (PDF) versions by modifying
+I<./bin/html2ps/html2ps.conf>.  Be careful that if your documentation
+that you want to put in one PS or PDF file is very big and you tell
+html2ps to put the TOC at the beginning you will need lots of memory
+because it won't write a single byte to the disk before it gets all
+the HTML markup converted to PS.
+
+When you want to use your own files in this convertor, make sure you
+list them in I<./bin/Pod/HtmlPsPdf/Config.pm> using the order you want
+them to show up in the PS or PDF format.
+
+To generate HTML this code use a slightly modified version of the
+C<Pod::Html> code and than does a lot of massage on the resulting
+HTML. I've tried to keep the pod2html code modified as little as
+possible, so when a new versions of the original C<Pod::Html> module
+will be released I'll be able to merge the changes with my version.
+
+=head1 PREREQUISITES
+
+All these are not required if all you want is to generate only the
+html version.
+
+=over 4
+
+=item * ps2pdf
+
+Needed to generate the PDF version
+
+=item * Storable
+
+Perl module available from CPAN (http://cpan.org/)
+
+Allows source modification control, so if you modify only one file you
+will not have to rebuild everything to get the updated HTML/PS/PDF
+files.
+
+=back
+
+
+=head1 SUPPORT
+
+Notice that this tool relies on two tools (ps2pdf and html2ps) which I
+don't support. So if you have any problem first make sure that it's
+not a problem of these tools.
+
+Note that while C<html2ps> is included in this distribution, it's
+written in the old style Perl, so if you have patches send them along,
+but I won't try to fix/modify this code otherwise.
+
+This code works for me on Linux RH system. I release it only to
+share. Unfortunately I don't have time to help with each platform
+possible. If you have a problem, please don't contact me. I'm not
+going to solve it. If you solve the problem, I'll gladly accept the
+patch for others to benefit. Remember that this is a free software.
+
+=head1 BUGS
+
+Huh? Probably many...
+
+=head1 AUTHOR
+
+Stas Bekman <stas@stason.org>
+
+=head1 SEE ALSO
+
+perl(1), Pod::HTML(3), html2ps(1), ps2pod(1), Storable(3)
+
+=head1 COPYRIGHT
+
+This program is distributed under the Artistic License, like the Perl
+itself.
+

@@ -1,4 +1,4 @@
-title: mod_perl and dbm files
+=head1 mod_perl and dbm files
 
 
 =head1 Where and Why to use dbm files
@@ -29,16 +29,16 @@ Several different indexing algorithms can be used with dbm:
 
 =item *
 
-The C<HASH> algorithm gives an C<0(1)> complexity of search and update,
-fast insert and delete, but a slow sort (which you have to implement
-yourself).
+The C<HASH> algorithm gives an C<0(1)> complexity of search and
+update, fast insert and delete, but a slow sort (which you have to
+implement yourself).
 
 =item *
 
 The C<BTREE> algorithm allows arbitrary key/value pairs to be stored
-in a sorted, balanced binary tree.  This allows us to get 
-a sorted sequence of data pairs in C<0(1)>, but at the expense of much 
-slower insert, update, delete operations than is the case with C<HASH>.
+in a sorted, balanced binary tree.  This allows us to get a sorted
+sequence of data pairs in C<0(1)>, but at the expense of much slower
+insert, update, delete operations than is the case with C<HASH>.
 
 =item *
 
@@ -58,17 +58,18 @@ can store and restore the whole symbol table of your script, including
 arrays and hashes.
 
 It is important to note that you cannot simply switch a dbm file from
-one storage algorithm to another.  The only way to change the algorithm
-is to dump the data to a flat file and then restore it using the new
-storage method.  You can use a script like this:
+one storage algorithm to another.  The only way to change the
+algorithm is to dump the data to a flat file and then restore it using
+the new storage method.  You can use a script like this:
 
   #!/usr/bin/perl -w
   
   #
-  # This script takes as its parameters a list of Berkeley DB file(s)
-  # which are stored with the DB_BTREE algorithm.  It will back them up
-  # using the .bak extension and create instead dbms with the same
-  # records but stored using the DB_HASH algorithm
+  # This script takes as its parameters a list of Berkeley DB
+  # file(s) which are stored with the DB_BTREE algorithm.  It
+  # will back them up using the .bak extension and create
+  # instead dbms with the same records but stored using the
+  # DB_HASH algorithm
   #
   # Usage: btree2hash.pl filename(s)
   
@@ -80,7 +81,8 @@ storage method.  You can use a script like this:
   
   foreach my $filename (@ARGV) {
   
-    die "Can't find $filename: $!\n" unless -e $filename and -r $filename;
+    die "Can't find $filename: $!\n" 
+      unless -e $filename and -r $filename;
   
       # First backup the file
     rename "$filename", "$filename.btree" 
@@ -103,18 +105,18 @@ storage method.  You can use a script like this:
     untie %hash ;
   }
 
-Note that some dbm implementations come with other conversion utilities as
-well.
+Note that some dbm implementations come with other conversion
+utilities as well.
 
 =head1 mod_perl and dbm
 
 Where does mod_perl fit into the picture?
 
 If you are using a read only dbm file you can have it work faster if
-you keep it open (tied) all the time, so that when your CGI script wants to
-access the database it is already tied and ready to be used.  This will
-work with dynamic (read/write) databases as well, but you need to use
-locking and data flushing to avoid data corruption.
+you keep it open (tied) all the time, so that when your CGI script
+wants to access the database it is already tied and ready to be used.
+This will work with dynamic (read/write) databases as well, but you
+need to use locking and data flushing to avoid data corruption.
 
 Although mod_perl and dbm can give huge performance gains to CGI
 scripts which manipulate flat files, you should be very careful.  In
@@ -137,7 +139,7 @@ thoroughly before you put it into production to handle important data.
 =head1 Locking dbm handlers
 
 Let's make the lock status a global variable, so it will persist from
-request to request.  Before we request a lock - I<READ> (shared) or 
+request to request.  Before we request a lock - I<READ> (shared) or
 I<WRITE> (exclusive) - we should first obtain the current lock status.
 
 If we are making a I<READ> lock request, it is granted as soon as the
@@ -172,10 +174,10 @@ Ken Williams solved the above problem with his
 L<C<Tie::DB_Lock>|dbm/Tie__DB_Lock> module, which I will discuss in
 one of the following sections.
 
-There are several locking wrappers for C<DB_File> in CPAN right now.  Each
-one implements locking differently and has different goals in mind.  It
-is therefore worth knowing the difference, so that you can pick the
-right one for your application.
+There are several locking wrappers for C<DB_File> in CPAN right now.
+Each one implements locking differently and has different goals in
+mind.  It is therefore worth knowing the difference, so that you can
+pick the right one for your application.
 
 
 =head1 Flawed Locking Methods Which Must Not Be Used
@@ -216,8 +218,8 @@ There are five locking wrappers known to me:
 C<Tie::DB_Lock> -- C<DB_File> wrapper which creates copies of the
 database file for read access, so that you have kind of a
 multiversioning concurrent read system. However, updates are still
-serial.  Use this for databases where reads may be lengthy and consistency
-problems may occur.  L<More information|dbm/Tie__DB_Lock>.
+serial.  Use this for databases where reads may be lengthy and
+consistency problems may occur.  L<More information|dbm/Tie__DB_Lock>.
 
 =item *
 
@@ -235,9 +237,9 @@ C<Tie::DB_LockFile> manpage for more information.
 C<DB_File::Lock> -- extremely lightweight C<DB_File> wrapper that
 simply flocks a lockfile before tie-ing the database and drops the
 lock after the untie.  Allows one to use the same lockfile for
-multiple databases to avoid deadlock problems, if desired.  Use this 
-for databases where updates and reads are quick and simple flock 
-locking semantics are enough.  Refer to C<DB_File::Lock> manpage for 
+multiple databases to avoid deadlock problems, if desired.  Use this
+for databases where updates and reads are quick and simple flock
+locking semantics are enough.  Refer to C<DB_File::Lock> manpage for
 more information.
 
 =item *
@@ -249,13 +251,13 @@ didn't want to kill mine, so I'll keep it here for a while :).
 
 =item *
 
-On some Operating Systems (FreeBSD is one example) it is possible to 
+On some Operating Systems (FreeBSD is one example) it is possible to
 lock on tie:
 
   tie my %t, 'DB_File', $TOK_FILE, O_RDWR | O_EXLOCK, 0664;
 
-and only release the lock by un-tie-ing the file.  Check if the 
-C<O_EXLOCK> flag is available on your operating system before you try 
+and only release the lock by un-tie-ing the file.  Check if the
+C<O_EXLOCK> flag is available on your operating system before you try
 to use this method!
 
 =back
@@ -264,7 +266,7 @@ to use this method!
 =head1 Tie::DB_Lock
 
 C<Tie::DB_Lock> ties hashes to databases using shared and exclusive
-locks.  This module, by Ken Williams, solves the problems raised in 
+locks.  This module, by Ken Williams, solves the problems raised in
 the previous section.
 
 The main difference from what I have described above is that
@@ -294,9 +296,8 @@ locking by using an external lockfile.
 
 This allows you to gain the lock before the file is tied.  Note that
 it's not yet on CPAN and so is listed here in its entirety.  Note also
-that this code still needs some testing, so I<be careful> if you use 
+that this code still needs some testing, so I<be careful> if you use
 it on a production machine.
-
 
 You use it like this:
 
@@ -310,11 +311,11 @@ A simple tie, READ lock and untie
   print $mydb{foo} if exists $mydb{foo};
   untie %mydb;
 
-You can even skip the C<untie()> call.  When C<$mydb> goes out of scope
-everything will be done automatically.  However it is better to use the
-explicit call, to make sure the critical sections between lock and
-unlock are as short as possible.  This is especially important when
-requesting an exclusive (write) lock.
+You can even skip the C<untie()> call.  When C<$mydb> goes out of
+scope everything will be done automatically.  However it is better to
+use the explicit call, to make sure the critical sections between lock
+and unlock are as short as possible.  This is especially important
+when requesting an exclusive (write) lock.
 
 The following example shows how it might be convenient to skip the
 explicit C<untie()>.  In this example, we don't need to save the
@@ -336,10 +337,9 @@ automatically.
   
   } # end of sub user_exists
 
-
 Now let's write all the upper case characters and their respective
-ASCII values to a dbm file. Then read the file and print the
-contents of the DB, unsorted.
+ASCII values to a dbm file. Then read the file and print the contents
+of the DB, unsorted.
 
   use DB_File::Lock2 ();
   my $dbfile = "/tmp/test";
@@ -359,9 +359,9 @@ contents of the DB, unsorted.
   }
   untie %mydb;
 
-If your CGI script is interrupted, the C<DESTROY> block will take 
-care of unlocking the dbm file and flush any changes.  So your DB 
-will be safe against possible corruption because of unclean program 
+If your CGI script is interrupted, the C<DESTROY> block will take care
+of unlocking the dbm file and flush any changes.  So your DB will be
+safe against possible corruption because of unclean program
 termination.
 
 =cut

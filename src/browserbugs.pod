@@ -1,4 +1,4 @@
-title: Workarounds for some known bugs in browsers.
+=head1 Workarounds for some known bugs in browsers.
 
 =head1 Preventing QUERY_STRING from getting corrupted because of &entity key names
 

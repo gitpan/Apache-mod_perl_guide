@@ -1,4 +1,4 @@
-title: mod_perl Configuration
+=head1 mod_perl Configuration
 
 
 =head1 Server Configuration
@@ -1339,7 +1339,7 @@ the code I develop into modules and preload them.
 
 You can even preload your CGI script with C<Apache::RegistryLoader>
 (See L<Preload Perl modules at server
-startup|performance/Preload_Perl_Modules_at_Server_S>) and you can get
+startup|performance/Preloading_Perl_Modules_at_Serve>) and you can get
 the children to preopen their database connections with
 C<Apache::DBI>.
 

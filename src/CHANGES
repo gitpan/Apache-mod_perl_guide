@@ -2,8 +2,113 @@
 		### mod_perl Guide CHANGES file ###
 		###################################
 
+06.07.2000 ver 1.24
 
-05.09.2000 ver 1.23
+* perl: "catching exceptions" -- a few corrections (Matt Sergeant)
+
+* modules: added Apache::Gzip (Ken Williams)
+
+* guide's design
+
+  o put back the links underlining
+
+  o background-color: #ffffee;
+
+  o added (jump) menus to reach search/download/index from everywhere
+  
+  o added the two new search engines (both working on the split
+    version of the guide)
+
+* guide's build: 
+
+  o The build code was completely rewritten, html2ps is now bundled
+    with the guide so one can create PS version, and if there is
+    ps2pdf the PDF version.
+
+  o It can produce the split version of the Guide.
+
+  o One can easily reuse the package to build his own docs, since the
+    look-n-feel has been moved into the templates from the code.
+
+  o Once I feel confident I'll probably separate the build code from
+    the Guide to give it its own life and make it easier to reuse by
+    other developers. I need testers who want to use this package
+    before I release it a separate module.
+
+* performance: 
+
+  o old sections rewritten/improved:
+    - Are My Variables Shared?
+    - Preloading Registry Scripts
+    - Calculating Real Memory Usage
+    - Preloading Perl Modules at Server Startup 
+    -  Preloading Registry Scripts at Server Startup 
+    - Forking and Executing Subprocesses from mod_perl 
+      = Spawning a Detachable Sub-Process
+      = Gory Details About fork()
+      = Executing system() in the Right Way
+      = Avoiding Zombie Processes
+
+  o new sections:
+    - Apache/mod_perl Build Options
+      = mod_perl Process Size as a Function of Compiled in C Modules and
+               mod_perl Features
+    - Modules Initializing at Server Startup
+      = Initializing DBI.pm (corrections by Tim Bunce)
+      = Initializing CGI.pm
+
+* control: 
+
+  o These sections were rewritten and extended:
+    - Server Maintenance Chores 
+        = Handling Log Files 
+          + Log Rotation 
+          + Non-Scheduled Emergency Log Rotation 
+
+  o 'cyclog' is now called multilog (from daemontools package)
+
+  o Moved from debug and rewritten "Speeding up the Apache Termination
+    and Restart"
+
+  o Rewritten and extended "SUID Start-up Scripts" with: 
+    "Introduction to SUID Executables"
+    "Apache Startup SUID Script's Security"
+    "Sample Apache Startup SUID Script"
+
+* hardware: partly rewritten and improved.
+
+* reconstruction process: obvious.pod has been disassembled and merged
+  into debug.pod.
+
+* debug: update: Apache::DumpHeaders (Ask Bjoern Hansen)
+
+* troubleshooting: PerlFreshRestart is irrelevant for DSO (Vivek
+  Khera, Doug)
+
+* review: 
+
+  o Drew Taylor has reviewed these chapters: scenario and strategy
+    chapters.
+
+  o Mark Summerfield has reviewed these chapters: scenario, perl and
+    strategy chapters.
+
+  o Eric Cholet has reviewed the porting chapter.
+
+* Minor corrections: 
+  o download (Salve J Nilsen)
+  o performance (w trillich) 
+  o perl (Scott Holdren) 
+  o snippets+download (Ask Bjoern Hansen) 
+  o debug (Robert Mathews) 
+  o scenario (Tuomas Salo)
+
+
+
+
+
+
+05.12.2000 ver 1.23
 
 * guide's layout changed: Now there are two index files -- the default
   index.html shows only the names of the chapters in TOC, the new

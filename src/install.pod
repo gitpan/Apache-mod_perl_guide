@@ -1,4 +1,4 @@
-title: mod_perl Installation
+=head1 mod_perl Installation
 
 =head1 Installing mod_perl in 10 Minutes and 10 Command Lines
 
@@ -374,12 +374,12 @@ to pass any arguments you want to the Apache C<./configure> utility,
 e.g:
 
   % perl Makefile.PL USE_APACI=1 \
-  APACI_ARGS=--sbindir=/usr/local/sbin/httpd_perl, \
+  APACI_ARGS='--sbindir=/usr/local/sbin/httpd_perl, \
          --sysconfdir=/usr/local/etc/httpd_perl, \
          --localstatedir=/usr/local/var/httpd_perl, \
          --runtimedir=/usr/local/var/httpd_perl/run, \
          --logfiledir=/usr/local/var/httpd_perl/logs, \
-         --proxycachedir=/usr/local/var/httpd_perl/proxy
+         --proxycachedir=/usr/local/var/httpd_perl/proxy'
 
 Notice that B<all> C<APACI_ARGS> (above) must be passed as one long
 line if you work with C<t?csh>!!!  However it works correctly as shown
@@ -1263,7 +1263,7 @@ Configure:
         DO_HTTPD=1 SSL_BASE=/usr/local/ssl \
         APACHE_PREFIX=/usr/local/apachessl \
         APACHE_SRC=../apache_x.x.x/src \
-        APACI_ARGS=--enable-module=ssl,--enable-module=rewrite
+        APACI_ARGS='--enable-module=ssl,--enable-module=rewrite'
 
 Note: Do not forget that if you use C<csh> or C<tcsh> you may need to
 put all the arguments to `perl Makefile.PL' on a single command line.
@@ -2711,12 +2711,12 @@ I</home/stas/apache>.  The following commands will do that for you:
 If you need some parameters to be passed to the C<.configure> script,
 as we saw in the previous section use C<APACI_ARGS>.  For example:
 
-  APACI_ARGS=--sbindir=/home/stas/apache/sbin, \
+  APACI_ARGS='--sbindir=/home/stas/apache/sbin, \
     --sysconfdir=/home/stas/apache/etc, \
     --localstatedir=/home/stas/apache/var, \
     --runtimedir=/home/stas/apache/var/run, \
     --logfiledir=/home/stas/apache/var/logs, \
-    --proxycachedir=/home/stas/apache/var/proxy
+    --proxycachedir=/home/stas/apache/var/proxy'
 
 Note that the above multiline splitting will work only with C<bash>,
 C<tcsh> users will have to list all the parameters on a single line.

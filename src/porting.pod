@@ -1,4 +1,4 @@
-title: CGI to mod_perl Porting. mod_perl Coding guidelines.
+=head1 CGI to mod_perl Porting. mod_perl Coding guidelines.
 
 =head1 Document Coverage
 
@@ -438,7 +438,7 @@ email!  Here is an example of sloppy code:
 
 Do you see the catch? With the code above, I can type in any valid
 username and any dummy password and enter that user's account,
-providing she has successfully entered her account before me using the
+provided she has successfully entered her account before me using the
 same child process! Since C<$authenticated> is global--if it becomes 1
 once, it'll stay 1 for the remainder of the child's life!!! The
 solution is trivial--reset C<$authenticated> to 0 at the beginning of
@@ -633,8 +633,8 @@ library modules?  Well, there are a couple of techniques:
 =head2 Restarting the server
 
 The simplest approach is to restart the server each time you apply
-some change to your code. See L<Server Restarting
-techniques|control/Restarting_techniques>.
+some change to your code.  See L<Server Restarting
+techniques|control/Restarting_Techniques>.
 
 After restarting the server about 100 times, you will tire of it and
 you will look for other solutions.
@@ -1560,7 +1560,7 @@ do() reloads C<MyTest.pm> on every request.
 
 =head1 Name collisions with Modules and libs
 
-This sections requires an in-depth understanding of L<use(), require(),
+This section requires an in-depth understanding of L<use(), require(),
 do(), %INC and @INC |perl/use_require_do_INC_and>.
 
 To make things clear before we go into details: each child process has
@@ -1937,7 +1937,7 @@ it will be turned into:
   }
 
 and you try to execute this script, you will receive the following
-warning:
+error:
 
   Missing right bracket at .... line 4, at end of line
 
@@ -2190,7 +2190,7 @@ or by forcing it into a scalar context:
 
 
 
-=head1 Global Variables Persistance
+=head1 Global Variables Persistence
 
 Since the child process generally doesn't exit before it has serviced
 several requests, global variables persist inside the same process
@@ -3508,7 +3508,7 @@ Perl modules. This breaks the backward compatibility, but gives us
 better performance, mainly because the internals of many of these Perl
 modules are implemented in C, therefore we should get a significant
 improvement in speed. The section "L<TMTOWTDI: Convenience and
-Performance|performance/TMTOWTDI_Convenience_and_Perfor>"
+Performance|performance/TMTOWTDI_Convenience_and_Habit_>"
 compares the three approaches.
 
 

@@ -1,4 +1,4 @@
-title: Warnings and Errors Troubleshooting Index
+=head1 Warnings and Errors Troubleshooting Index
 
 =head1 General Advice 
 
@@ -255,8 +255,8 @@ This problem is only known to be caused by installing gnu ld under Solaris.
 
 =head2 Preventing mod_perl Processes From Going Wild
 
-See the sections "L<All Disk Space
-Consumed|control/All_Disk_Space_Consumed>" and "L<All RAM
+See the sections "L<Non-Scheduled Emergency Log
+Rotation|control/Non_Scheduled_Emergency_Log_Rota>" and "L<All RAM
 Consumed|control/All_RAM_Consumed>"
 
 
@@ -559,7 +559,10 @@ turned C<PerlFreshRestart> B<On>.  Most of them have gone away when it
 was turned off.  It doesn't mean that you shouldn't use it, if it works
 for you.  Just beware of the dragons...
 
-
+Note that if you have mod_perl enabled Apache built as DSO and you
+restart it, the whole Perl interpreter is completely torn down
+(perl_destruct())and restarted.  The value of C<PerlFreshRestart> is
+irrelevent at this point.
 
 =head2 Constant subroutine XXX redefined
 
@@ -614,10 +617,11 @@ variable to C<-1>.
 If you see a process stuck in "G" (Gracefully finishing) after a doing
 a graceful restart (sending S<kill -SIGUSR1>) it means that the
 process is hanging in perl_destruct() while trying to cleanup.  This
-cleanup normally isn't a requirement, you can disable it by setting 
-the L<PERL_DESTRUCT_LEVEL environment
-variable|debug/PERL_DESTRUCT_LEVEL_Environment_> to -1.
-
+cleanup normally isn't a requirement, you can disable it by setting
+the PERL_DESTRUCT_LEVEL environment variable to -1.  See the section
+"L<Speeding up the Apache Termination and
+Restart|control/Speeding_up_the_Apache_Terminati>" for more 
+information.
 
 
 

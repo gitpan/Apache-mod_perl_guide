@@ -1,6 +1,17 @@
-title: Debugging mod_perl
+=head1 Debugging mod_perl
 
-=head1 Curing The "Internal Server Error"
+
+=head1 Warning and Errors Explained
+
+Let's talk first about things that bother most web (and non-web)
+programmers. I<The bothering things> are warning and errors reported
+by Perl. We are going to learn how to take the best out of both, by
+turning this obvious to the newbie programmer enemies into our best
+friends.
+
+
+
+=head2 Curing The "Internal Server Error"
 
 You have just installed this new CGI script and when you try it out
 you see the grey screen of death saying "Internal Server Error"... Or
@@ -30,6 +41,35 @@ this file.
 
 First problem solved!
 
+There are cases when errors don't go to the error_log file.  For
+example, some errors go to the httpd process' STDERR.  If you haven't
+redirected httpd's STDERR then the messages are printed to the console
+(tty, terminal) from which you executed the httpd.  This happens when
+the server didn't get as far as opening the error_log file for writing
+before it needed to write an error message.
+
+For example, if you have entered a non-existent directory path in your
+C<ErrorLog> directive, the error message will be printed to STDERR.
+If the error happens when the server executes a C<PerlRequire> or
+C<PerlModule> directive you might also see output sent to STDERR.
+
+You are probably wondering where all the errors go when you are
+running the server in single process mode (C<httpd -X>).  They go to
+STDERR.  This is because the error logging for all the httpd children
+is normally done by the parent httpd.  When httpd runs in single
+process mode, it has no parent httpd process to perform all the
+logging.  The output to the terminal includes all the status messages
+that normally go to the error_log file.
+
+Finally with a C<PerlLogHandler> you can take away from Apache its
+control of the error logging process for all HTTP transactions.  If
+you do this, then you are responsible for generating and storing the
+error messages.  You can do whatever you like with the information,
+(including throwing it away -- don't do it!) and, depending on how you
+implement you C<LogHandler>, the C<ErrorLog> directive may have no
+effect. But you can also do something at this handler and then return
+C<DECLINED> status, so the default Apache LogHandler will do the work
+as usual.
 
 Second problem:
 
@@ -200,7 +240,7 @@ Second problem solved!
 
 
 
-=head1 Helping error_log to Help Us
+=head2 Helping error_log to Help Us
 
 It's a good idea to keep it open all the time in a dedicated terminal
 with the help of I<tail -f> or I<less -S>, whichever you prefer (the
@@ -232,11 +272,19 @@ this alias to be available to you all the time, you should put it into
 your I<.tcshrc> file or its equivalent.  For I<bash> users this is
 I<.bashrc>, or you can put it in I</etc/profile> for use by all users.
 
+If you cannot access your I<error_log> file because you are unable to
+telnet to your machine (generally the case with some ISPs who provide
+user CGI support but no telnet access), you might want to use a CGI
+script I wrote to fetch the latest lines from the file (with a bonus
+of colored output for easier reading).  You might need to ask your ISP
+to install this script for general use. See L<Watching the error_log
+file without telneting to the
+server|snippets/Watching_the_error_log_File_With> .
 
 
 
 
-=head1 The Importance of Warnings
+=head2 The Importance of Warnings
 
 Just like errors, Perl's mandatory warnings go to the I<error_log>
 file, if the they are enabled.  Of course you have enabled them in
@@ -345,7 +393,7 @@ as you will see in a moment.
 
 
 
-=head2 diagnostics pragma
+=head3 diagnostics pragma
 
 This module extends the terse diagnostics normally emitted by both the
 Perl compiler and the Perl interpreter, augmenting them with the more
@@ -370,97 +418,9 @@ more output than warnings mode.  If your code generates warnings, with
 the C<diagnostics> pragma you will use disk space much faster.
 
 C<diagnostics> mode adds a large performance overhead in comparison
-with just having warnings mode On.  Let's see some numbers.  We will
-run a benchmark, once with diagnostics enabled and once disabled, on a
-subroutine called I<test_code>.
-
-The code inside the subroutine is unimportant, it does very little, just
-some arithmetic and a numeric comparison of two strings.  It assigns
-one string to another if the condition tests true but the condition
-always tests false.  To demonstrate the C<diagnostics> overhead the
-comparison operator is intentionally I<wrong>.  It should be a string
-comparison, not a numeric one.
-
-  use Benchmark;
-  use diagnostics;
-  
-  my $count = 10000;
-  
-  disable diagnostics;
-  $t1 = timeit($count,\&test_code);
-  
-  enable  diagnostics;
-  $t2 = timeit($count,\&test_code);
-  
-  print "Diagnostics off:",timestr($t1),"\n";
-  print "Diagnostics on :",timestr($t2),"\n";
-  
-  sub test_code{
-    for my $i (1..10) {
-      my $j = $i**2;
-    }
-    $a = "Hi";
-    $b = "Bye";
-    if ($a == $b) {
-      $c = $a;
-    }
-  }
-
-For only a few lines of code we get:
-
-  Diagnostics off: 2 wallclock secs ( 1.77 usr +  0.02 sys =  1.79 CPU)
-  Diagnostics on :17 wallclock secs (13.16 usr +  0.08 sys = 13.24 CPU)
-
-With C<diagnostics> enabled, the code runs seven times slower!
-
-Now let's fix the comparison the way it should be, by replacing
-C<==> with C<eq>, so we get:
-
-    $a = "Hi";
-    $b = "Bye";
-    if ($a eq $b) {
-      $c = $a;
-    }
-
-and run the same benchmark again:
-
-  Diagnostics off: 1 wallclock secs ( 1.43 usr +  0.01 sys =  1.44 CPU)
-  Diagnostics on : 2 wallclock secs ( 1.41 usr +  0.01 sys =  1.42 CPU)
-
-Now there is no overhead at all.  The C<diagnostics> pragma slows
-things down only when warnings are generated.
-
-Obviously you won't benchmark all your scripts to check whether you
-have to remove the C<diagnostics> pragma or not.  Just remember to
-remove it when your code goes live.
-
-
-
-
-
-
-
-
-
-=head1 Monitoring the error_log file
-
-While debugging my mod_perl and general CGI code, I keep the
-I<error_log> file open in a dedicated terminal window (I<xterm>), so I
-can see errors and warnings as soon as they are appended to the file.
-I do it with:
-
-  tail -f /usr/local/apache/logs/error_log
-
-which shows the last few lines added to the file.
-
-If you cannot access your I<error_log> file because you are unable to
-telnet to your machine (generally the case with some ISPs who provide
-user CGI support but no telnet access), you might want to use a CGI
-script I wrote to fetch the latest lines from the file (with a bonus
-of colored output for easier reading).  You might need to ask your ISP
-to install this script for general use. See L<Watching the error_log
-file without telneting to the
-server|snippets/Watching_the_error_log_File_With> .
+with just having warnings mode On.  You can see the benchmark results
+in the section 'L<Code Profiling
+Techniques|performance/Code_Profiling_Techniques>'.
 
 
 
@@ -2219,71 +2179,8 @@ Apache
 
 =head2 Apache::VMonitor -- Visual System and Apache Server Monitor
 
-C<Apache::VMonitor> is the next generation of
-L<mod_status|debug/mod_status>. It provides all the information
-mod_status provides and much more.
-
-This module emulates the reporting functions of the top(), mount(),
-df() and ifconfig() utilities.  There is a special mode for mod_perl
-processes.  It has visual alert capabilities and a configurable
-`automatic refresh' mode.  It provides a Web interface, which can be
-used to show or hide all the sections dynamically.
-
-The are two main modes:
-
-=over
-
-=item *
-
-Multi processes mode -- All system processes and information is shown.
-
-=item *
-
-Single process mode -- In-depth information about a single process is shown.
-
-=back
-
-The main advantage of this module is that it reduces the need to
-telnet to the machine in order to monitor it.  Indeed it provides information
-about mod_perl processes that cannot be acquired from telneting to the
-machine.
-
-=head3 Configuration
-
-
-  # Configuration in httpd.conf
-  <Location /sys-monitor>
-    SetHandler perl-script
-    PerlHandler Apache::VMonitor
-  </Location>
-
-  # startup file or <Perl> section:
-  use Apache::VMonitor();
-  $Apache::VMonitor::Config{BLINKING} = 0; # Blinking is evil
-  $Apache::VMonitor::Config{REFRESH}  = 0;
-  $Apache::VMonitor::Config{VERBOSE}  = 0;
-  $Apache::VMonitor::Config{SYSTEM}   = 1;
-  $Apache::VMonitor::Config{APACHE}   = 1;
-  $Apache::VMonitor::Config{PROCS}    = 1;
-  $Apache::VMonitor::Config{MOUNT}    = 1;
-  $Apache::VMonitor::Config{FS_USAGE} = 1;
-  $Apache::VMonitor::Config{NETLOAD}  = 1;
-                                
-  @Apache::VMonitor::NETDEVS    = qw(lo eth0);
-  $Apache::VMonitor::PROC_REGEX = join "\|", qw(httpd mysql squid);
-
-
-More information available in the module's extensive manpage.
-
-It requires C<Apache::Scoreboard> and C<GTop> to work.  C<GTop> in
-turn requires the C<libgtop> library but is not available for all
-platforms.  Visit http://www.home-of-linux.org/gnome/libgtop/ to check whether
-your platform/flavor is supported.
-
-
-
-
-
+This module is covered in the section "L<Apache::* 
+Modules|modules/Apache_VMonitor_Visual_Syste>"
 
 
 
@@ -2773,7 +2670,7 @@ to debug than it needs to be.  Here is a condensed version of the main
 loop.  As you can see, this version won't make it easier to understand
 the code:
 
-  for (0..7) {
+  for (0..6) {
     next if --$day;
     $year--,$month=12 unless --$month;
     $day = $month != 1 ? $month_len[$month-1] : $year % 4 ? 28 : 29;
@@ -2807,11 +2704,11 @@ if you want to test for trueness only.
 
 Use a much more concise, Perlish style:
 
-  for my $j (0..7) {...}
+  for my $j (0..6) {...}
 
 instead of the syntax used in some other languages:
 
-  for (my $j=0; $j<7; $j++) {...}
+  for (my $j=0; $j<=6; $j++) {...}
 
 It's much simpler to write and comprehend code like this:
 
@@ -2827,7 +2724,7 @@ A good style that improves understanding, readability and reduces the
 chances of having a bug is shown below in the form of yet another
 rewrite of our I<`one week ago'> code:
 
-  for (0..7) {
+  for (0..6) {
     $day--;
     next if $day;
   
@@ -3896,39 +3793,6 @@ mention it here with a pointer to it)
 
 
 
-=head1 PERL_DESTRUCT_LEVEL Environment Variable
-
-With Apache versions 1.3.0 and higher, mod_perl will call the
-perl_destruct() Perl API function during the child exit phase.  This
-will cause proper execution of C<END> blocks found during server
-startup and will invoke the C<DESTROY> method on global objects
-which are still alive.
-
-It is possible that this operation may take a long time to finish,
-causing problems during a restart.  If your code does not contain any
-C<END> blocks or C<DESTROY> methods which need to be run during child
-server shutdown, this destruction can be avoided by setting the
-C<PERL_DESTRUCT_LEVEL> environment variable to C<-1>.  This will cause
-mod_perl to skip the call to perl_destruct() in perl_shutdown().
-
-It is only usable if no significant cleanup has to be done by perl
-C<END> blocks and C<DESTROY> methods when the child terminates, of
-course.  What constitutes significant cleanup?  Any change of state
-outside of the current process that would not be handled by the
-operating system itself.  So committing database transactions is
-significant but closing an ordinary file isn't.
-
-Setting C<PERL_DESTRUCT_LEVEL=-1> speeds the server restart or
-termination and leads to more robust operation in the face of
-problems like running out of memory.  If set--
-
-META: to be continued
-
-You can also use C<-DPERL_DESTRUCT_LEVEL>.
-
-
-
-
 
 =head1 PERL_DEBUG=1 Build Option
 
@@ -4395,14 +4259,20 @@ messages.
 
 =head1 Apache::DumpHeaders - Watch HTTP Transaction Via Headers
 
-This module is used to watch an HTTP transaction, looking
-at client and servers headers.
+This module is used to watch an HTTP transaction, looking at client
+and servers headers.
 
 With C<Apache::ProxyPassThru> configured, you are able to watch your
 browser talk to any server besides the one with this module living
 inside.
 
+C<Apache::DumpHeaders> has the ability to filter on IP addresses, has
+an interface for other modules to decide if the headers should be
+dumped or not and a function to only dump I<n%> of the transactions.
+
 For more information read the module's manpage.
+
+Download the module from L<CPAN|download/CPAN_Downloads>.
 
 
 

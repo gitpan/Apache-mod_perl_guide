@@ -1,4 +1,4 @@
-title: Frequent mod_perl problems
+=head1 Frequent mod_perl problems
 
 =head1 Coverage
 
@@ -6,9 +6,6 @@ Some problems come up very often on the mailing list.  If there is
 some important problem that is being reported frequently on the list
 which is not included below, even if it is found elsewhere in the Guide,
 please L<tell me|help/Contacting_me>.
-
-
-
 
 
 =head1 my() scoped variable in nested subroutines
@@ -22,19 +19,6 @@ Subroutines|perl/my_Scoped_Variable_in_Nested_S>".
 
 See the section L<Evil things might happen when using
 PerlFreshRestart|troubleshooting/Evil_things_might_happen_when_us>
-
-=head1 Problems with DSO
-
-If you get the mod_perl binary package (i.e. RPM) and it doesn't work,
-try and get a static install to work.  mod_perl DSO does not work
-reliably.  If mod_perl is compiled statically into Apache, it just
-works, and you don't need to configure the web server with anything,
-and you'll probably need to comment out lines like "LoadModule ...".
-
-META: Not clear on last sentence -- are you saying that if you have a static version people I<will> have to comment out lines or they won't? If they will then the text is correct, if the won't then it should be: "...server with anything, and we shouldn't even need to comment out lines..."
-
-Also see the section" L<mod_perl Deployment
-Overview|strategy/mod_perl_Deployment_Overview>".
 
 
 =cut

@@ -1,5 +1,113 @@
 
 
+##########################################################
+
+Ask Bjoern Hansen <ask@valueclick.com>
+
+> http://perl.apache.org/guide/snippets.html#Mysql_Backup_and_Restore_Scripts
+> - there is now a "mysqlhotcopy" util distributed with MySQL that can make  
+> an atomic snapshot of a database. (Tim Bunce wrote it here at ValueClick)
+
+
+##########################################################
+
+Database efficiency
+
+...Jeffrey W. Baker
+Every statement handle that you leave open will consume resources on
+the database server, and also on the client side.  These resources are
+presumed to be more plentiful than the resources (CPU time and network
+packets) needed to frequently setup and teardown statement handles.
+
+...Ken Y. Clark
+> if this behavior is unacceptable, i believe you can use the finish method:
+> 
+>        finish
+> 
+>              $rc  = $sth->finish;
+> 
+>            Indicates that no more data will be fetched from this
+>            statement handle before it is either executed again or
+>            destroyed.  It is rarely needed but can sometimes be
+>            helpful in very specific situations in order to allow
+>            the server to free up resources currently being held
+>            (such as sort buffers).
+> 
+> (from perldoc DBI)
+
+That's true, and the RDBMS would be free to release any buffers associated
+with unfetched rows in that case.  However, you are still consuming
+server-side resources with every handle that remains open.  At the very
+least, you are consuming memory on the order of sizeof(struct
+statement) or whatever.
+
+...Autarch <autarch@urth.org>
+Are you talking about the part that says you should use prepare_cached
+vs. prepare?
+
+If so, this doesn't do anything under most DBD modules, AFAIK.  Under
+Oracle, it causes Oracle to hold the statement handle (an Oracle
+cursor)in cache after it generates the execution plan.  If you open too
+many of these eventually Oracle complains (I think you can close them by
+wiping out $dbh->{CachedKids} which deletes the statement handles which
+causes them to go through their DESTROY).  The oracle error you get is
+something like 'Too many open cursors' I think.
+
+...Jeffrey W. Baker
+Actually, the two things you mention are different concepts.  Yes, Oracle
+does have a cache where it keeps most-recently-used execution plans.  If
+you make proper use of bound parameters in your SQL, you can exploit this
+execution plan cache.
+
+A statement handle is a handle that is associated with one of those
+execution plans.  Many handles may be associated with the same SQL
+statement.  You can bind parameters to the handle, execute it, and fetch
+rows from it.  There are resources associated with the handle, such as the
+bound parameters and some state information.  These are the resources that
+are consumed if you agressively accumulate open statement handles on the
+client side.
+
+
+##########################################################
+index.tmpl -- add the new search engines:
+
+Or even better, have a separate page with link from index.tmpl?
+
+Anyway you should mention that the PDF version is searchable as well
+if used with AcroRead utility.
+
+
+1st search: Randy Kobes: swish engine + perl filters
+
+http://theoryx5.uwinnipeg.ca/cgi-bin/guide-search
+
+and the split guide is at:
+
+http://theoryx5.uwinnipeg.ca/guide/
+
+
+2nd search: Vivek Khera: nextrieve engine
+http://thingy.kcilink.com/cgi-bin/modperlguide.cgi
+
+##########################################################
+
+> > Another "obvious" thing is to have apachectl setuid and a group of 
+trusted
+> > people in the setuid group, so you won't have to solve the root password
+> > problem any more. There is another startup script and SUID at:
+> > http://perl.apache.org/guide/control.html#SUID_Start_up_Scripts
+> 
+> You should note on that page that if you allow the people who can restart
+> the httpd to also load modules you might as well give them root access
+> anyway.
+
+Yes and No. If you make sure that all the modules have only root write
+permissions this is not a problem. Of course apachectl and all the config
+files should be writable by root only. 
+
+Certainly, if you load some module that is writable by someone else who's
+not root, you actually gave him inderect root permissions.
+
 
 ##########################################################
 > OK, if this is the case, I'd prefer to have only one variable type -- an

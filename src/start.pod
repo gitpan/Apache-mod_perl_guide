@@ -1,4 +1,4 @@
-title: Guide's Overview
+=head1 Guide's Overview
 
 =head1 What's inside?
 
@@ -46,11 +46,6 @@ through the tuning process. I have to admit, performance tuning is a
 very hard task, and demands a lot of understanding and experience.
 But once you acquire this knowledge you can make magic with your
 server.
-
-The L<Things obvious to others, but not to you|obvious/> chapter is
-exactly what it claims to be. Some people have been in this business
-too long, and many things have become too obvious to them. This is not
-true for a newbie, so this chapter talks about such things.
 
 While developing your mod_perl applications, you will begin to
 understand that an C<error_log> file is your best friend. It tells you

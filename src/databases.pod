@@ -1,4 +1,4 @@
-title: mod_perl and Relational Databases
+=head1 mod_perl and Relational Databases
 
 =head1 Why Relational (SQL) Databases
 

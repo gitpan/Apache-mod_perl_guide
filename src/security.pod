@@ -1,4 +1,4 @@
-title: Protecting Your Site
+=head1 Protecting Your Site
 
 =head1 The Importance of Your site's Security
 
@@ -88,7 +88,7 @@ modify <httpd.conf>:
   
   <Location /private>
     PerlAccessHandler My::Auth::access_handler
-    PerlSetVar Intranet "100.100.100.1 => userA, 100.100.100.2 => userB"
+    PerlSetVar Intranet "10.10.10.1 => userA, 10.10.10.2 => userB"
     PerlAuthenHandler My::Auth::authen_handler
     AuthName realm
     AuthType Basic

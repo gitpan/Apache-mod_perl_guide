@@ -1,4 +1,4 @@
-title: Getting Help and Further Learning
+=head1 Getting Help and Further Learning
 
 =head1 READ ME FIRST
 
@@ -180,13 +180,15 @@ http://www.davin.ottawa.on.ca/archive/modperl/
 
 =item *
 
-http://www.progressive-comp.com/Lists/?l=apache-modperl&r=1&w=2#apache-modperl
+http://marc.theaimsgroup.com/?l=apache-modperl
 
 =item *
 
 http://www.egroups.com/group/modperl/
 
 =back
+
+
 
 =item * The advocacy mailing list
 
@@ -255,17 +257,39 @@ maintaining Perl modules.
 
 =item * perl5-porters mailing list
 
-To subscribe to this list send an email to I<majordomo@perl.org> with
-the message body I<subscribe perl5-porters>.  If you prefer a digest 
-version send the message body I<subscribe perl5-porters-digest>.
+Send an email:
 
-To unsubscribe use I<unsubscribe perl5-porters> or I<unsubscribe
-perl5-porters-digest> in the body of the message.
+=over
+
+=item * 
+
+to perl5-porters-subscribe@perl.org to subscribe to this list.
+
+=item * 
+
+to perl5-porters-unsubscribe@perl.org to unsubscribe to this list.
+
+=item * 
+
+to perl5-porters-digest-subscribe@perl.org if you prefer a digest
+version.
+
+=item * 
+
+to perl5-porters-digest-unsubscribe@perl.org to unsubscribe from the
+digest.
+
+=item * 
+
+to perl5-porters-help@perl.org for more information about the
+subscription options.
+
+=back
 
 See also http://tile.net/listserv/perl5portersdigest.html and
 http://tile.net/lists/perl5porters.html .
 
-List's archive is available from
+List's archive is available at
 http://www.xray.mpe.mpg.de/mailing-lists/perl5-porters/.
 
 

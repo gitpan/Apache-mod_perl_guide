@@ -1,4 +1,4 @@
-title: Performance Tuning
+=head1 Performance Tuning
 
 
 
@@ -28,28 +28,39 @@ way.  If we follow them from browser to server and back again, they
 may travel by different routes through many different entities.
 Before they are processed by your server the packets might have to go
 through proxy (accelerator) servers and if the request contains more
-than one packet they will all have to wait for the last one so that
-the full request message can be reassembled at the server.  Then the
-whole process is repeated in reverse.
+than one packet, packets might arrive to the server by different
+routes with different arrival times, therefore it's possible that some
+packets that arrive earlier will have to wait for other packets before
+they could be reassembled into a chunk of the request message that
+will be then read by the server.  Then the whole process is repeated
+in reverse.
 
 You could work hard to fine tune your webserver's performance, but a
 slow Network Interface Card (NIC) or a slow network connection from
 your server might defeat it all.  That's why it's important to think
 about the Big Picture and to be aware of possible bottlenecks between
-the server and the Web.  Of course there is little that you can do if
-the user has a slow connection.
+the server and the Web.
 
-You might tune your scripts and webserver to process incoming requests
-ultra quickly, so you will need only a small number of working
-servers, but you might find that the server processes are all busy
-waiting for slow clients to accept their responses.  You will see
-examples of other issues explored in this chapter.
+Of course there is little that you can do if the user has a slow
+connection.  You might tune your scripts and webserver to process
+incoming requests ultra quickly, so you will need only a small number
+of working servers, but you might find that the server processes are
+all busy waiting for slow clients to accept their responses.
 
-A Web service is like a car, if one of the parts or mechanisms is
-broken the car may not go smoothly and it can even stop dead if pushed
-too far without first fixing it.
+But there are techniques to cope with this.  For example you can
+deliver the respond after it was compressed.  If you are delivering a
+pure text respond--gzip compression will reduce the size of the
+message by 10 times.
 
+You should analyze all the involved components when you try to create
+the best service for your users, and not the web server or the code
+that the web server executes.  A Web service is like a car, if one of
+the parts or mechanisms is broken the car may not go smoothly and it
+can even stop dead if pushed too far without first fixing it.
 
+And let me stress it again--If you want to have a success in the web
+service business you should start worrying about the client's browsing
+experience and B<not only> how good your code benchmarks are.
 
 
 
@@ -100,11 +111,9 @@ At what rate are you expecting to receive requests?
 
 =back
 
-
 The first one is probably the easiest to optimize. Following the
-performance optimization tips in this and other documents allows
-a professional perl (mod_perl) programmer to exercise their code and
-improve it.
+performance optimization tips in this and other documents allows a
+perl (mod_perl) programmer to exercise their code and improve it.
 
 The second one is a function of RAM.  How much RAM is in each box, how
 many boxes do you have, and how much RAM does each mod_perl process
@@ -118,7 +127,7 @@ help.  In some applications, for example to link Oracle runtime
 libraries, a huge chunk of memory is needed so you would save nothing
 even if you switched from Perl to C.
 
-The last one is important.  You need a realistic estimate.  Are you
+The last two are important.  You need a realistic estimate.  Are you
 really expecting 8 million hits per day?  What is the expected peak
 load, and what kind of response time do you need to guarantee?
 Remember that these numbers might change drastically when you apply
@@ -286,9 +295,8 @@ dead link.  If you know its new location, please let me know.
 
 =head3 Benchmarking Scripts with Execution Times Below 1 Second
 
-If you want to get the benchmark results in micro-seconds and not in
-the tens of milli-seconds you get with the C<Benchmark> module, you
-will have to use the C<Time::HiRes> module, its usage is similar to
+If you want to get the benchmark results in micro-seconds you will
+have to use the C<Time::HiRes> module, its usage is similar to
 C<Benchmark>'s.
 
   use Time::HiRes qw(gettimeofday tv_interval);
@@ -297,6 +305,8 @@ C<Benchmark>'s.
   my $end_time = [ gettimeofday ];
   my $elapsed = tv_interval($start_time,$end_time);
   print "The sub took $elapsed seconds."
+
+
 
 See also the L<crashme test|performance/Tuning_with_the_crashme_Script>.
 
@@ -335,44 +345,88 @@ The profiling process helps you to determine which subroutines or just
 snippets of code take the longest time to execute and which subroutines
 are called most often.  Probably you will want to optimize those.
 
-Let's write some code to mess with:
+When do you need to profile your code? You do that when you suspect
+that some part of your code is called very often and may be there is a
+need to optimize it to significantly improve the overall performance.
 
-META: build a hash and sort it by value, key... then rewrite the
-comparison subroutine to use the Shwartzian transform.. and more
+For example if you have ever used the C<diagnostics> pragma, which
+extends the terse diagnostics normally emitted by both the Perl
+compiler and the Perl interpreter, augmenting them with the more
+verbose and endearing descriptions found in the C<perldiag> manpage.
+You know that it might tremendously slow you code down, so let's first
+prove that it is correct.
 
-Think about some more web oriented examples...!
+We will run a benchmark, once with diagnostics enabled and once
+disabled, on a subroutine called I<test_code>.
 
-  map {push @list, int rand(100)} (1..1000);
+The code inside the subroutine does an arithmetic and a numeric
+comparison of two strings.  It assigns one string to another if the
+condition tests true but the condition always tests false.  To
+demonstrate the C<diagnostics> overhead the comparison operator is
+intentionally I<wrong>.  It should be a string comparison, not a
+numeric one.
 
-  sub mysort {
-    map ...
+  use Benchmark;
+  use diagnostics;
+  use strict;
+  
+  my $count = 50000;
+  
+  disable diagnostics;
+  my $t1 = timeit($count,\&test_code);
+  
+  enable  diagnostics;
+  my $t2 = timeit($count,\&test_code);
+  
+  print "Off: ",timestr($t1),"\n";
+  print "On : ",timestr($t2),"\n";
+  
+  sub test_code{
+    my ($a,$b) = qw(foo bar);
+    my $c;
+    if ($a == $b) {
+      $c = $a;
+    }
   }
 
-META: remove all the diagnostics section below it's irrelevant here.
-(just reuse the explanations)
+For only a few lines of code we get:
 
-In the L<diagnostics pragma|debug/diagnostics_pragma> section, I
-showed that leaving it in production code is a bad idea, as it
-significantly slows down the execution time.  We verified that by
-using the C<Benchmark> module.  Now let's see how to use a profiler to
-find what subroutine C<diagnostics> spends most of its time in. Once
-we know it could be a good idea to optimize this part of the code.  We
-won't optimize the code here as this is beyond the scope of this
-document - and since this is a core Perl module, the chances are that
-it's already fairly well optimized.
+  Off:  1 wallclock secs ( 0.81 usr +  0.00 sys =  0.81 CPU)
+  On : 13 wallclock secs (12.54 usr +  0.01 sys = 12.55 CPU)
 
-We can use C<Devel::DProf> to help us.  Let's use this code:
+With C<diagnostics> enabled, the subroutine test_code() is 16 times
+slower, than with C<diagnostics> disabled!
+
+Now let's fix the comparison the way it should be, by replacing C<==>
+with C<eq>, so we get:
+
+    my ($a,$b) = qw(foo bar);
+    my $c;
+    if ($a eq $b) {
+      $c = $a;
+    }
+
+and run the same benchmark again:
+
+  Off:  1 wallclock secs ( 0.57 usr +  0.00 sys =  0.57 CPU)
+  On :  1 wallclock secs ( 0.56 usr +  0.00 sys =  0.56 CPU)
+
+Now there is no overhead at all.  The C<diagnostics> pragma slows
+things down only when warnings are generated.
+
+After we have verified that using the C<diagnostics> pragma might adds
+a big overhead to execution runtime, let's use the code profiling to
+understand why this happens. We are going to use C<Devel::DProf> to
+profile the code.  Let's use this code:
 
   diagnostics.pl
   --------------
   use diagnostics;
+  print "Content-type:text/html\n\n";
   test_code();
   sub test_code{
-    for my $i (1..10) {
-      my $j = $i**2;
-    }
-    $a = "Hi"; 
-    $b = "Bye";
+    my ($a,$b) = qw(foo bar);
+    my $c;
     if ($a == $b) {
       $c = $a;
     }
@@ -383,26 +437,26 @@ stastics with the help of dprofpp:
 
   % perl -d:DProf diagnostics.pl
   % dprofpp
-
-  Total Elapsed Time = 0.993458 Seconds
-    User+System Time = 0.933458 Seconds
+  
+  Total Elapsed Time = 0.342236 Seconds
+    User+System Time = 0.335420 Seconds
   Exclusive Times
   %Time ExclSec CumulS #Calls sec/call Csec/c  Name
-   81.5   0.761  0.932      1   0.7610 0.9319  main::BEGIN
-   12.8   0.120  0.101   3161   0.0000 0.0000  diagnostics::unescape
-   6.43   0.060  0.060      2   0.0300 0.0300  diagnostics::BEGIN
-   2.14   0.020  0.020      3   0.0067 0.0067  diagnostics::transmo
-   1.07   0.010  0.010      2   0.0050 0.0050  Config::FETCH
+   92.1   0.309  0.358      1   0.3089 0.3578  main::BEGIN
+   14.9   0.050  0.039   3161   0.0000 0.0000  diagnostics::unescape
+   2.98   0.010  0.010      2   0.0050 0.0050  diagnostics::BEGIN
    0.00   0.000 -0.000      2   0.0000      -  Exporter::import
    0.00   0.000 -0.000      2   0.0000      -  Exporter::export
    0.00   0.000 -0.000      1   0.0000      -  Config::BEGIN
-   0.00   0.000 -0.000      1   0.0000      -  diagnostics::import
-   0.00   0.000  0.020      3   0.0000 0.0066  diagnostics::warn_trap
-   0.00   0.000  0.020      3   0.0000 0.0066  diagnostics::splainthis
    0.00   0.000 -0.000      1   0.0000      -  Config::TIEHASH
-   0.00   0.000 -0.000      3   0.0000      -  diagnostics::shorten
-   0.00   0.000 -0.000      3   0.0000      -  diagnostics::autodescribe
-   0.00   0.000  0.010      1   0.0000 0.0099  main::test_code
+   0.00   0.000 -0.000      2   0.0000      -  Config::FETCH
+   0.00   0.000 -0.000      1   0.0000      -  diagnostics::import
+   0.00   0.000 -0.000      1   0.0000      -  main::test_code
+   0.00   0.000 -0.000      2   0.0000      -  diagnostics::warn_trap
+   0.00   0.000 -0.000      2   0.0000      -  diagnostics::splainthis
+   0.00   0.000 -0.000      2   0.0000      -  diagnostics::transmo
+   0.00   0.000 -0.000      2   0.0000      -  diagnostics::shorten
+   0.00   0.000 -0.000      2   0.0000      -  diagnostics::autodescribe
 
 It's not easy to see what is responsible for this enormous overhead,
 even if C<main::BEGIN> seems to be running most of the time.  To get
@@ -426,7 +480,7 @@ and the output is:
    Config::FETCH
    diagnostics::unescape
    .....................
-   B<3159 times [diagnostics::unescape] snipped> .
+   3159 times [diagnostics::unescape] snipped
    .....................
    diagnostics::unescape
    diagnostics::import
@@ -446,7 +500,6 @@ and the output is:
          diagnostics::transmo
          diagnostics::shorten
         diagnostics::autodescribe
-
 
 So we see that two executions of C<diagnostics::BEGIN> and 3161 of
 C<diagnostics::unescape> are responsible for most of the running
@@ -490,12 +543,12 @@ C<Devel::DProf> into mod_perl.  The C<Apache::DProf> module will run a
 C<Devel::DProf> profiler inside each child server and write the
 C<tmon.out> file in the directory C<$ServerRoot/logs/dprof/$$> when
 the child is shutdown (where C<$$> is the number of the child
-process).  All it takes is to add to C<httpd.conf>:
+process).  All it takes is to add to I<httpd.conf>:
 
   PerlModule Apache::DProf
 
 Remember that any PerlHandler that was pulled in before
-C<Apache::DProf> in the C<httpd.conf> or I<startup.pl>, will not have
+C<Apache::DProf> in the I<httpd.conf> or I<startup.pl>, will not have
 its code debugging information inserted.  To run C<dprofpp>, chdir to
 C<$ServerRoot/logs/dprof/$$> and run:
 
@@ -738,9 +791,9 @@ it is 100 or 10000 it probably does not really matter if you can save
 RAM by using a lower value.
 
 Do not forget that if you preload most of your code at server startup,
-the fork to spawn a new child will be very very fast, because it
-inherits most of the preloaded code and the perl interpreter from the
-parent process.
+the newly forked child gets ready very very fast, because it inherits
+most of the preloaded code and the perl interpreter from the parent
+process.
 
 During the life of the child its memory pages (which aren't really its
 own to start with, it uses the parent's pages) gradually get `dirty' -
@@ -761,15 +814,16 @@ about tuning the C<MaxRequestsPerChild> parameter.
 =head3 How Shared Is My Memory?
 
 You've probably noticed that the word shared is repeated many times in
-relation to mod_perl.  Indeed, shared memory might save you
-a lot of money, since with sharing in place you can run many more
-servers than without it.  See L<the Formula and the
+relation to mod_perl.  Indeed, shared memory might save you a lot of
+money, since with sharing in place you can run many more servers than
+without it.  See L<the Formula and the
 numbers|performance/Choosing_MaxClients>.
 
 How much shared memory do you have?  You can see it by either using
 the memory utility that comes with your system or you can deploy the
 C<GTop> module:
 
+  use GTop ();
   print "Shared memory of the current process: ",
     GTop->new->proc_mem($$)->share,"\n";
   
@@ -785,16 +839,15 @@ RESident memory, which is the size of pages currently swapped in.
 
 =head3 Calculating Real Memory Usage
 
-You have learned how to measure the size of the process' shared
-memory, but we still want to know what the real memory usage is.
-Obviously this cannot be calculated simply by adding up the memory
-size of each process because that wouldn't account for the shared
-memory.
+I have shown how to measure the size of the process' shared memory,
+but we still want to know what the real memory usage is.  Obviously
+this cannot be calculated simply by adding up the memory size of each
+process because that wouldn't account for the shared memory.
 
 On the other hand we cannot just subtract the shared memory size from
 the total size to get the real memory usage numbers, because in
-reality each process does a different task, therefore the shared
-memory is not the same for all processes.
+reality each process has a different history of processed requests,
+therefore the shared memory is not the same for all processes.
 
 So how do we measure the real memory size used by the server we run?
 It's probably too difficult to give the exact number, but I've found a
@@ -802,9 +855,9 @@ way to get a fair approximation which was verified in the following
 way. I have calculated the real memory used, by the technique you will
 see in the moment, and then have stopped the Apache server and saw
 that the memory usage report indicated that the total used memory went
-down by almost the same number I've calculated. Note that some OSes do
-smart caching so you may not see the memory usage decrease as soon as
-it actually happens.
+down by almost the same number I've calculated.  Note that some
+OSs do smart memory pages caching so you may not see the memory usage
+decrease as soon as it actually happens when you quit the application.
 
 This is a technique I've used:
 
@@ -838,29 +891,57 @@ this number on your own risk.
 I've used this technique to display real memory usage in the module
 L<Apache::VMonitor|debug/Apache_VMonitor_Visual_Syste>, so instead of
 trying to manually calculate this number you can use this module to do
-it automatically.
+it automatically.  In fact in the calculations used in this module
+there is no separation between the parent and child processes, they
+are all counted indifferently using the following code:
+
+  use GTop ();
+  my $gtop = GTop->new;
+  my $total_real = 0;
+  my $max_shared = 0;
+  # @mod_perl_pids is initialized by Apache::Scoreboard, irrelevant here
+  my @mod_perl_pids = some_code();
+  for my $pid (@mod_perl_pids)
+    my $proc_mem = $gtop->proc_mem($pid);
+    my $size     = $proc_mem->size($pid);
+    my $share    = $proc_mem->share($pid);
+    $total_real += $size - $share;
+    $max_shared  = $share if $max_shared < $share;
+  }
+  my $total_real += $max_shared;
+
+So as you see we that we accumulate the difference between the shared
+and reported memory:
+
+    $total_real  += $size-$share;
+
+and at the end add the biggest shared process size:
+
+  my $total_real += $max_shared;
+
+So now C<$total_real> contains approximately the really used memory.
 
 
-
-=head3 Is my Code Shared?
+=head3 Are My Variables Shared?
 
 How do you find out if the code you write is shared between the
-processes or not? The code should be shared (except where it is on a
-memory page with variables that change), but some variables are
-read-only in usage and never change. For example, if you have some
-variables that use a lot of memory and you want them to be
-read-only. As you know the variable becomes unshared when the process
-modifies its value.
+processes or not?  The code should be shared, except where it is on a
+memory page with variables that change.  Some variables are read-only
+in usage and never change.  For example, if you have some variables
+that use a lot of memory and you want them to be read-only.  As you
+know the variable becomes unshared when the process modifies its
+value.
 
 So imagine that you have this 10Mb in-memory database that resides in
 a single variable, you perform various operations on it and want to
-make sure that the variable is still shared. For example if you do
-some matching regex processing on this variable and want to use the
-pos() function, will it make the variable unshared or not?
+make sure that the variable is still shared.  For example if you do
+some matching regular expression (regex) processing on this variable
+and want to use the pos() function, will it make the variable unshared
+or not?
 
-The C<Apache::Peek> module comes to rescue, let's write a module
-called I<MyShared.pm> which we preload at server startup, so all
-the variables of this module are initially shared by all children.
+The C<Apache::Peek> module comes to rescue.  Let's write a module
+called I<MyShared.pm> which we preload at server startup, so all the
+variables of this module are initially shared by all children.
 
   MyShared.pm
   ---------
@@ -869,14 +950,16 @@ the variables of this module are initially shared by all children.
   
   my $readonly = "Chris";
   
-  sub match{      $readonly =~ /\w/g;                  }
-  sub print_pos{  print "pos: ", pos($readonly), "\n"; }
-  sub dump {      Dump($readonly);                     }
-  1; 
+  sub match    { $readonly =~ /\w/g;               }
+  sub print_pos{ print "pos: ",pos($readonly),"\n";}
+  sub dump     { Dump($readonly);                  }
+  1;
 
-This module declares the package, loads the C<Apache::Peek> module and
-defines the C<$readonly> variable which is supposed to be a I<big>
-variable, but we will use a small one to simplify this example. 
+This module declares the package C<MyShared>, loads the
+C<Apache::Peek> module and defines the lexically scoped C<$readonly>
+variable which is supposed to be a variable of large size (think about
+a huge hash data structure), but we will use a small one to simplify
+this example.
 
 The module also defines three subroutines: match() that does a simple
 character matching, print_pos() that prints the current position of
@@ -885,12 +968,12 @@ finally the dump() subroutine that calls the C<Apache::Peek> module's
 Dump() function to dump a raw Perl data-type of the C<$readonly>
 variable.
 
-Now we write the script that prints the PID of the process and calls
-the three functions. The goal is to check whether pos() makes the
-variable dirty and therefore unshared.
+Now we write the script that prints the process ID (PID) and calls all
+three functions.  The goal is to check whether pos() makes the
+variable I<dirty> and therefore unshared.
 
   share_test.pl
-  -------
+  -------------
   use MyShared;
   print "Content-type: text/plain\r\n\r\n";
   print "PID: $$\n";
@@ -898,18 +981,18 @@ variable dirty and therefore unshared.
   MyShared::print_pos();
   MyShared::dump();
 
-Before you restart the server in I<httpd.conf> set:
+Before you restart the server, in I<httpd.conf> set:
 
   MaxClients 2
 
-for easier tracking. You need at least two servers to compare the
-print outs of the test program, Having more than two can make the
+for easier tracking.  You need at least two servers to compare the
+print outs of the test program.  Having more than two can make the
 comparison process harder.
 
-Now open two browser windows and issue the request for this script 
+Now open two browser windows and issue the request for this script
 several times in both windows, so you get different processes PIDs
-reported in the two windows and each process has been called a
-different number of times. 
+reported in the two windows and each process has processed a different
+number of requests to the I<share_test.pl> script.
 
 In the first window you will see something like that:
 
@@ -945,33 +1028,138 @@ And in the second window:
       MG_TYPE = 'g'
       MG_LEN = 2
 
-We see that all the addresses are the same (C<0x8250e8c> and
-C<0x8271af0>), therefore the variable data structure is almost
-completely shared.  The only difference is in C<SV.MAGIC.MG_LEN>
-record, which is not shared.
+We see that all the addresses of the supposedly big structure are the
+same (C<0x8250e8c> and C<0x8271af0>), therefore the variable data
+structure is almost completely shared.  The only difference is in
+C<SV.MAGIC.MG_LEN> record, which is not shared.
 
 So given that the C<$readonly> variable is a big one, its value is
 still shared between the processes, while part of the variable data
-structure is non-shared but it's almost insignificant because it takes
-a very little memory space.
+structure is non-shared.  But it's almost insignificant because it
+takes a very little memory space.
 
 Now if you need to compare more than variable, doing it by hand can be
-quite time consuming and error prune. Therefore it's better to correct
-the testing script to dump the Perl data-types into files (e.g
+quite time consuming and error prune.  Therefore it's better to
+correct the testing script to dump the Perl data-types into files (e.g
 I</tmp/dump.$$>, where C<$$> is the PID of the process) and then using
 diff(1) utility to see whether there is some difference.
 
-Surely another way of ensuring that a scalar is sharable
-(i.e. readonly) is to either use the C<constant> pragma or C<readonly>
-pragma.
+So correcting the dump() function to write the info to the file will
+do the job. Notice that we use C<Devel::Peek> and not
+C<Apache::Peek>. The both are almost the same, but C<Apache::Peek>
+prints it output directly to the opened socket so we cannot intercept
+and redirect the result to the file. Since C<Devel::Peek> dumps
+results to the STDERR stream we can use the old trick of saving away
+the default STDERR handler, and open a new filehandler using the
+STDERR. In our example when C<Devel::Peek> now prints to STDERR it
+actually prints to our file. When we are done, we make sure to restore
+the original STDERR filehandler. 
 
-=head3 Preload Perl Modules at Server Startup
+So this is the resulting code:
 
-Use the C<PerlRequire> and C<PerlModule> directives to load commonly
-used modules such as C<CGI.pm>, C<DBI> and etc., when the server is
-started.  On most systems, server children will be able to share the
-code space used by these modules.  Just add the following directives
-into C<httpd.conf>:
+  MyShared2.pm
+  ---------
+  package MyShared2;
+  use Devel::Peek;
+  
+  my $readonly = "Chris";
+  
+  sub match    { $readonly =~ /\w/g;               }
+  sub print_pos{ print "pos: ",pos($readonly),"\n";}
+  sub dump{
+    my $dump_file = "/tmp/dump.$$";
+    print "Dumping the data into $dump_file\n";
+    open OLDERR, ">&STDERR";
+    open STDERR, ">".$dump_file or die "Can't open $dump_file: $!";
+    Dump($readonly);
+    close STDERR ;
+    open STDERR, ">&OLDERR";
+  }
+  1;
+
+When if we modify the code to use the modified module:
+
+  share_test2.pl
+  -------------
+  use MyShared2;
+  print "Content-type: text/plain\r\n\r\n";
+  print "PID: $$\n";
+  MyShared2::match();
+  MyShared2::print_pos();
+  MyShared2::dump();
+
+And run it as before (with S<MaxClients 2>), two dump files will be
+created in the directory I</tmp>.  In our test these were created as
+I</tmp/dump.1224> and I</tmp/dump.1225>. When we run diff(1):
+
+  % diff /tmp/dump.1224 /tmp/dump.1225
+  12c12
+  <       MG_LEN = 1
+  ---
+  >       MG_LEN = 2
+
+We see that the two padlists (of the variable C<readonly>) are
+different, as we have observed before when we did a manual comparison.
+
+In fact we if we think about these results again, we get to a
+conclusion that there is no need for two processes to find out whether
+the variable gets modified (and therefore unshared). It's enough to
+check the datastructure before the script was executed and after that.
+You can modify the C<MyShared2> module to dump the padlists into a
+different file after each invocation and than to run the diff(1) on
+the two files.
+
+If you want to watch whether some lexically scoped (with my())
+variables in your C<Apache::Registry> script inside the same process
+get changed between invocations you can use the
+C<Apache::RegistryLexInfo> module instead.  Since it does exactly
+this: it makes a snapshot of the padlist before and after the code
+execution and shows the difference between the two.  This specific
+module was written to work with C<Apache::Registry> scripts so it
+won't work for loaded modules. Use the technique we have described
+above for any type of variables in modules and scripts.
+
+Surely another way of ensuring that a scalar is readonly and therefore
+sharable is to either use the C<constant> pragma or C<readonly>
+pragma.  But then you won't be able to make calls that alter the
+variable even a little, like in the example that we just showed,
+because it will be a true constant variable and you will get compile
+time error if you try this:
+
+  MyConstant.pm
+  -------------
+  package MyConstant;
+  use constant readonly => "Chris";
+  
+  sub match    { readonly =~ /\w/g;               }
+  sub print_pos{ print "pos: ",pos(readonly),"\n";}
+  1;
+
+  % perl -c MyConstant.pm
+
+  Can't modify constant item in match position at MyConstant.pm line
+  5, near "readonly)"
+  MyConstant.pm had compilation errors.
+
+However this code is just right:
+
+  MyConstant1.pm
+  -------------
+  package MyConstant1;
+  use constant readonly => "Chris";
+  
+  sub match { readonly =~ /\w/g; }
+  1;
+
+
+
+=head3 Preloading Perl Modules at Server Startup
+
+You can use the C<PerlRequire> and C<PerlModule> directives to load
+commonly used modules such as C<CGI.pm>, C<DBI> and etc., when the
+server is started.  On most systems, server children will be able to
+share the code space used by these modules.  Just add the following
+directives into I<httpd.conf>:
 
   PerlModule CGI
   PerlModule DBI
@@ -979,10 +1167,16 @@ into C<httpd.conf>:
 But an even better approach is to create a separate startup file
 (where you code in plain perl) and put there things like:
 
-  use DBI;
-  use Carp;
+  use DBI ();
+  use Carp ();
 
-Then you C<require()> this startup file in C<httpd.conf> with the
+Don't forget to prevent importing of the symbols exported by default
+by the module you are going to preload, by placing empty parentheses
+C<()> after a module's name.  Unless you need some of these in the
+startup file, which is unlikely.  This will save you a few more memory
+bits.
+
+Then you C<require()> this startup file in I<httpd.conf> with the
 C<PerlRequire> directive, placing it before the rest of the mod_perl
 configuration directives:
 
@@ -995,8 +1189,8 @@ another system that uses a persistent Perl interpreter, you will want
 to precompile the functions at initialization time.  To accomplish
 this, call the package function compile() like this:
 
-    use CGI ();
-    CGI->compile(':all');
+  use CGI ();
+  CGI->compile(':all');
 
 The arguments to C<compile()> are a list of method names or sets, and
 are identical to those accepted by the C<use()> and C<import()>
@@ -1004,281 +1198,567 @@ operators.  Note that in most cases you will want to replace C<':all'>
 with the tag names that you actually use in your code, since generally
 you only use a subset of them.
 
-You can also preload the Registry scripts. See L<Preload Registry
-Scripts|/Preload_Registry_Scripts>.
+Let's conduct a memory usage test to prove that preloading, reduces
+memory requirements.
 
-=head2 Preload Perl modules - Real Numbers
+In order to have an easy measurement we will use only one child
+process, therefore we will use this setting:
 
-(META: while the numbers and conclusions are mostly correct, need to
-rewrite the whole benchmark section using the GTop library to report
-the shared memory which is very important and will improve the
-benchmarks)
+  MinSpareServers 1
+  MaxSpareServers 1
+  StartServers 1
+  MaxClients 1
+  MaxRequestsPerChild 100
 
-(META: Add the memory size tests when the server was compiled with
-EVERYTHING=1 and without it, does loading everything make a big change
-in the memory footprint? Probably the suggestion would be as follows:
-For a development server use EVERYTHING=1, while for production if
-your server is pretty busy and/or low on memory and every bit is on
-account, only the required parts should be built in. BTW, remember
-that apache comes with many modules that are built by default, and you
-might not need those!)
+We are going to use the C<Apache::Registry> script I<memuse.pl> which
+consists of two parts: the first one preloads a bunch of modules (that
+most of them aren't going to be used), the second part reports the
+memory size and the shared memory size used by the single child
+process that we start. and of course it prints the difference between
+the two sizes.
 
-I have conducted a few tests to benchmark the memory usage when some
-modules are preloaded.  The first set of tests checks the memory used
-with a Perl module preloaded (C<CGI.pm>).  The second set checks the
-compile method of C<CGI.pm>.  The third test checks the benefit of
-preloading a few Perl modules (we see more memory saved) and also the
-effect of precompiling the Registry modules with
-C<Apache::RegistryLoader>.
+  memuse.pl
+  ---------
+  use strict;
+  use CGI ();
+  use DB_File ();
+  use LWP::UserAgent ();
+  use Storable ();
+  use DBI ();
+  use GTop ();
 
-Hardware and software: The server is Apache 1.3.2 with mod_perl 1.16
-running on AIX 4.1.5 RS6000 with 1G RAM.
+  my $r = shift;
+  $r->send_http_header('text/plain');
+  my $proc_mem = GTop->new->proc_mem($$);
+  my $size  = $proc_mem->size;
+  my $share = $proc_mem->share;
+  my $diff  = $size - $share;
+  printf "%10s %10s %10s\n", qw(Size Shared Difference);
+  printf "%10d %10d %10d (bytes)\n",$size,$share,$diff;
 
-1. In the first test, I used the following script:
+First we restart the server and execute this CGI script when none of
+the above modules preloaded. Here is the result:
+
+     Size   Shared     Diff
+  4706304  2134016  2572288 (bytes)
+
+Now we take all the modules:
 
   use strict;
   use CGI ();
-  my $q = new CGI;
-  print $q->header;
-  print $q->start_html,$q->p("Hello");
+  use DB_File ();
+  use LWP::UserAgent ();
+  use Storable ();
+  use DBI ();
+  use GTop ();
 
-B<Server restarted>
+and copy them into the startup script, so they will get preloaded.
+The script remains unchanged.  We restart the server and execute it
+again. We get the following.
 
-Before preloading C<CGI.pm>: (No other modules preloaded)
+     Size   Shared    Diff
+  4710400  3997696  712704 (bytes)
 
-  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
-  root      87004  0.0  0.0 1060 1524      - A    16:51:14  0:00 httpd
-  httpd    240864  0.0  0.0 1304 1784      - A    16:51:13  0:00 httpd
+Let's put the two results into one table:
 
-After running a script which uses CGI's methods (no imports):
+  Preloading    Size   Shared     Diff
+     Yes     4710400  3997696   712704 (bytes)
+      No     4706304  2134016  2572288 (bytes)
+  --------------------------------------------
+  Difference    4096  1863680 -1859584
 
-  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
-  root     188068  0.0  0.0 1052 1524      - A    17:04:16  0:00 httpd
-  httpd     86952  0.0  1.0 2520 3052      - A    17:04:16  0:00 httpd
+You can clearly see that when the modules weren't preloaded the shared
+memory pages size, were about 1864Kb smaller relative to the case
+where the modules were preloaded.
 
-Observation: the child httpd has grown by 1268K
+Assuming that you have had 256M dedicated to the web server, if you
+didn't preload the modules, you could have:
 
-B<Server restarted>
+  268435456 = X * 2572288 + 2134016
 
-After preloading C<CGI.pm>:
+  X = (268435456 - 2134016) / 2572288 = 103 
 
-  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
-  root     240796  0.0  0.0 1456 1552      - A    16:55:30  0:00 httpd
-  httpd     86944  0.0  0.0 1688 1800      - A    16:55:30  0:00 httpd
+103 servers.
 
-after running a script which uses CGI's methods (no imports):
+Now let's calculate the same thing with modules preloaded:
 
-  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
-  root      86872  0.0  0.0 1448 1552      - A    17:02:56  0:00 httpd
-  httpd    187996  0.0  1.0 2808 2968      - A    17:02:56  0:00 httpd
+  268435456 = X * 712704 + 3997696
 
-Observation: the child httpd has grown by 1168K, 100K less than
-without the preload -- good!
+  X = (268435456 - 3997696) / 712704 = 371
 
-B<Server restarted>
+You can have almost 4 times more servers!!!
 
-After C<CGI.pm> preloaded and compiled with CGI-E<gt>compile(':all');
+Remember that we have mentioned before that memory pages gets dirty
+and the size of the shared memory gets smaller with time? So we have
+presented the ideal case where the shared memory stays
+intact. Therefore the real numbers will be a little bit different, but
+not far from the numbers in our example.
 
-  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
-  root      86980  0.0  0.0 2836 1524      - A    17:05:27  0:00 httpd
-  httpd    188104  0.0  0.0 3064 1768      - A    17:05:27  0:00 httpd
+Also it's obvious that in your case it's possible that the process
+size will be bigger and the shared memory will be smaller, since you
+will use different modules and a different code, so you won't get this
+fantastic ratio, but this example is certainly helps to feel the
+difference.
 
-After running a script which uses CGI's methods (no imports):
 
-  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
-  root      86980  0.0  0.0 2828 1524      - A    17:05:27  0:00 httpd
-  httpd    188104  0.0  1.0 4188 2940      - A    17:05:27  0:00 httpd
 
-Observation: the child httpd has grown by 1172K - no change!  So does
-C<CGI-E<gt>compile(':all')> help us?  We probably do not use all the
-methods which CGI provides, so in real use it's faster.
 
-You might want to compile only the tags you are going to use, then you
-will definitely see some benefit.
+=head3 Preloading Registry Scripts at Server Startup
 
-2. The second test attempts to check whether C<CGI>'s compile() method
-improve things. This is the code under test.
-
-  use strict;
-  use CGI qw(:all);
-  print header,start_html,p("Hello");
-
-B<Server restarted>
-
-After C<CGI.pm> was preloaded but NOT compiled with CGI-E<gt>compile():
-
-  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
-  root      17268  0.0  0.0 1456 1552      - A    18:02:49  0:00 httpd
-  httpd     86904  0.0  0.0 1688 1800      - A    18:02:49  0:00 httpd
-
-After running a script which imports ALL the symbols:
-
-  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
-  root      17268  0.0  0.0 1448 1552      - A    18:02:49  0:00 httpd
-  httpd     86904  0.0  1.0 2952 3112      - A    18:02:49  0:00 httpd
-
-Observation: the child httpd has grown by 1264K
-
-B<Server restarted>
-
-After C<CGI.pm> was preloaded and compiled with CGI-E<gt>compile(':all'):
-
-  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
-  root      86812  0.0  0.0 2836 1524      - A    17:59:52  0:00 httpd
-  httpd     99104  0.0  0.0 3064 1768      - A    17:59:52  0:00 httpd
-
-After running a script which imports ALL the symbols:
-
-  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
-  root      86812  0.0  0.0 2832 1436      - A    17:59:52  0:00 httpd
-  httpd     99104  0.0  1.0 4884 3636      - A    17:59:52  0:00 httpd
-
-Observation: the child httpd has grown by 1868K.
-
-Why so much?  In fact these results are misleading.  If you look at
-the code you will see that we have called only three of C<CGI.pm>'s
-methods.  The statement C<use CGI qw(:all)> doesn't compile all the
-available methods, it just imports their names.  This means that we do
-not use so much memory as if the methods are all compiled.  Execute
-C<compile()> only on the methods you intend to use and then you will
-see a reduction in your memory requirements.
-
-
-3. The third script:
-
-  use strict;
-  use CGI;
-  use Data::Dumper;
-  use Storable;
-  [and many lines of code, lots of globals - so the code is huge!]
-
-B<Server restarted>
-
-Nothing preloaded at startup:
-
-  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
-  root      90962  0.0  0.0 1060 1524      - A    17:16:45  0:00 httpd
-  httpd     86870  0.0  0.0 1304 1784      - A    17:16:45  0:00 httpd
-
-Script using CGI (methods), Storable, Data::Dumper called:
-
-  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
-  root      90962  0.0  0.0 1064 1436      - A    17:16:45  0:00 httpd
-  httpd     86870  0.0  1.0 4024 4548      - A    17:16:45  0:00 httpd
-
-Observation: the child httpd has grown by 2764K
-
-B<Server restarted>
-
-Preloaded CGI (compiled), Storable, Data::Dumper at startup:
-
-  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
-  root      26792  0.0  0.0 3120 1528      - A    17:19:21  0:00 httpd
-  httpd     91052  0.0  0.0 3340 1764      - A    17:19:21  0:00 httpd
-
-Script using CGI (methods), Storable, Data::Dumper called
-
-  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
-  root      26792  0.0  0.0 3124 1440      - A    17:19:21  0:00 httpd
-  httpd     91052  0.0  1.0 6568 5040      - A    17:19:21  0:00 httpd
-
-Observation: the child httpd has grown by 3276K.
-
-Ouch!  512K more!
-
-The reason is that when you preload all of the methods at startup,
-they are all precompiled.  There are many of them and they take up a
-big chunk of memory.  If you don't use the compile() method, only the
-functions that are used will be compiled.  Yes, it will slightly slow
-down the first response from each process, but the actual memory usage
-will be lower.
-
-B<Server restarted>
-
-All the above modules plus the above script precompiled at startup
-with C<Apache::RegistryLoader>:
-
-  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
-  root      43224  0.0  0.0 3256 1528      - A    17:23:12  0:00 httpd
-  httpd     26844  0.0  0.0 3488 1776      - A    17:23:12  0:00 httpd
-
-Script using CGI (methods), Storable, Data::Dumper called:
-
-  USER        PID %CPU %MEM   SZ  RSS    TTY STAT    STIME  TIME COMMAND
-  root      43224  0.0  0.0 3252 1440      - A    17:23:12  0:00 httpd
-  httpd     26844  0.0  1.0 6748 5092      - A    17:23:12  0:00 httpd
-
-Observation: the child httpd has grown even more!
-
-3316K!  This does not look good!
-
-B<Summary>:
-
-1. Preloading Perl modules gave good results everywhere.
-
-2. C<CGI.pm>'s C<compile()> method seems to use even more memory.
-It's because we never use all of the methods that CGI provides. Only
-C<compile()> the tags that you are going to use and you will save the
-overhead of the first call for each method which has not yet been
-called.  You will also save some memory since the compiled code will
-be shared with the children.
-
-3. C<Apache::RegistryLoader> might make scripts load faster on the
-first request after the child has just started but the memory usage
-is worse.
-
-
-=head3 Preload Registry Scripts
-
+What happens if you find yourself stuck with Perl CGI scripts and you
+cannot or don't want to move most of the stuff into modules to benefit
+from modules preloading, so the code will be shared by the children.
+Luckily you can preload scripts as well.  This time the
+C<Apache::RegistryLoader> modules comes to aid.
 C<Apache::RegistryLoader> compiles C<Apache::Registry> scripts at
-server startup. It can be a good idea to preload the scripts you are
-going to use as well, so the code will be shared by the children.
+server startup.
 
-Here is an example of the use of this technique.  This code is
-included in a C<PerlRequire>'d file, and walks the directory tree
-under which all registry scripts are installed.  For each C<.pl> file
-encountered, it calls the C<Apache::RegistryLoader::handler()> method
-to preload the script in the parent server, before pre-forking the
-child processes:
+For example to preload the script I</perl/test.pl> which is in fact
+the file I</home/httpd/perl/test.pl> you would do the following:
 
-  use File::Find 'finddepth';
+  use Apache::RegistryLoader ();
+  Apache::RegistryLoader->new->handler("/perl/test.pl",
+	 	            "/home/httpd/perl/test.pl");
+
+You should put this code either into C<E<lt>PerlE<gt>> sections or
+into a startup script.
+
+But what if you have a bunch of scripts located under the same
+directory and you don't want to list them one by one.  Take the
+benefit of Perl modules and put them to a good use.  The C<File::Find>
+module will do most of the work for you.
+
+The following code walks the directory tree under which all
+C<Apache::Registry> scripts are located.  For each encountered file
+with extension I<.pl>, it calls the
+C<Apache::RegistryLoader::handler()> method to preload the script in
+the parent server, before pre-forking the child processes:
+
+  use File::Find qw(finddepth);
   use Apache::RegistryLoader ();
   {
-      my $perl_dir = "perl/";
-      my $rl = Apache::RegistryLoader->new;
-      finddepth(sub {
-          return unless /\.pl$/;
-          my $url = "/$File::Find::dir/$_";
-          print "pre-loading $url\n";
-  
-          my $status = $rl->handler($url);
-          unless($status == 200) {
-              warn "pre-load of `$url' failed, status=$status\n";
-          }
-      }, $perl_dir);
+    my $scripts_root_dir = "/home/httpd/perl/";
+    my $rl = Apache::RegistryLoader->new;
+    finddepth
+      (
+       sub {
+         return unless /\.pl$/;
+         my $url = "$File::Find::dir/$_";
+         $url =~ s|$scripts_root_dir/?|/|;
+         warn "pre-loading $url\n";
+           # preload $url
+         my $status = $rl->handler($url);
+         unless($status == 200) {
+  	   warn "pre-load of `$url' failed, status=$status\n";
+         }
+       },
+       $scripts_root_dir);
   }
 
 Note that we didn't use the second argument to C<handler()> here, as
-the module's manpage suggests. To make the loader smarter about the
-URI to filename translation, you might need to provide a C<trans()>
-function to translate the uri to filename.  URI to filename
-translation normally doesn't happen until HTTP request time, so the
-module is forced to roll its own translation.  If filename is omitted
-and a C<trans()> routine was not defined, the loader will try using
-the URI relative to B<ServerRoot>.
+in the first example. To make the loader smarter about the URI to
+filename translation, you might need to provide a C<trans()> function
+to translate the URI to filename.  URI to filename translation
+normally doesn't happen until HTTP request time, so the module is
+forced to roll its own translation.  If filename is omitted and a
+C<trans()> function was not defined, the loader will try using the URI
+relative to B<ServerRoot>.
 
-You should check whether this makes any improvement for you though, I
-did some testing [ L<Preload Perl modules - Real
-Numbers|/Preload_Perl_modules_Real_Numb> ], and it seems that it takes
-more memory than when the scripts are called by the child.  This is
-only a first impression and needs further investigation.  If you
-aren't concerned about occasional script invocations taking a little
-time to respond while they load the code, you might not need it at
-all!
+A simple trans() function can be something like that:
+
+  sub mytrans {
+    my $uri = shift;
+    $uri =~ s|^/perl/|/home/httpd/perl/|;
+    return $uri;
+  }
+
+You can easily derive the right translation by looking at the C<Alias>
+directive. The above mytrans() function is matching our C<Alias>:
+
+  Alias /perl/ /home/httpd/perl/
+
+After defining the URI to filename translation function you should
+pass it during the creation of the C<Apache::RegistryLoader> object:
+
+  my $rl = Apache::RegistryLoader->new(trans => \&mytrans);
+
+I won't show any benchmarks here, since the effect is absolutely the
+same as with preloading modules.
 
 See also L<BEGIN blocks|porting/BEGIN_blocks>
 
 
+=head3 Modules Initializing at Server Startup
+
+We have just learned that it's important to preload the modules and
+scripts at the server startup.  It turns out that it's not enough for
+some modules and you have to prerun their initialization code to get
+more memory pages shared. Basically you will find an information about
+specific modules in their respective manpages. We will present a few
+examples of widely used modules where the code can be initialized.
+
+
+=head4 Initializing DBI.pm
+
+The first example is the C<DBI> module. As you know C<DBI> works with
+many database drivers falling into the C<DBD::> category,
+e.g. C<DBD::mysql>. It's not enough to preload C<DBI>, you should
+initialize C<DBI> with driver(s) that you are going to use (usually a
+single driver is used), if you want to minimize memory use after
+forking the child processes. Note that you want to do this under
+mod_perl and other environments where the shared memory is very
+important. Otherwise you shouldn't initialize drivers.
+
+You probably know already that under mod_perl you should use the
+C<Apache::DBI> module to get the connection persistence, unless you
+open a separate connection for each user--in this case you should not
+use this module. C<Apache::DBI> automatically loads C<DBI> and
+overrides some of its methods, so you should continue coding like
+there is only a C<DBI> module.
+
+Just as with modules preloading our goal is to find the startup
+environment that will lead to the smallest I<"difference"> between the
+shared and normal memory reported, therefore a smaller total memory
+usage.
+
+And again in order to have an easy measurement we will use only one
+child process, therefore we will use this setting in I<httpd.conf>:
+
+  MinSpareServers 1
+  MaxSpareServers 1
+  StartServers 1
+  MaxClients 1
+  MaxRequestsPerChild 100
+
+We are going to run memory benchmarks on five different versions of
+the I<startup.pl> file.  We always preload these modules:
+
+  use Gtop();
+  use Apache::DBI(); # preloads DBI as well
+
+=over
+
+=item option 1
+
+Leave the file unmodified.
+
+=item option 2
+
+Install MySQL driver (we will use MySQL RDBMS for our test):
+
+  DBI->install_driver("mysql");
+
+It's safe to use this method, since just like with C<use()>, if it
+can't be installed it'll die().
+
+=item option 3
+
+Preload MySQL driver module:
+
+  use DBD::mysql;
+
+=item option 4
+
+Tell C<Apache::DBI> to connect to the database when the child process
+starts (C<ChildInitHandler>), no driver is preload before the child
+gets spawned!
+
+  Apache::DBI->connect_on_init('DBI:mysql:test::localhost',
+                             "",
+                             "",
+                             {
+                              PrintError => 1, # warn() on errors
+                              RaiseError => 0, # don't die on error
+                              AutoCommit => 1, # commit executes
+                              # immediately
+                             }
+                            )
+  or die "Cannot connect to database: $DBI::errstr";
+
+=back
+
+Here is the C<Apache::Registry> test script that we have used:
+
+  preload_dbi.pl
+  --------------
+  use strict;
+  use GTop ();
+  use DBI ();
+    
+  my $dbh = DBI->connect("DBI:mysql:test::localhost",
+                         "",
+                         "",
+                         {
+                          PrintError => 1, # warn() on errors
+                          RaiseError => 0, # don't die on error
+                          AutoCommit => 1, # commit executes
+                                           # immediately
+                         }
+                        )
+    or die "Cannot connect to database: $DBI::errstr";
+  
+  my $r = shift;
+  $r->send_http_header('text/plain');
+  
+  my $do_sql = "show tables";
+  my $sth = $dbh->prepare($do_sql);
+  $sth->execute();
+  my @data = ();
+  while (my @row = $sth->fetchrow_array){
+    push @data, @row;
+  }
+  print "Data: @data\n";
+  $dbh->disconnect(); # NOP under Apache::DBI
+  
+  my $proc_mem = GTop->new->proc_mem($$);
+  my $size  = $proc_mem->size;
+  my $share = $proc_mem->share;
+  my $diff  = $size - $share;
+  printf "%8s %8s %8s\n", qw(Size Shared Diff);
+  printf "%8d %8d %8d (bytes)\n",$size,$share,$diff;
+
+What it does is opening a connection to the database I<'test'> and
+issues a query to learn what tables the databases has.  When the data
+is collected and printed the connection would be closed in the regular
+case, but C<Apache::DBI> overrides it with empty method.  When the
+data is processed a familiar to you already code to print the memory
+usage follows.
+
+The server was restarted before each new test.
+
+So here are the results of the five tests that were conducted, sorted
+by the I<Diff> column:
+
+=over
+
+=item 1
+
+After the first request:
+
+  Version     Size   Shared     Diff        Test type
+  --------------------------------------------------------------------
+        1  3465216  2621440   843776  install_driver
+        2  3461120  2609152   851968  install_driver & connect_on_init
+        3  3465216  2605056   860160  preload driver
+        4  3461120  2494464   966656  nothing added
+        5  3461120  2482176   978944  connect_on_init
+
+=item 2
+
+After the second request (all the subsequent request showed the same
+results):
+
+  Version     Size   Shared    Diff         Test type
+  --------------------------------------------------------------------
+        1  3469312  2609152   860160  install_driver
+        2  3481600  2605056   876544  install_driver & connect_on_init
+        3  3469312  2588672   880640  preload driver
+        4  3477504  2482176   995328  nothing added
+        5  3481600  2469888  1011712  connect_on_init
+
+=back
+
+Now what do we conclude from looking at these numbers. First we see
+that only after a second reload we get the final memory footprint for
+a specific request in question (if you pass different arguments the
+memory usage might and will be different).
+
+But both tables show the same pattern of memory usage.  We can clearly
+see that the real winner is the I<startup.pl> file's version where the
+MySQL driver was installed (1).  Since we want to have a connection
+ready for the first request made to the freshly spawned child process,
+we generally use the second version (2) which uses somewhat more
+memory, but has almost the same number of shared memory pages.  The
+third version only preloads the driver which results in smaller shared
+memory.  The last two versions having nothing initialized (4) and
+having only the connect_on_init() method used (5).  The former is a
+little bit better than the latter, but both significantly worse than
+the first two versions.
+
+To remind you why do we look for the smallest value in the column
+I<diff>, recall the real memory usage formula:
+
+  RAM_dedicated_to_mod_perl = diff * number_of_processes
+                            + the_processes_with_largest_shared_memory
+
+Notice that the the smaller the diff is, the bigger the number of
+processes you can have using the same amount of RAM.  Therefore every
+100K difference counts, when you multiply it by the number of
+processes. If we take the number from the version version (1) vs (4)
+and assume that we have 256M of memory dedicated to mod_perl processes
+we will get the following numbers using the formula derived from the
+above formula:
+
+               RAM - largest_shared_size
+  N_of Procs = -------------------------
+                        Diff
+
+                268435456 - 2609152
+  (ver 1)  N =  ------------------- = 309
+                      860160
+
+                268435456 - 2469888
+  (ver 5)  N =  ------------------- = 262
+                     1011712
+
+So you can tell the difference (17% more child processes in the first
+version).
+
+
+
+=head4 Initializing CGI.pm
+
+C<CGI.pm> is a big module that by default postpones the compilation of
+its methods until they are actually needed, thus making it possible to
+use it under a slow mod_cgi handler without adding a big
+overhead. That's not what we want under mod_perl and if you use
+C<CGI.pm> you should precompile the methods that you are going to use
+at the server startup in addition to preloading the module.  Use the
+compile method for that:
+
+  use CGI;
+  CGI->compile(':all');
+
+where you should replace the tag group C<:all> with the real tags and
+group tags that you are going to use if you want to optimize the
+memory usage.
+
+We are going to compare the shared memory foot print by using the
+script which is back compatible with mod_cgi. You will see that you
+can improve performance of this kind of scripts as well, but if you
+really want a fast code think about porting it to use
+C<Apache::Request> for CGI interface and some other module for HTML
+generation.
+
+So here is the C<Apache::Registry> script that we are going to use to
+make the comparison:
+
+  preload_cgi_pm.pl
+  -----------------
+  use strict;
+  use CGI ();
+  use GTop ();
+
+  my $q = new CGI;
+  print $q->header('text/plain');
+  print join "\n", map {"$_ => ".$q->param($_) } $q->param;
+  print "\n";
+  
+  my $proc_mem = GTop->new->proc_mem($$);
+  my $size  = $proc_mem->size;
+  my $share = $proc_mem->share;
+  my $diff  = $size - $share;
+  printf "%8s %8s %8s\n", qw(Size Shared Diff);
+  printf "%8d %8d %8d (bytes)\n",$size,$share,$diff;
+
+The script initializes the C<CGI> object, sends HTTP header and then
+print all the arguments and values that were passed to the script if
+at all. At the end as usual we print the memory usage.
+
+As usual we are going to use a single child process, therefore we will
+use this setting in I<httpd.conf>:
+
+  MinSpareServers 1
+  MaxSpareServers 1
+  StartServers 1
+  MaxClients 1
+  MaxRequestsPerChild 100
+
+We are going to run memory benchmarks on three different versions of
+the I<startup.pl> file.  We always preload this module:
+
+  use Gtop();
+
+=over
+
+=item option 1
+
+Leave the file unmodified.
+
+=item option 2
+
+Preload C<CGI.pm>:
+
+  use CGI ();
+
+=item option 3
+
+Preload C<CGI.pm> and pre-compile the methods that we are going to use
+in the script:
+
+  use CGI ();
+  CGI->compile(qw(header param));
+
+=back
+
+The server was restarted before each new test.
+
+So here are the results of the five tests that were conducted, sorted
+by the I<Diff> column:
+
+=over
+
+=item 1
+
+After the first request:
+
+  Version     Size   Shared     Diff        Test type
+  --------------------------------------------------------------------
+        1  3321856  2146304  1175552  not preloaded
+        2  3321856  2326528   995328  preloaded
+        3  3244032  2465792   778240  preloaded & methods+compiled
+
+=item 2
+
+After the second request (all the subsequent request showed the same
+results):
+
+  Version     Size   Shared    Diff         Test type
+  --------------------------------------------------------------------
+        1  3325952  2134016  1191936 not preloaded
+        2  3325952  2314240  1011712 preloaded
+        3  3248128  2445312   802816 preloaded & methods+compiled
+
+=back
+
+The first version shows the results of the script execution when
+C<CGI.pm> wasn't preloaded. The second version with module
+preloaded. The third when it's both preloaded and the methods that are
+going to be used are precompiled at the server startup.
+
+By looking at the version one of the second table we can conclude
+that, preloading adds about 20K of shared size. As we have mention at
+the beginning of this section that's how C<CGI.pm> was implemented--to
+reduce the load overhead. Which means that preloading CGI is almost
+hardly change a thing. But if we compare the second and the third
+versions we will see a very significant difference of 207K
+(1011712-802816), and we have used only a few methods (the I<header>
+method loads a few more method transparently for a user). Imagine how
+much memory we are going to save if we are going to precompile all the
+methods that we are using in other scripts that use C<CGI.pm> and do a
+little bit more than the script that we have used in the test.
+
+But even in our very simple case using the same formula, what do we
+see? (assuming that we have 256MB dedicated for mod_perl)
+
+               RAM - largest_shared_size
+  N_of Procs = -------------------------
+                        Diff
+
+                268435456 - 2134016
+  (ver 1)  N =  ------------------- = 223
+                      1191936
+
+                268435456 - 2445312
+  (ver 3)  N =  ------------------- = 331
+                     802816
+
+If we preload C<CGI.pm> and precompile a few methods that we use in
+the test script, we can have 50% more child processes than when we
+don't preload and precompile the methods that we are going to use.
+
+META: I've heard that the 3.x generation will be less bloated, so
+probably I'll have to rerun this using the new version.
 
 
 
@@ -1290,27 +1770,37 @@ See also L<BEGIN blocks|porting/BEGIN_blocks>
 
 =head2 Memory Swapping is Considered Bad
 
-(META: check that you don't have a duplication somewhere in the text,
-probably the MaxClients tuning section)
-
-When tuning the performance of your box, you must configure the
-software that you run in such a way that no memory swapping will
-occur: even during peak hours.
-
 Swap memory is slow since it resides on the hard disc, which is
-I<much> slower than the RAM. When your machine starts to swap, because
-it's unable to cope with the number of the processes it has to run,
-your machine will become slower and slower until it grinds to a halt.
+I<much> slower than the RAM.
+
+Why and when the swapping happens?  Your machine starts to swap when
+there is no more available RAM to use for the process currently using
+the CPU.  To gain the required number of memory pages requested by the
+process the kernel has to page out (i.e. move to a hard disk's swap
+partition) exactly the same number of pages.  The kernel pages out
+memory pages using the LRU (least recently used) or a similar
+algorithm to decide which pages to take out, in attempt to prevent the
+situation where the next process in queue for CPU will need exactly
+the pages that were paged out, and prevent the page fault (when the
+page is not found in RAM) occur, which in turn will require more pages
+to be swapped out in order to free the memory for the pages that get
+swapped in.
+
 When the CPU has to page memory pages in and out things slow down,
 causing processing demands to go up, which in turn slows down the
-system even more as more memory is required and this is provided by
-the kernel using the reserved swap space. This ever worstening spiral
-will lead the machine to halt, unless the resource demand suddenly
-drops down and allows the processes to catch up with their tasks and
-go back to normal memory usage.
+system even more as more memory is required.  This ever worstening
+spiral will lead the machine to halt, unless the resource demand
+suddenly drops down and allows the processes to catch up with their
+tasks and go back to normal memory usage.
 
-For swapping monitoring techniques see the section
-'L<Apache::VMonitor -- Visual System and Apache Server
+When tuning the performance of your box, you must configure all the
+runnning software components in such a way that no memory swapping
+will occur: even during peak hours.  Swap space is an emergency pool,
+not a resource to be used routinely.  If you are low on memory and you
+badly need it, buy it.  Memory is cheap.
+
+For swapping monitoring techniques see the section 'L<Apache::VMonitor
+-- Visual System and Apache Server
 Monitor|debug/Apache_VMonitor_Visual_Syste>'.
 
 For the mod_perl specific swapping prevention guideliness see the
@@ -1327,8 +1817,7 @@ section 'L<Choosing MaxClients|performance/Choosing_MaxClients>'.
 
 C<mergemem> is an experimental utility for linux, which looks I<very>
 interesting for us mod_perl users:
-
-        http://www.ist.org/mergemem/
+http://www.complang.tuwien.ac.at/ulrich/mergemem/
 
 It looks like it could be run periodically on your server to find and
 merge duplicate pages.  There are caveats: it would halt your httpds
@@ -1342,15 +1831,16 @@ do you think about it! Thanks>
 
 
 
-
-
 =head2 Forking and Executing Subprocesses from mod_perl
 
 In general you should not fork from your mod_perl scripts, since when
 you do, you are forking the entire Apache Web server, lock, stock and
-barrel.  Not only is your perl code being duplicated, but so is
-mod_ssl, mod_rewrite, mod_log, mod_proxy, mod_speling or whatever
-modules you have used in your server, all the core routines...
+barrel.  Not only is your Perl code and Perl interpreter being
+duplicated, but so is mod_ssl, mod_rewrite, mod_log, mod_proxy,
+mod_speling (it's not a typo!) or whatever modules you have used in
+your server, all the core routines...
+
+=head3 Spawning a Detachable Sub-Process
 
 A much better approach would be to spawn a sub-process, hand it the
 information it needs to do the task, and have it detach (close STDIN,
@@ -1359,35 +1849,38 @@ parent which spawns this process immediately continues, and does not
 wait for the sub-process to complete.  This approach is suitable for a
 situation when you want to use the Web interface to trigger a process
 which takes a long time, such as processing lots of data or sending
-email to thousands of users (no SPAM please!).  Otherwise, you should
-convert the code into a module, and call its functions and methods
-from a CGI script.
+email to thousands of registered users (no SPAM please!).  Otherwise,
+you should convert the code into a module, and call its functions and
+methods from a Perl handler or a CGI script.
 
-Just making a C<system()> call defeats the whole idea behind mod_perl.
-The Perl interpreter and modules would be loaded again for this
-external program to run if it's a Perl program. Remember that the
-backticks I<`program`> variant of system() behaves in the same way.
+Just like with fork(), using the system call C<system()> defeats the
+whole idea behind mod_perl.  The Perl interpreter and modules would be
+loaded again for this external program to run if it's a Perl
+program. Remember that the backticks (C<`program`>) and C<qx(program)>
+variants of system() behave in the same way.
 
-If you really have to use a system() call then the approach to take is
-this:
+If you really have to use system() then the approach to take is this:
 
+  spawn_process.pl
+  ----------------
   use FreezeThaw ();
   $params=FreezeThaw::freeze(
 	[all data to pass to the other process]
 	);
-  system("program.pl", $params);
+  system("detach_program.pl", $params);
 
-Notice that you do a system() call with arguments separated by commas,
-rather than passing them all as a single argument. When you use
-commas, the shell won't try to parse (tokenize) the parameters,
-therefore you don't have to worry about escaping unsafe shell
-characters. If you want the shell to parse the variables make sure to
-run the escape function, for example the one from the
-C<String::ShellQuote> package.
+Notice that we do a system() call with arguments separated by commas,
+rather than passing them all as a single argument. This calling style
+prevents the unwanted replacement of the shell metacharacters (like
+C<*>,C<?>), if some happened to be in C<$params>. We will talk about
+this in a moment.
 
-and in C<program.pl> :
+And now the source of I<detach_program.pl> :
 
+  detach_program.pl
+  -----------------
   use POSIX qw(setsid);
+  use FreezeThaw ();
   @params=FreezeThaw::thaw(shift @ARGV);
   # check that @params is ok
   close STDIN;
@@ -1396,75 +1889,117 @@ and in C<program.pl> :
   # you might need to reopen the STDERR, i.e.
   # open STDERR, ">/dev/null";
   setsid(); # to detach
+  # now do something time consuming
 
-At this point, C<program.pl> is running in the "background" while the
-C<system()> returns and permits Apache to get on with things.
+At this point, I<detach_program.pl> is running in the I<"background">
+while the call C<system()> returns and permits Apache to get on with
+things.
 
 This has obvious problems:
 
 =over 4
 
-=item * 
+=item *
 
 C<@params> must not be bigger than whatever limit is imposed by your
-architecture.  This could depend on your shell.
+architecture.
 
-=item * 
+=item *
 
-The communication is one way only.
+The communication is one way only. Once the program detached, the
+process that has spawned it has no control over it.
 
 =back
 
-However, you might be trying to do the "wrong thing".  If what you
+However, you might be trying to do the I<"wrong thing">.  If what you
 really want is to send information to the browser and then do some
-post-processing, look into the C<PerlCleanupHandler> directive.
+post-processing, look into the C<PerlCleanupHandler> directive. The
+latter allows you to tell the child process after request has been
+processed and user has received the response.
 
-If you are interested in more details, here is what actually happens
-when you fork() and make a system call such as this fragment:
+[META: example of PerlCleanupHandler code?]
 
-  system("echo Hi"),CORE::exit(0) unless fork();
 
-Notice that I use C<CORE::exit()> and not C<exit()>, which would be
-automatically overriden by C<Apache::exit()> if used in conjunction
-with C<Apache::Registry> and friends.
+=head3 Gory Details About fork()
+
+Here is what actually happens when you fork() and call system(). Let's
+take a simple fragment of code:
+
+  system("echo","Hi"),CORE::exit(0) unless fork();
 
 The above code which might be more familiar in this form:
 
   if (fork){
     #do nothing
   } else {
-    system("echo Hi");
+    system("echo","Hi");
     CORE::exit(0);
   }
 
-=over 4
+Notice that we use C<CORE::exit()> and not C<exit()>, which would be
+automatically overriden by C<Apache::exit()> if used in conjunction
+with C<Apache::Registry> and similar modules.
 
-=item 1
+In our example script the fork() call creates two execution paths, one
+for the parent and the other for the child. The fork call returns the
+PID of the spawned child to the parent process and the child process
+receives 0. Therefore we can rewrite the example as:
 
-The fork() gives you two possible execution paths, one for the parent
-and the other for the child.  The child gets some virtual memory,
-sharing a copy of the program text (read only) and a copy of the data
-space copy-on-write (remember why you pre-load modules in mod_perl?).
+  if ($pid = fork){
+    # I'm parent
+    print "parent $pid\n";
+    #do nothing
+  } else {
+    # I'm child
+    print "child $pid\n";
+    system("echo","Hi");
+    CORE::exit(0);
+  }
 
-In this example the parent will immediately continue with the code
-that comes after the fork, while the forked (child) process will
-execute 'C<system("echo Hi")>' and then terminate.
+For the sake of completeness, when you write a real code, you should
+check the return value from fork(), since if it returns C<undef> it
+means that the call was unsuccessful and no process was
+spawned. Something that can happen when the system is running too many
+processes and cannot spawn new ones.
 
-The only work to be done before the child process goes on its separate
-way is setting up the page tables for the virtual memory.
+The child shares with parent its memory pages until it has to modify
+some of them, which triggers a copy-on-write process which copies
+these pages to the child's domain before the child is allowed to
+modify them.  But this all happens afterwards.  At the moment the
+fork() call executed, the only work to be done before the child
+process goes on its separate way is setting up the page tables for the
+virtual memory, which imposes almost no delay at all.
 
-=item 2
+Unfortunately mod_perl is a big process, with a big memory pages
+table.  When the child processes executes system(), lots of things get
+loaded which creates a big overhead and tremendously slows down the
+request processing.  The whole point of mod_perl is to avoid having to
+fork() on every request.  Perl can do just about anything by itself.
 
-Next, Perl will find C</bin/echo> along the search path, and invoke it
-directly.  Perl's system() is B<not> the C<system(3)> call
-[C-library].  Only when the command has shell metacharacters (like
-C<*>,C<?>) does Perl invoke a real shell (S</bin/sh -c> on Unix
-platforms).  If there are no shell metacharacters in the argument, it
-is split into words and passed directly to C<execvp()>, which is more
-efficient.
+Let's complete the explanation of our example: the parent will
+immediately continue with the code that comes after the fork (none in
+our case), while the forked (child) process will execute
+S<system("echo","Hi")> and then quit.
 
-That's a I<very> nice optimization.  In other words, only
-if you do:
+
+=head3 Executing system() in the Right Way
+
+Let's reuse the last example and concentrate on this call:
+
+  system("echo","Hi");
+
+Perl will the first argument as a program to execute, find
+C</bin/echo> along the search path, and invoke it directly.
+
+Perl's system() is B<not> the C<system(3)> call [C-library].  How the
+arguments to system() get interpreted?  When there is a single
+argument to system(), it'll be checked for for having shell
+metacharacters first(like C<*>,C<?>), and if there are any--perl
+interpreter invokes a real shell program (S</bin/sh -c> on Unix
+platforms) which adds another delay.  If you pass a list of arguments
+to system(), they will be not checked, but split into words if
+required and passed directly to C<execvp()>, which is more efficient.
+That's a I<very> nice optimization.  In other words, only if you do:
 
   system "sh -c 'echo *'"
 
@@ -1475,50 +2010,31 @@ and replace your virtual memory page table with one pointing to the
 existing program code plus your data space.
 
 
+=head3 Avoiding Zombie Processes
 
-=item 3
+Now let's talk about zombie processes.
 
-Then the shell parses the passed command.
-
-Since it is the C<echo> utility, it will execute it as a built-in in
-the latter example or as C</bin/echo> in the former and be done, but
-this is only an example.  You aren't calling C<system("echo Hi")> in
-your mod_perl scripts, right?
-
-=back
-
-
-Most real programs (heavy programs executed as a subprocess) would
-involve repeating the process to load the specified command or script.
-This might involve some actual demand paging from the program file if
-you execute new code.
-
-The only place you will see real overhead from this scheme is when the
-parent process is huge (unfortunately like mod_perl...) and the page
-table becomes large as a side effect.  The whole point of mod_perl is
-to avoid having to fork() or exec() something on every hit.  Perl can
-do just about anything by itself.
-
-Now let's get to the gory details of forking. Normally, every process
-has its parent.  Many processes are children of the C<init> process,
-whose C<PID> is C<1>. When you fork a process you must wait() or
-waitpid() for it to finish.  If you don't wait for it, it becomes a
-zombie.
+Normally, every process has its parent.  Many processes are children
+of the C<init> process, whose C<PID> is C<1>. When you fork a process
+you must wait() or waitpid() for it to finish.  If you don't wait()
+for it, it becomes a zombie.
 
 A zombie is a process that doesn't have a parent.  When the child
-quits, it reports the termination to its parent.  If no parent
-wait()s to collect the exit status of the child, it gets "confused"
-and becomes a ghost process, that can be seen, but not killed.  It
-will be killed only when you stop the httpd process that spawned it!
+quits, it reports the termination to its parent.  If no parent wait()s
+to collect the exit status of the child, it gets I<"confused"> and
+becomes a ghost process, that can be seen as a process, but not
+killed.  It will be killed only when you stop the parent process that
+spawned it!
 
-Generally the ps() utility displays these processes with the
-C<E<lt>defuncE<gt>> tag, and you will see the zombies counter increment when
-doing top().  These zombie processes can take up system resources and
-are generally undesirable.
+Generally the ps(1) utility displays these processes with the
+C<E<lt>defuncE<gt>> tag, and you will see the zombies counter
+increment when doing top().  These zombie processes can take up system
+resources and are generally undesirable.
 
 So the proper way to do a fork is:
 
-  print "Content-type: text/plain\r\n\r\n";
+  my $r = shift;
+  $r->send_http_header('text/plain');
   
   defined (my $kid = fork) or die "Cannot fork: $!";
   if ($kid) {
@@ -1531,43 +2047,45 @@ So the proper way to do a fork is:
 
 In most cases the only reason you would want to fork is when you need
 to spawn a process that will take a long time to complete.  So if the
-server child that spawns this process has to wait for it to finish,
-you have gained nothing. You can neither wait for its completion, nor
-continue because you will get yet another zombie process. This is
-called a blocking call, since the process is blocked to so anything
-else before this call gets completed.
+Apache process that spawns this new child process has to wait for it
+to finish, you have gained nothing. You can neither wait for its
+completion (because you don't have the time to), nor continue because
+you will get yet another zombie process. This is called a blocking
+call, since the process is blocked to do anything else before this
+call gets completed.
 
-The simplest solution is to ignore your dead children.  This doesn't
-work everywhere, however.
-
-META: do you know where? tell me!!!  It works with linux!:)
+The simplest solution is to ignore your dead children. Just add this
+line before the fork() call:
 
   $SIG{CHLD} = IGNORE;
 
-When you set the C<CHLD> signal handler to C<IGNORE>, all the
-processes will be collected by the C<init> process and are therefore
-prevented from becoming zombies.
+When you set the C<CHLD> (C<SIGCHLD> in C) signal handler to
+C<IGNORE>, all the processes will be collected by the C<init> process
+and are therefore prevented from becoming zombies.  This doesn't work
+everywhere, however. It proved to work at least on Linux OS.
 
 Note that you cannot localize this setting with C<local()>.  If you
 do, it won't have the desired effect.
 
-META: Anyone like to explain why it doesn't work?
+[META: Anyone like to explain why it doesn't work?]
 
 The other thing that you must do is to close all the pipes to the
-connection socket that were opened by the parent process (C<STDIN> and
-C<STDOUT>) and inherited by the child, so the parent will be able to
-complete the request and free itself for serving other requests.  You
-may need to close and reopen the C<STDERR> filehandle.  It's opened to
-append to the I<error_log> file as inherited by its parent, so chances
-are that you will want to leave it untouched.
+connection socket that were opened by the parent process
+(i.e. C<STDIN> and C<STDOUT>) and inherited by the child, so the
+parent will be able to complete the request and free itself for
+serving other requests.  You may need to close and reopen the
+C<STDERR> filehandle.  It's opened to append to the I<error_log> file
+as inherited from its parent, so chances are that you will want to
+leave it untouched.
 
 Of course if your child needs any of the C<STDIN>, C<STDOUT> or
-C<STDERR> streams you should reopen them. But you must untie the parent
-process, so you should close them first.
+C<STDERR> streams you should reopen them. But you must untie the
+parent process, so you should close them first.
 
 So now the code would look like this:
 
-  print "Content-type: text/plain\r\n\r\n";
+  my $r = shift;
+  $r->send_http_header('text/plain');
   
   $SIG{CHLD} = IGNORE;
   
@@ -1582,13 +2100,14 @@ So now the code would look like this:
       CORE::exit(0);
   }
 
-Note that waitpid() call has gone. The C<$SIG{CHLD} = IGNORE;>
+Note that waitpid() call has gone. The S<$SIG{CHLD} = IGNORE;>
 statement protects us from zombies, as explained above.
 
 Another, more portable, but slightly more expensive solution is to use
 a double fork approach.
 
-  print "Content-type: text/plain\r\n\r\n";
+  my $r = shift;
+  $r->send_http_header('text/plain');
   
   defined (my $kid = fork) or die "Cannot fork: $!\n";
   if ($kid) {
@@ -1608,11 +2127,11 @@ a double fork approach.
     }
   }
 
-Grandkid becomes a I<"child of init">, i.e. the parent process ID is
-1.
+Grandkid becomes a I<"child of init">, i.e. the child of the process
+whose PID is 1.
 
 Note that the previous two solutions do allow you to know the exit
-status of the process, but in our case we don't want to.
+status of the process, but in our example we didn't care about it.
 
 Another solution is to use a different I<SIGCHLD> handler:
 
@@ -1630,16 +2149,17 @@ blocking if there happens to be no child ready for reaping.  The
 handler will loop until waitpid() returns a negative number or zero,
 indicating that no more reapable children remain.
 
-You will probably want to open your own log file in the spawned
-process and log some information (at least while debugging your code)
-so you know what has happened.
+While you test and debug your code that uses one of the above
+examples, You might want to write some debug information to the
+error_log file so you know what happens.
+
+Read I<perlipc> manpage for more information about signal handlers.
+
 
 Check also L<Apache::SubProcess|modules/Apache__SubProcess> for better
 system() and exec() implementations for mod_perl.
 
 META: why is it a better thing to use?
-
-Read I<perlipc> manpage for more information about signal handlers.
 
 
 
@@ -1660,10 +2180,6 @@ OSes|scenario/Setting_the_Buffering_Limits_on_>
 
 =head1 Performance Tuning by Tweaking Apache Configuration
 
-
-
-
-
 Correct configuration of the C<MinSpareServers>, C<MaxSpareServers>,
 C<StartServers>, C<MaxClients>, and C<MaxRequestsPerChild> parameters
 is very important.  There are no defaults.  If they are too low, you
@@ -1676,8 +2192,8 @@ you run many servers since the processes are about 1Mb and don't eat a
 lot of your RAM.  Generally the numbers are even smaller with memory
 sharing.  The situation is different with mod_perl.  I have seen
 mod_perl processes of 20Mb and more.  Now if you have C<MaxClients>
-set to 50: 50x20Mb = 1Gb.  Do you have 1Gb of RAM?  Maybe not.  So
-how do you tune the parameters?  Generally by trying different
+set to 50: 50x20Mb = 1Gb.  Do you have 1Gb of RAM?  Maybe not.  So how
+do you tune the parameters?  Generally by trying different
 combinations and benchmarking the server.  Again mod_perl processes
 can be of much smaller size with memory sharing.
 
@@ -2239,6 +2755,9 @@ And the code:
     write;
   }
 
+
+
+
 =head2 Choosing MaxClients
 
 The C<MaxClients> directive sets the limit on the number of
@@ -2285,7 +2804,7 @@ It's important to understand how much real memory a child occupies.
 Your children can share memory between them when the OS supports that.
 You must take action to allow the sharing to happen - See L<Preload
 Perl modules at server
-startup|performance/Preload_Perl_Modules_at_Server_S>.  If you do
+startup|performance/Preloading_Perl_Modules_at_Serve>.  If you do
 this, the chances are that your C<MaxClients> can be even higher.  But
 it seems that it's not so simple to calculate the absolute number.  If
 you come up with a solution please let us know!  If the shared memory
@@ -2301,8 +2820,6 @@ which is:
                     Total_RAM - Max_Process_Size
   MaxClients = ---------------------------------------
                Max_Process_Size - Shared_RAM_per_Child
-
-
 
 Let's roll some calculations:
 
@@ -2373,7 +2890,7 @@ latter module allows you to kill any servers whose shared memory size
 drops below a specified limit.
 
 See also L<Preload Perl modules at server
-startup|performance/Preload_Perl_Modules_at_Server_S> and L<Sharing
+startup|performance/Preloading_Perl_Modules_at_Serve> and L<Sharing
 Memory|performance/Sharing_Memory>. 
 
 
@@ -2749,7 +3266,6 @@ We see that the four open() calls for I<.htaccess> have gone.
   stat("/home/httpd/docs", 
 	{st_mode=S_IFDIR|0755, st_size=1024, ...}) = 0
 
-
 Let's try to shortcut the I<foo> location with:
 
   Alias /foo /
@@ -2814,19 +3330,24 @@ in the normal way (no C<E<lt>PerlE<gt>> section required.
 
 
 
-=head1 TMTOWTDI: Convenience and Performance
+=head1 TMTOWTDI: Convenience and Habit versus Performance
 
-TMTOWTDI, or "There Is More Than One Way To Do It" is the main motto
-of Perl. Unfortunately when you come to the point where performance is
-the goal, you might have to learn what's more efficient and what's
-not. Of course it might mean that you will have to use something that
-you don't really like, it might be less convenient or it might be just
-a matter of habit that one should change.
+TMTOWTDI (sometimes pronounced I<"tim toady">), or I<"There's More
+Than One Way To Do It"> is the main motto of Perl.  In other words,
+you can gain the same goal by coding in many different styles, using
+different modules and deploying the same modules in different ways.
 
-So this section is about performance trade-offs. For each comparison
-we will provide the theoretical difference and then run benchmarks to
-support the theory, since however good the theory its the numbers we
-get in practice that matter.
+Unfortunately when you come to the point where performance is the
+goal, you might have to learn what's more efficient and what's not.
+Of course it might mean that you will have to use something that you
+don't really like, it might be less convenient or it might be just a
+matter of habit that one should change.
+
+So this section is about performance trade-offs.  For almost each
+comparison we will provide the theoretical difference and then run
+benchmarks to support the theory, since however good the theory its
+the numbers we get in practice that matter.
+
 
 The following SW/HW is used for the benchmarking purposes:
 
@@ -3425,40 +3946,6 @@ B<Conclusion>: Do not blindly follow suggestions, but think what is best for
 you in each case.
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-=head1 Performance Oriented Perl Coding
-
-One of the components of the mod_perl server's performance is the Perl
-code that you use. If you write code that runs slowly, the overall
-performance is slower. This section is intended to give you some hints
-to make your code, whose main purpose is to generate webpages, run
-faster. Bear in mind that the performance considerations might be
-totally different when you use Perl for other tasks.
-
-
-
-
-
 =head2 Global vs Fully Qualified Variables 
 
 It's always a good idea to avoid global variables where possible.
@@ -3775,10 +4262,34 @@ When the strings are small, it's almost doesn't matter whether
 a concatination or a list is used:
 
   use Benchmark;
-  
-  open my $fh, '>', '/dev/null';
-  
+  use Symbol;
+  my $fh = gensym;
+  open $fh, ">/dev/null" or die;
+    
   my($one, $two, $three, $four) = ('a'..'d');
+  
+  timethese(1_000_000,
+	  {
+	   concat => sub {
+	     print $fh "$one$two$three$four";
+	   },
+	   list => sub {
+	     print $fh $one, $two, $three, $four;
+	   },
+	  });
+
+Benchmark: timing 1000000 iterations of concat, list...
+    concat:  5 wallclock secs ( 4.76 usr +  0.00 sys =  4.76 CPU)
+      list:  4 wallclock secs ( 4.30 usr +  0.00 sys =  4.30 CPU)
+
+When the strings are big lists are faster:
+
+  use Benchmark;
+  use Symbol;
+  my $fh = gensym;
+  open $fh, ">/dev/null" or die;
+  
+  my($one, $two, $three, $four) = map { $_ x 1000 } ('a'..'d');
   
   timethese(500_000,
 	  {
@@ -3790,34 +4301,11 @@ a concatination or a list is used:
 	   },
 	  });
 
-
   Benchmark: timing 500000 iterations of concat, list...
-    concat:  8 wallclock secs ( 6.63 usr +  0.04 sys =  6.67 CPU)
-      list:  8 wallclock secs ( 6.49 usr +  0.01 sys =  6.50 CPU)
+      concat: 10 wallclock secs ( 9.04 usr +  0.53 sys =  9.57 CPU)
+        list:  6 wallclock secs ( 5.72 usr +  0.56 sys =  6.28 CPU)
 
-When the strings are big lists are faster:
-
-  use Benchmark;
-  
-  open my $fh, '>', '/dev/null';
-  
-  my($one, $two, $three, $four) = map { $_ x 1000 } ('a'..'d');
-  
-  timethese(100_000,
-	  {
-	   concat => sub {
-	     print $fh "$one$two$three$four";
-	   },
-	   list => sub {
-	     print $fh $one, $two, $three, $four;
-	   },
-	  });
-
-  Benchmark: timing 100000 iterations of concat, list...
-    concat: 13 wallclock secs (11.88 usr +  0.51 sys = 12.39 CPU)
-      list: 11 wallclock secs (10.13 usr +  0.21 sys = 10.34 CPU)
-
-A list is almost 17% faster than concatination.
+A list is almost 50% faster than concatenation.
 
 Also when you use I<"string"> you use interpolation (since C<""> is an
 operator in Perl), which turns into concatination, which uses more
@@ -3836,18 +4324,18 @@ hints
 
 
 
-=head2 Cached stat() Calls by Perl
+=head2 Using Perl stat() Call's Cached Results
 
 When you do a stat() (or its variations C<-M> -- last modification
 time, C<-A> -- last access time, C<-C> -- last inode-change time,
-etc), the information is cached.  If you need to make an additional
-check for the same file, use the C<_> magic variable and save the
-overhead of an unnecessary stat() call.  For example when testing for
-existence and read permissions you might use:
+etc), the returned information is cached internally.  If you need to
+make an additional check for the same file, use the C<_> magic
+variable and save the overhead of an unnecessary stat() call.  For
+example when testing for existence and read permissions you might use:
 
   my $filename = "./test";
     # three stat() calls
-  print "OK\n" if -e $filename and -r $filename; 
+  print "OK\n" if -e $filename and -r $filename;
   my $mod_time = (-M $filename) * 24 * 60 * 60;
   print "$filename was modified $mod_time seconds before startup\n";
 
@@ -3859,8 +4347,7 @@ or the more efficient:
   my $mod_time = (-M _) * 24 * 60 * 60;
   print "$filename was modified $mod_time seconds before startup\n";
 
-Two stat() syscalls saved!
-
+Two stat() calls saved!
 
 
 
@@ -4264,16 +4751,17 @@ C<Apache::Resource> uses the C<BSD::Resource> module, which in turn
 uses the C function C<setrlimit()> to set limits on system resources
 such as memory and cpu usage.
 
-To configure:
+Configuration example:
 
+    # preload the module
   PerlModule Apache::Resource
-    # set child memory limit in megabytes
+  
+    # set child memory limit (DATA segment) in megabytes
     # (default is 64 Meg)
   PerlSetEnv PERL_RLIMIT_DATA 32:48
-  
     # set child CPU limit in seconds
     # (default is 360 seconds)
-  PerlSetEnv PERL_RLIMIT_CPU 120
+  PerlSetEnv PERL_RLIMIT_CPU 120:360
   
   PerlChildInitHandler Apache::Resource
 
@@ -4494,7 +4982,7 @@ method with a NOP.  When a child exits there is no explicit
 disconnect, the child dies and so does the database connection.  You
 may leave the C<use DBI;> statement inside the scripts as well.
 
-The usage is simple -- add to C<httpd.conf>:
+The usage is simple -- add to I<httpd.conf>:
 
   PerlModule Apache::DBI
 
@@ -4503,7 +4991,7 @@ C<DBD::*> and C<ApacheDBI*> modules!
 
   db.pl
   ------------
-  use DBI;
+  use DBI ();
   use strict;
   
   my $dbh = DBI->connect( 'DBI:mysql:database', 'user', 'password',
@@ -4816,7 +5304,7 @@ Here is an example of such a package:
   package My::DB;
   
   use strict;
-  use DBI;
+  use DBI ();
   
   sub connect {
 	if (defined $My::DB::conn) {
@@ -4966,17 +5454,101 @@ handlers.
 
 
 
+=head1 Apache/mod_perl Build Options
+
+It's important how you build mod_perl enabled Apache. It influences
+the size of the httpd executable, some irrelevant modules might slow
+the performance.
+
+[ReaderMETA: Any other building time things that influence performance?]
+
+
+=head2 mod_perl Process Size as a Function of Compiled in C Modules and mod_perl Features
+
+You might wonder whether it's better to compile in only the required
+modules and mod_perl hooks, or it doesn't really matter. To answer on
+this question lets first make a few compilation and compare the
+results.
+
+So we are going to build mod_perl starting with:
+
+  % perl Makefile.PL APACHE_SRC=../apache_x.x.x/src \
+         DO_HTTPD=1 USE_APACI=1
+
+and followed by one of these option groups:
+
+=over
+
+=item 1 Default
+
+I<no arguments>
+
+=item 1 Minumum
+
+  APACI_ARGS='--disable-module=env, \
+              --disable-module=negotiation, \
+              --disable-module=status, \
+              --disable-module=info, \
+              --disable-module=include, \
+              --disable-module=autoindex, \
+              --disable-module=dir, \
+              --disable-module=cgi, \
+              --disable-module=asis, \
+              --disable-module=imap, \
+              --disable-module=userdir, \
+              --disable-module=access, \
+              --disable-module=auth'
+
+=item 1 Everything
+
+  EVERYTHING=1
+
+=item 1 Everything + Debug
+
+  EVERYTHING=1 PERL_DEBUG=1
+
+=back
+
+After re-compiling with arguments of each of these groups, we can
+summarize the results:
+
+  Build group    httpd size (bytes)  Difference
+  ---------------------------------------------
+  Minumum              892928         +     0
+  Default              994316         +101388
+  Everything          1044432         +151504
+  Everything+Debug    1162100         +269172
+
+
+Indeed when you strip most of the default things, the server size is
+slimmer.  But the savings are insignificant since you don't muliply
+the added size by the number of child processes if your OS supports
+sharing memory.  The parent processes is a little bigger, but it
+shares these memory pages with its child processes. Of course not
+everything will be shared, if some module you add does some process
+memory modification particular to the process, but the most will.
+
+And of course this was just an example to show the difference is
+size. It doesn't mean that you can everything away, since there will
+be Apache modules and mod_perl options that you won't be able to work
+without.
+
+But as a good system administrator's rule says: I<"Run the absolute
+minimum of the applications. If you don't know or need something,
+disable it">. Following this rule to decide on the required Apache
+components and disabling the unneeded default components, makes you a
+good Apache administrator.
 
 
 
 =head1 Perl Build Options
 
 
-The perl interpreter lays in the brain of the mod_perl server and if we
-can optimize perl into doing things faster under mod_perl we make the whole
-server faster. Generally, optimizing the perl interpreter means enabling
-or disabling some command line options. Let's see a few important
-ones.
+The Perl interpreter lays in the brain of the mod_perl server and if
+we can optimize perl into doing things faster under mod_perl we make
+the whole server faster. Generally, optimizing the Perl interpreter
+means enabling or disabling some command line options. Let's see a few
+important ones.
 
 
 =head2 -DTWO_POT_OPTIMIZE and -DPACK_MALLOC Perl Build Options

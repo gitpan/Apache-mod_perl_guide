@@ -1,4 +1,4 @@
-package Guide::Pod2Html;
+package Pod::HtmlPsPdf::Html;
 
 use Pod::Functions;
 use Getopt::Long;	# package for handling command-line parameters
@@ -146,7 +146,9 @@ Display progress messages.
 
 =head1 AUTHOR
 
-Tom Christiansen, E<lt>tchrist@perl.comE<gt>.
+Originally written by Tom Christiansen, E<lt>tchrist@perl.comE<gt>.
+
+Modified by Stas Bekman E<lt>stas@stason.orgE<gt>.
 
 =head1 BUGS
 
@@ -164,7 +166,9 @@ This program is distributed under the Artistic License.
 
 use vars qw($OUT);
 
-my $HR = qq{<P><B><FONT SIZE=-1><A HREF="#toc">[TOC]</A></FONT></B><HR WIDTH="100%"></P>};
+#my $HR = qq{<P><B><FONT SIZE=-1><A HREF="#toc">[TOC]</A></FONT></B></P><HR>};
+my $HR = qq{<HR>};
+
 
 my $dircache = "pod2html-dircache";
 my $itemcache = "pod2html-itemcache";
@@ -209,7 +213,6 @@ my %items = ();			# associative array used to find the location
 				#   of =item directives referenced by C<> links
 my $Is83;                       # is dos with short filenames (8.3)
 
-my $nav_bar = '';
 
 sub init_globals {
 
@@ -275,10 +278,7 @@ sub pod2html {
     $htmlroot = shift;
     $verbose  = shift;
     my $r_html_data = shift;
-    my $rh_main_toc  = shift;  # a list of TableOfContents
-    my $mod_time    = shift || '';
-    my $prev_page   = shift || '';
-    my $next_page   = shift || '';
+    my $rh_main_toc = shift;  # a list of TableOfContents
     my $curr_page   = shift || '';
     my $curr_page_index = shift || '';
     $r_valid_anchors  = shift || {};
@@ -291,14 +291,6 @@ sub pod2html {
 
     local($/);
     local $_;
-
-      # Build a navigation bar
-    $nav_bar  = '';
-    $nav_bar .= "[ ";
-    $nav_bar .= $prev_page ? qq{   <A HREF="$prev_page">Prev</A> |   } : '';
-    $nav_bar .=              qq{   <A HREF="index.html">Main Page</A>}     ;
-    $nav_bar .= $next_page ? qq{ | <A HREF="$next_page">Next</A>     } : '';
-    $nav_bar .= " ]";
 
 
 #     # Strip escapes "\'" and '\"' from words like "it\'s"
@@ -319,24 +311,38 @@ sub pod2html {
     # read the pod a paragraph at a time
     warn "Scanning for sections in input file(s)\n" if $verbose;
 
+      # must be performed before the index creation, so the first
+      # header will not enter into the index but serve only as a header
+
+      # put a title in the HTML file
+    $title = '';
+    TITLE_SEARCH: {
+	for (my $i = 0; $i < @poddata; $i++) { 
+	    if ($poddata[$i] =~ /^=head1\s*(.*)/) {
+	      # remove the title so it wouldn't show up among the
+	      # section names!
+	      shift @poddata;
+	      $title = $1, last TITLE_SEARCH;
+	    }
+	}
+    }
+
     # scan the pod for =head[1-6] directives and build an index
     my $index = scan_headings(\%sections, @poddata);
+
 
     unless($index) {
 	warn "No pod in $podfile\n" if $verbose;
 	return;
     }
 
-    # put a title in the HTML file
-    $title = '';
-    TITLE_SEARCH: {
-	for (my $i = 0; $i < @poddata; $i++) { 
-	    if ($poddata[$i] =~ /^title:\s*(.*)/) {
-	      $title = $1, last TITLE_SEARCH;
-	    } 
-
-	} 
-    } 
+#    TITLE_SEARCH: {
+#	for (my $i = 0; $i < @poddata; $i++) { 
+#	    if ($poddata[$i] =~ /^title:\s*(.*)/) {
+#	      $title = $1, last TITLE_SEARCH;
+#	    } 
+#	} 
+#    } 
 
     if (!$title and $podfile =~ /\.pod$/) {
 	# probably a split pod so take first =head[12] as title
@@ -367,22 +373,10 @@ sub pod2html {
           # link like warnings# which points to the page itself
     $r_valid_anchors->{$curr_base."/"} = $title;
 
-#print $index;
-#    $OUT .= <<END_OF_HEAD;
-#<HTML>
-#<HEAD>
-#<TITLE>$title</TITLE>
-#<LINK REV="made" HREF="mailto:$Config{perladmin}">
-#</HEAD>
-#
-#<BODY>
-#
-#END_OF_HEAD
       # start the HTML
     add_header($title);
 
-    $OUT .= $nav_bar;
-    $OUT .= "<HR>";
+    $OUT .= $HR;
 
     # load/reload/validate/cache %pages and %items
     get_cache($dircache, $itemcache, \@podpath, $podroot, $recurse);
@@ -395,36 +389,13 @@ sub pod2html {
     # that way some other program can extract it if desired.
     $index =~ s/--+/-/g;
     $OUT .= "<!-- INDEX BEGIN -->\n";
-    $OUT .= qq{<P><B><FONT SIZE=-1>Table of Contents:</FONT></B></P>};
+    $OUT .= qq{<A NAME="toc"></A>\n};
+    $OUT .= qq{<P><B>Table of Contents:</B></P>\n};
     $OUT .= "<!--\n" unless $doindex;
     $OUT .= $index;
     $OUT .= "-->\n" unless $doindex;
     $OUT .= "<!-- INDEX END -->\n\n";
-    $OUT .= "<HR>";
-    $OUT .= qq{
-
-	     The <a href="http://www.modperl.com/">
-	     <B>Writing Apache Modules with Perl and C</B></a>
-	     book can be purchased online from <a
-	     href="http://www.ora.com/catalog/wrapmod/">O\'Reilly </a>
-	     and <a
-	     href="http://www.amazon.com/exec/obidos/ASIN/156592567X/writinapachemodu">
-	     Amazon.com</a>.
-
-	     <HR>
-
-	       <B>Your corrections of either technical or grammatical
-	       errors are very welcome. You are encouraged to help me
-	       to improve this guide.  If you have something to
-	       contribute please <A
-	       HREF="help.html#Contacting_me"> send it
-	       directly to me</A>.
-	       </B>
-	       <HR>
-
-	      };
-
-    $OUT .= "$HR\n" if $doindex;
+#    $OUT .= "$HR\n" if $doindex;
 
     # now convert this file
     warn "Converting input file\n" if $verbose;
@@ -484,14 +455,8 @@ sub pod2html {
       # add the last <HR>
     $OUT .= $HR;
 
-#    $OUT .= <<END_OF_TAIL;
-#</BODY>
-#
-#</HTML>
-#END_OF_TAIL
-
-      # add the tail and pass the modification time
-    add_tail($mod_time);
+      # add the tail
+    add_tail();
 
     $rh_main_toc->{$curr_page} = $full_index;
 
@@ -509,27 +474,9 @@ sub add_header{
   $OUT .= qq{<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
 <HTML>
 <HEAD>
-   <TITLE>mod_perl guide: $title</TITLE>
-   <META NAME="GENERATOR" CONTENT="Pod2HTML [Perl/Linux]">
-   <META NAME="Author" CONTENT="Stas Bekman">
-   <META NAME="Description" CONTENT="All Apache/Perl related information: Hints, Guidelines, Scenarios and Troubleshottings">
-   <META NAME="keywords" CONTENT="mod_perl modperl perl apache cgi webserver speed  fast guide mod_perl apache guide help info faq mod_perl installation cgi troubleshooting help no sex speedup free open source OSS mod_perl apache guide">
-</HEAD>
-     <LINK REL=STYLESHEET TYPE="text/css"
-        HREF="style.css" TITLE="refstyle">
-     <style type="text/css">
-     <!-- 
-        \@import url(style.css);
-     -->
-     
-     </style>
-<BODY BGCOLOR="white">
-<A NAME="toc"></A>
-<H1 ALIGN=CENTER>
-<A HREF="http://perl.apache.org"><IMG SRC="images/mod_perl.gif" ALT="Mod Perl Icon" BORDER=0 HEIGHT=30 WIDTH=90 ALIGN=LEFT></A>
-<A HREF="http://perl.apache.org"><IMG SRC="images/mod_perl.gif" ALT="Mod Perl Icon" BORDER=0 HEIGHT=30 WIDTH=90 ALIGN=RIGHT></A>
-$title</H1>
-<HR WIDTH="100%">
+   <TITLE>$title</TITLE>
+<BODY>
+<H1 ALIGN=CENTER>$title</H1>
 	    }
 
 
@@ -537,63 +484,12 @@ $title</H1>
 
 
 sub add_tail{
-  my $mod_time = shift || '';
 
   $OUT .= qq{
-	     The <a href="http://www.modperl.com/">
-	     <B>Writing Apache Modules with Perl and C</B></a>
-	     book can be purchased online from <a
-	     href="http://www.ora.com/catalog/wrapmod/">O\'Reilly </a>
-	     and <a
-	     href="http://www.amazon.com/exec/obidos/ASIN/156592567X/writinapachemodu">
-	     Amazon.com</a>.
-
-	     <HR>
-
-	     <B>Your corrections of either technical or grammatical
-	     errors are very welcome. You are encouraged to help me
-	     to improve this guide.  If you have something to
-	     contribute please <A
-	     HREF="help.html#Contacting_me"> send it
-	     directly to me</A>.</B>
-
-	     <HR>
-
-	     $nav_bar
-
-<CENTER><TABLE CELLSPACING=2 CELLPADDING=2 WIDTH="100%" >
-<TR ALIGN=CENTER VALIGN=TOP>
-  <TD ALIGN=CENTER VALIGN=CENTER COLSPAN="3">
-	     <HR>
-  </TD>
-</TR>
-<TR ALIGN=CENTER VALIGN=TOP>
-  <TD ALIGN=CENTER VALIGN=CENTER>
-    <B>
-      <FONT SIZE=-1>
-	     Written by <A HREF="help.html#Contacting_me">Stas Bekman</A>.
-	     <BR>Last Modified at $mod_time
-      </FONT>
-    </B>
-  </TD>
-
-  <TD>
-	     <A HREF="http://perl.apache.org"><IMG SRC="images/mod_perl2.jpg" ALT="Mod Perl Icon" BORDER=0 HEIGHT=59 WIDTH=150></A>
-  </TD>
-
-  <TD>
-    <FONT SIZE=-2>
-	     Use of the Camel for Perl is <BR>
-	     a trademark of <A HREF="http://www.ora.com">O\'Reilly &amp; Associates</A>,<BR>
-             and is used by permission. 
-    </FONT> 
-  </TD>
-</TR>
-</TABLE></CENTER>
 
 </BODY>
 </HTML>
-	    };
+};
 
 } # end of add_tail
 
@@ -1363,9 +1259,9 @@ sub process_text {
         )
       }{<A HREF="$1">$1</A>}igox;
 
-	$result =   "<PRE>"	# text should be as it is (verbatim)
-		  . "$rest\n"
-		  . "</PRE>\n";
+        # text should be as it is (verbatim)
+        $result = "<PRE>$rest</PRE>"
+
     } else {			# formatted text
 	# parse through the string, stopping each time we find a
 	# pod-escape.  once the string has been throughly processed
